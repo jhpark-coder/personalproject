@@ -4,6 +4,7 @@ import backend.fitmate.User.entity.User;
 import backend.fitmate.service.EmailVerificationService;
 import backend.fitmate.User.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -12,7 +13,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = "${app.frontend.url}")
 public class AuthController {
 
     @Autowired
@@ -125,6 +126,15 @@ public class AuthController {
             Map<String, Object> response = new HashMap<>();
             response.put("success", false);
             response.put("message", "이메일 주소를 입력해주세요.");
+            return ResponseEntity.badRequest().body(response);
+        }
+
+        // 이메일 중복 검사
+        boolean emailExists = userService.isEmailExists(email);
+        if (emailExists) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", "이미 사용 중인 이메일입니다.");
             return ResponseEntity.badRequest().body(response);
         }
 
