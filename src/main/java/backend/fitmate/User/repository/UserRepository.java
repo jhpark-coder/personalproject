@@ -43,4 +43,14 @@ public interface UserRepository extends JpaRepository<User, Long> {
      * 휴대전화번호 존재 여부 확인
      */
     boolean existsByPhoneNumber(String phoneNumber);
+    
+    /**
+     * OAuth2 제공자와 OAuth2 ID로 사용자 조회
+     */
+    Optional<User> findByOauthProviderAndOauthId(String oauthProvider, String oauthId);
+    
+    /**
+     * OAuth2 제공자로 사용자 조회
+     */
+    Optional<User> findByOauthProvider(String oauthProvider);
 } 

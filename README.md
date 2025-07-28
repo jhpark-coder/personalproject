@@ -1,172 +1,146 @@
-# FitMate 프로젝트
+# FitMate - Auth.js OAuth2 프로젝트
 
-Spring Boot 백엔드와 React 프론트엔드로 구성된 피트니스 매칭 플랫폼입니다.
-
-## 🏗️ 아키텍처
-
-### **백엔드 (Docker)**
-- Spring Boot 애플리케이션
-- MySQL 데이터베이스
-- Redis 캐시
-- 포트: 8080
-
-### **프론트엔드 (로컬 개발)**
-- React 애플리케이션
-- 개발 서버: 5173
-- API 통신: http://localhost:8080
+React + TypeScript + Vite로 구축된 OAuth2 인증 시스템입니다.
 
 ## 🚀 빠른 시작
 
-### 1. 백엔드 실행 (Docker)
+### 1. 의존성 설치
 ```bash
-# 백엔드 스택 실행 (MySQL, Redis, Spring Boot)
-docker-compose up -d
-
-# 로그 확인
-docker-compose logs -f backend
-
-# 중지
-docker-compose down
+npm install
 ```
 
-### 2. 프론트엔드 실행 (로컬)
+### 2. 환경변수 설정
+프로젝트 루트에 `.env` 파일을 생성하고 다음 내용을 추가하세요:
+
+```env
+# OAuth2 클라이언트 설정
+VITE_GOOGLE_CLIENT_ID=your_google_client_id
+VITE_GOOGLE_CLIENT_SECRET=your_google_client_secret
+
+VITE_KAKAO_CLIENT_ID=your_kakao_client_id
+VITE_KAKAO_CLIENT_SECRET=your_kakao_client_secret
+
+VITE_NAVER_CLIENT_ID=your_naver_client_id
+VITE_NAVER_CLIENT_SECRET=your_naver_client_secret
+```
+
+### 3. 개발 서버 실행
 ```bash
-cd frontend
-npm install
-npm start
+npm run dev
 ```
 
 ## 📁 프로젝트 구조
 
 ```
-fitmate/
-├── src/main/java/backend/fitmate/    # Spring Boot 백엔드
-├── src/main/resources/               # 설정 파일
-├── frontend/                         # React 프론트엔드 (로컬 개발)
-├── Dockerfile                        # 백엔드 Docker 설정
-├── docker-compose.yml               # 백엔드 스택 Docker 설정
-└── README.md
+src/
+├── components/
+│   ├── LoginPage.tsx      # 로그인 페이지
+│   ├── LoginPage.css
+│   ├── OAuth2Callback.tsx # OAuth2 콜백 처리
+│   ├── OAuth2Callback.css
+│   ├── Dashboard.tsx      # 대시보드
+│   └── Dashboard.css
+├── auth.ts                # OAuth2 인증 유틸리티
+├── App.tsx               # 메인 앱 컴포넌트
+└── main.tsx              # 앱 진입점
 ```
 
-## 🔧 환경 설정
-
-### 프로필 설정
-- `dev`: 개발 환경 (MySQL, Redis, 이메일 인증)
-- `prod`: 운영 환경
-
-### 데이터베이스 설정
-- **개발**: MySQL (localhost:3306)
-- **운영**: MySQL (운영 서버)
-
-### Redis 설정
-- **개발**: localhost:6379
-- **운영**: 운영 Redis 서버
-
-### 이메일 설정
-- **SMTP**: Gmail (smtp.gmail.com:587)
-- **인증**: 이메일 인증 코드 (6자리, 5분 유효)
-
-## 🔐 소셜 로그인
+## 🔐 OAuth2 제공자 설정
 
 ### Google OAuth2
-- Client ID: `581520849563-mragtke8gp7fdb83llmkhcdpnk2rrrg7.apps.googleusercontent.com`
-- Redirect URI: `http://localhost:5173/auth/google/callback`
+1. [Google Cloud Console](https://console.cloud.google.com/)에서 프로젝트 생성
+2. OAuth2 클라이언트 ID 생성
+3. 승인된 리디렉션 URI: `http://localhost:5173/auth/google/callback`
 
 ### Kakao OAuth2
-- Client ID: `d9172ea77330ceeeabb05429a4af6c36`
-- Redirect URI: `http://localhost:5173/auth/kakao/callback`
+1. [Kakao Developers](https://developers.kakao.com/)에서 앱 생성
+2. 플랫폼 설정에서 웹 플랫폼 추가
+3. 리디렉션 URI: `http://localhost:5173/auth/kakao/callback`
 
 ### Naver OAuth2
-- Client ID: `Shnb5z_iDjpbIA67H7B_`
-- Redirect URI: `http://localhost:5173/auth/naver/callback`
+1. [Naver Developers](https://developers.naver.com/)에서 애플리케이션 등록
+2. 서비스 URL: `http://localhost:5173`
+3. Callback URL: `http://localhost:5173/auth/naver/callback`
 
-## 📧 이메일 인증
+## 🎯 주요 기능
 
-### API 엔드포인트
-- `POST /api/auth/send-verification-email`: 인증 코드 발송
-- `POST /api/auth/verify-email-code`: 인증 코드 검증
-- `POST /api/auth/resend-verification-email`: 재발송
+### ✅ 구현된 기능
+- **OAuth2 인증**: Google, Kakao, Naver 로그인
+- **프론트엔드 콜백 처리**: React에서 직접 OAuth2 처리
+- **사용자 정보 관리**: 로컬 스토리지 기반
+- **반응형 디자인**: 모바일 친화적 UI
+- **TypeScript 지원**: 타입 안전성 보장
 
-### 기능
-- 6자리 랜덤 숫자 코드
-- 5분 유효 기간 (Redis TTL)
-- 자동 만료 처리
+### 🔄 인증 흐름
+1. 사용자가 소셜 로그인 버튼 클릭
+2. OAuth2 제공자 인증 페이지로 리다이렉트
+3. 인증 후 프론트엔드 콜백 URL로 리다이렉트
+4. 토큰 교환 및 사용자 정보 가져오기
+5. 대시보드로 이동
 
-## 🐳 Docker 명령어
+## 🛠️ 기술 스택
+
+- **Frontend**: React 18 + TypeScript
+- **Build Tool**: Vite
+- **Routing**: React Router DOM
+- **Styling**: CSS3 (모듈화)
+- **OAuth2**: 직접 구현 (Auth.js 대신)
+
+## 📱 사용법
+
+### 로그인
+1. `/login` 페이지에서 소셜 로그인 버튼 클릭
+2. OAuth2 제공자에서 인증
+3. 자동으로 대시보드로 이동
+
+### 로그아웃
+1. 대시보드 우상단의 "로그아웃" 버튼 클릭
+2. 로컬 스토리지에서 사용자 정보 및 토큰 제거
+3. 로그인 페이지로 이동
+
+## 🔧 개발 명령어
 
 ```bash
-# 백엔드 스택 빌드 및 실행
-docker-compose up --build
+# 개발 서버 실행
+npm run dev
 
-# 백그라운드 실행
-docker-compose up -d
+# 빌드
+npm run build
 
-# 특정 서비스만 실행
-docker-compose up backend
+# 빌드 미리보기
+npm run preview
 
-# 로그 확인
-docker-compose logs backend
-docker-compose logs mysql
-docker-compose logs redis
-
-# 컨테이너 중지
-docker-compose down
-
-# 볼륨 포함 삭제
-docker-compose down -v
+# 타입 체크
+npm run type-check
 ```
 
-## 🔍 포트 정보
+## 🚨 주의사항
 
-- **백엔드**: http://localhost:8080
-- **프론트엔드**: http://localhost:5173
-- **MySQL**: localhost:3306
-- **Redis**: localhost:6379
+1. **환경변수**: `.env` 파일을 반드시 설정해야 합니다
+2. **OAuth2 설정**: 각 제공자의 개발자 콘솔에서 올바른 리디렉션 URI 설정
+3. **CORS**: 개발 환경에서는 localhost:5173으로 설정
+4. **프로덕션**: 배포 시 HTTPS 필수
 
-## 🛠️ 개발 도구
+## 🐛 문제 해결
 
-### 백엔드
-- Spring Boot 3.5.4
-- Spring Security
-- Spring Data JPA
-- Spring Data Redis
-- Spring Mail
-- MySQL 8.0
+### OAuth2 오류
+- 클라이언트 ID/시크릿 확인
+- 리디렉션 URI 설정 확인
+- 개발자 콘솔에서 앱 상태 확인
 
-### 프론트엔드
-- React 18
-- TypeScript
-- React Router DOM
-- CSS3
+### 빌드 오류
+- TypeScript 타입 오류 확인
+- 환경변수 설정 확인
+- 의존성 설치 확인
 
-## 📝 주의사항
+## 📄 라이선스
 
-1. **Gmail 앱 비밀번호**: 2단계 인증 후 앱 비밀번호 생성 필요
-2. **CORS 설정**: 프론트엔드 (5173)에서 백엔드 (8080) 접근 허용
-3. **MySQL 스키마**: `personalproject` 스키마 자동 생성
-4. **배포 분리**: 백엔드와 프론트엔드는 별도 배포 권장
+MIT License
 
-## 🚨 문제 해결
+## 🤝 기여
 
-### 이메일 발송 실패
-1. Gmail 앱 비밀번호 확인
-2. 2단계 인증 활성화
-3. 보안 수준이 낮은 앱 액세스 허용
-
-### Redis 연결 실패
-```bash
-# Redis 서버 실행 확인
-docker-compose logs redis
-```
-
-### MySQL 연결 실패
-```bash
-# MySQL 서버 실행 확인
-docker-compose logs mysql
-```
-
-### 프론트엔드 API 연결 실패
-```bash
-# 백엔드 서버 실행 확인
-docker-compose logs backend
-``` 
+1. Fork the Project
+2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the Branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request 

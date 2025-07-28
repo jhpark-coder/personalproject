@@ -5,7 +5,7 @@ services:
     container_name: fitmate-mysql
     environment:
       MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: fitmate
+      MYSQL_DATABASE: personalproject
       MYSQL_USER: fitmate_user
       MYSQL_PASSWORD: fitmate_password
     ports:
@@ -35,7 +35,7 @@ services:
       - "8080:8080"
     environment:
       SPRING_PROFILES_ACTIVE: dev
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/fitmate?useSSL=false&serverTimezone=UTC&characterEncoding=UTF-8&useSchema=personalproject
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/personalproject?useSSL=false&serverTimezone=UTC&characterEncoding=UTF-8&useSchema=personalproject
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
     depends_on:
