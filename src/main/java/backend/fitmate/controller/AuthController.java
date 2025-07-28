@@ -1,19 +1,30 @@
 package backend.fitmate.controller;
 
-import backend.fitmate.User.entity.User;
-import backend.fitmate.service.EmailVerificationService;
-import backend.fitmate.User.service.UserService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
-
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.CrossOrigin;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+import backend.fitmate.User.entity.User;
+import backend.fitmate.User.service.UserService;
+import backend.fitmate.config.JwtTokenProvider;
+import backend.fitmate.service.EmailVerificationService;
+import backend.fitmate.service.OAuth2Service;
 
 @RestController
 @RequestMapping("/api/auth")
-@CrossOrigin(origins = "${app.frontend.url}")
+@CrossOrigin(origins = "${app.frontend.url}", allowCredentials = "true")
 public class AuthController {
 
     @Autowired
@@ -21,23 +32,86 @@ public class AuthController {
     
     @Autowired
     private UserService userService;
+    
+    @Autowired
+    private OAuth2Service oauth2Service;
+    
+    @Autowired
+    private JwtTokenProvider jwtTokenProvider;
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Map<String, String> loginRequest) {
         String email = loginRequest.get("email");
         String password = loginRequest.get("password");
         
-        // TODO: 실제 로그인 로직 구현
-        // - 이메일/비밀번호 검증
-        // - JWT 토큰 생성
-        // - 사용자 정보 반환
+        // 필수 필드 검증
+        if (email == null || email.trim().isEmpty()) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", "이메일을 입력해주세요.");
+            return ResponseEntity.badRequest().body(response);
+        }
         
-        Map<String, Object> response = new HashMap<>();
-        response.put("success", true);
-        response.put("message", "로그인 성공");
-        response.put("token", "sample-jwt-token");
+        if (password == null || password.trim().isEmpty()) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", "비밀번호를 입력해주세요.");
+            return ResponseEntity.badRequest().body(response);
+        }
         
-        return ResponseEntity.ok(response);
+        try {
+            // 사용자 조회
+            Optional<User> userOpt = userService.findByEmail(email);
+            if (!userOpt.isPresent()) {
+                Map<String, Object> response = new HashMap<>();
+                response.put("success", false);
+                response.put("message", "존재하지 않는 이메일입니다.");
+                return ResponseEntity.badRequest().body(response);
+            }
+            
+            User user = userOpt.get();
+            
+            // 비밀번호 검증 (OAuth2 사용자는 비밀번호가 없을 수 있음)
+            if (user.getPassword() == null) {
+                Map<String, Object> response = new HashMap<>();
+                response.put("success", false);
+                response.put("message", "소셜 로그인으로 가입한 계정입니다.");
+                return ResponseEntity.badRequest().body(response);
+            }
+            
+            // TODO: 실제 비밀번호 검증 로직 구현 (현재는 임시로 성공 처리)
+            // if (!passwordEncoder.matches(password, user.getPassword())) {
+            //     Map<String, Object> response = new HashMap<>();
+            //     response.put("success", false);
+            //     response.put("message", "비밀번호가 일치하지 않습니다.");
+            //     return ResponseEntity.badRequest().body(response);
+            // }
+            
+            // JWT 토큰 생성
+            String token = jwtTokenProvider.generateToken(user.getId().toString(), user.getEmail(), user.getName());
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "로그인 성공");
+            response.put("token", token);
+            
+            // user 정보를 HashMap으로 생성
+            Map<String, Object> userData = new HashMap<>();
+            userData.put("id", user.getId());
+            userData.put("email", user.getEmail());
+            userData.put("name", user.getName());
+            userData.put("nickname", user.getNickname() != null ? user.getNickname() : "");
+            userData.put("emailVerified", user.isEmailVerified());
+            
+            response.put("user", userData);
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", "로그인 처리 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.internalServerError().body(response);
+        }
     }
 
     @PostMapping("/signup")
@@ -249,5 +323,96 @@ public class AuthController {
         response.put("message", "인증번호가 발송되었습니다.");
         
         return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/oauth2/callback")
+    public ResponseEntity<?> oauth2Callback(@RequestBody Map<String, String> callbackRequest) {
+        String code = callbackRequest.get("code");
+        String provider = callbackRequest.get("provider");
+        String redirectUri = callbackRequest.get("redirectUri");
+        
+        try {
+            // 실제 OAuth2 처리
+            OAuth2Service.OAuth2UserInfo userInfo = oauth2Service.processOAuth2Callback(code, provider, redirectUri);
+            
+            // JWT 토큰 생성
+            String token = jwtTokenProvider.generateToken(userInfo.getId(), userInfo.getEmail(), userInfo.getName());
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "OAuth2 로그인 성공");
+            response.put("token", token);
+            response.put("provider", provider);
+            
+            // user 정보를 HashMap으로 생성 (null 값 허용)
+            Map<String, Object> userData = new HashMap<>();
+            userData.put("id", userInfo.getId());
+            userData.put("email", userInfo.getEmail());
+            userData.put("name", userInfo.getName());
+            userData.put("provider", userInfo.getProvider());
+            userData.put("picture", userInfo.getPicture());
+            
+            response.put("user", userData);
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", "OAuth2 처리 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
+
+    @GetMapping("/profile")
+    public ResponseEntity<?> getUserProfile() {
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            
+            if (authentication == null || !authentication.isAuthenticated()) {
+                Map<String, Object> response = new HashMap<>();
+                response.put("success", false);
+                response.put("message", "인증되지 않은 사용자입니다.");
+                return ResponseEntity.status(401).body(response);
+            }
+            
+            String userId = authentication.getName();
+            User user = userService.findById(Long.parseLong(userId))
+                    .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
+            
+            Map<String, Object> userData = new HashMap<>();
+            userData.put("id", user.getId());
+            userData.put("email", user.getEmail());
+            userData.put("name", user.getName());
+            userData.put("provider", user.getOauthProvider());
+            userData.put("picture", user.getProfileImage());
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("user", userData);
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", "사용자 정보 조회 실패: " + e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        }
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<?> logout() {
+        try {
+            // JWT는 클라이언트에서 삭제하므로 서버에서는 별도 처리 불필요
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "로그아웃 성공");
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", "로그아웃 실패: " + e.getMessage());
+            return ResponseEntity.badRequest().body(response);
+        }
     }
 } 

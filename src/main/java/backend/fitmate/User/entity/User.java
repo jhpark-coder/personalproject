@@ -1,17 +1,32 @@
 package backend.fitmate.User.entity;
 
-import jakarta.persistence.*;
+import java.io.Serializable;
+import java.time.LocalDateTime;
+
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EntityListeners;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.AllArgsConstructor;
-import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "users")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class User {
+@EntityListeners(AuditingEntityListener.class)
+public class User implements Serializable {
+    
+    private static final long serialVersionUID = 1L;
     
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -20,8 +35,8 @@ public class User {
     @Column(unique = true, nullable = false)
     private String email;
     
-    @Column(nullable = false)
-    private String password;
+    @Column
+    private String password; // OAuth2 사용자의 경우 null일 수 있음
     
     @Column
     private String nickname;
@@ -29,32 +44,33 @@ public class User {
     @Column(nullable = false)
     private String name;
     
-    @Column(nullable = false)
+    @Column
     private String birthDate;
     
     @Column
     private String gender;
     
-    @Column(nullable = false)
+    @Column
     private String phoneNumber;
     
     @Column(nullable = false)
     private boolean emailVerified = false;
     
-    @Column(nullable = false)
-    private LocalDateTime createdAt;
+    // OAuth2 관련 필드
+    @Column
+    private String oauthProvider; // google, naver, kakao
     
     @Column
+    private String oauthId; // OAuth2 제공자의 사용자 ID
+    
+    @Column
+    private String profileImage; // 프로필 이미지 URL
+    
+    @CreatedDate
+    @Column(nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+    
+    @LastModifiedDate
+    @Column
     private LocalDateTime updatedAt;
-    
-    @PrePersist
-    protected void onCreate() {
-        createdAt = LocalDateTime.now();
-        updatedAt = LocalDateTime.now();
-    }
-    
-    @PreUpdate
-    protected void onUpdate() {
-        updatedAt = LocalDateTime.now();
-    }
 } 
