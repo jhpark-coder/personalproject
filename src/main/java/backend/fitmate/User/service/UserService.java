@@ -49,11 +49,6 @@ public class UserService {
     public User signup(String email, String password, String nickname, 
                       String name, String birthDate, String gender, String phoneNumber) {
         
-        // 이메일 중복 확인
-        if (isEmailExists(email)) {
-            throw new RuntimeException("이미 존재하는 이메일입니다.");
-        }
-        
         // 닉네임 중복 확인 (닉네임이 있는 경우)
         if (nickname != null && !nickname.trim().isEmpty() && isNicknameExists(nickname)) {
             throw new RuntimeException("이미 존재하는 닉네임입니다.");
@@ -101,23 +96,34 @@ public class UserService {
     }
 
     /**
-     * 인증된 이메일로 사용자 조회
+     * 이메일 인증된 사용자 조회
      */
     public Optional<User> findByEmailAndVerified(String email) {
         return userRepository.findByEmailAndEmailVerifiedTrue(email);
     }
 
     /**
+     * OAuth2 사용자 저장
+     */
+    public User saveOAuth2User(User user) {
+        // OAuth2 사용자는 이메일 중복 검사 없이 저장
+        return userRepository.save(user);
+    }
+
+    /**
      * 사용자 정보 업데이트
      */
     public User updateUser(Long userId, User updatedUser) {
-        Optional<User> userOpt = userRepository.findById(userId);
-        if (userOpt.isPresent()) {
-            User user = userOpt.get();
-            user.setNickname(updatedUser.getNickname());
-            user.setName(updatedUser.getName());
-            user.setGender(updatedUser.getGender());
-            user.setPhoneNumber(updatedUser.getPhoneNumber());
+        Optional<User> existingUser = userRepository.findById(userId);
+        if (existingUser.isPresent()) {
+            User user = existingUser.get();
+            // 업데이트할 필드들 설정
+            if (updatedUser.getName() != null) user.setName(updatedUser.getName());
+            if (updatedUser.getNickname() != null) user.setNickname(updatedUser.getNickname());
+            if (updatedUser.getBirthDate() != null) user.setBirthDate(updatedUser.getBirthDate());
+            if (updatedUser.getGender() != null) user.setGender(updatedUser.getGender());
+            if (updatedUser.getPhoneNumber() != null) user.setPhoneNumber(updatedUser.getPhoneNumber());
+            
             return userRepository.save(user);
         }
         throw new RuntimeException("사용자를 찾을 수 없습니다.");
