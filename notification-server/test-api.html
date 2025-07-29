@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API 테스트</title>
+</head>
+<body>
+    <h1>알림 서버 API 테스트</h1>
+    
+    <h2>알림 생성 테스트</h2>
+    <button onclick="createNotification()">알림 생성</button>
+    <div id="result"></div>
+
+    <h2>사용자 알림 조회</h2>
+    <button onclick="getUserNotifications()">알림 조회</button>
+    <div id="notifications"></div>
+
+    <script>
+        async function createNotification() {
+            try {
+                const response = await fetch('http://localhost:3000/api/notifications/create', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        senderUserId: 1,
+                        targetUserId: 2,
+                        message: '테스트 알림입니다',
+                        type: 'TEST',
+                        category: 'SOCIAL'
+                    })
+                });
+                
+                const result = await response.json();
+                document.getElementById('result').innerHTML = `<pre>${JSON.stringify(result, null, 2)}</pre>`;
+            } catch (error) {
+                document.getElementById('result').innerHTML = `<p style="color: red;">오류: ${error.message}</p>`;
+            }
+        }
+
+        async function getUserNotifications() {
+            try {
+                const response = await fetch('http://localhost:3000/api/notifications/user/1');
+                const result = await response.json();
+                document.getElementById('notifications').innerHTML = `<pre>${JSON.stringify(result, null, 2)}</pre>`;
+            } catch (error) {
+                document.getElementById('notifications').innerHTML = `<p style="color: red;">오류: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html> 
