@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  notification-server:
+    build: .
+    container_name: fitmate-notification-server
+    ports:
+      - "${NOTIFICATION_SERVER_PORT:-3000}:3000"
+    environment:
+      - NODE_ENV=${NODE_ENV:-development}
+      - MONGODB_URI=mongodb://mongo:27017/${MONGODB_DATABASE:-communication-server}
+      - MONGODB_HOST=mongo
+      - MONGODB_PORT=27017
+      - MONGODB_DATABASE=${MONGODB_DATABASE:-communication-server}
+      - SMS_API_KEY=${SMS_API_KEY}
+      - SMS_SECRET_KEY=${SMS_SECRET_KEY}
+      - SMS_SERVICE_ID=${SMS_SERVICE_ID}
+    depends_on:
+      - mongo
+    networks:
+      - fitmate-network
+
+  mongo:
+    image: mongo:6.0
+    container_name: fitmate-mongo
+    ports:
+      - "${MONGODB_PORT:-27017}:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=${MONGODB_DATABASE:-communication-server}
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - fitmate-network
+
+volumes:
+  mongo_data:
+
+networks:
+  fitmate-network:
+    external: true 

@@ -6,7 +6,11 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
-    host: true
+    host: '0.0.0.0',  // 모든 네트워크 인터페이스에서 접근 가능
+    https: {
+      key: '../cert.key',
+      cert: '../cert.crt'
+    }
   },
   define: {
     'process.env.VITE_API_BASE_URL': JSON.stringify('http://localhost:8080'),
