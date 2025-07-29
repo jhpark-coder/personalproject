@@ -1,105 +1,182 @@
-# FitMate - Auth.js OAuth2 프로젝트
+# FitMate - 피트니스 커뮤니티 플랫폼
 
-React + TypeScript + Vite로 구축된 OAuth2 인증 시스템입니다.
+Spring Boot + React + TypeScript로 구축된 피트니스 커뮤니티 플랫폼입니다.
 
-## 🚀 빠른 시작
-
-### 1. 의존성 설치
-```bash
-npm install
-```
-
-### 2. 환경변수 설정
-프로젝트 루트에 `.env` 파일을 생성하고 다음 내용을 추가하세요:
-
-```env
-# OAuth2 클라이언트 설정
-VITE_GOOGLE_CLIENT_ID=your_google_client_id
-VITE_GOOGLE_CLIENT_SECRET=your_google_client_secret
-
-VITE_KAKAO_CLIENT_ID=your_kakao_client_id
-VITE_KAKAO_CLIENT_SECRET=your_kakao_client_secret
-
-VITE_NAVER_CLIENT_ID=your_naver_client_id
-VITE_NAVER_CLIENT_SECRET=your_naver_client_secret
-```
-
-### 3. 개발 서버 실행
-```bash
-npm run dev
-```
-
-## 📁 프로젝트 구조
+## 🚀 프로젝트 구조
 
 ```
-src/
-├── components/
-│   ├── LoginPage.tsx      # 로그인 페이지
-│   ├── LoginPage.css
-│   ├── OAuth2Callback.tsx # OAuth2 콜백 처리
-│   ├── OAuth2Callback.css
-│   ├── Dashboard.tsx      # 대시보드
-│   └── Dashboard.css
-├── auth.ts                # OAuth2 인증 유틸리티
-├── App.tsx               # 메인 앱 컴포넌트
-└── main.tsx              # 앱 진입점
+fitmate/
+├── frontend/          # React + TypeScript 프론트엔드
+├── src/main/java/     # Spring Boot 백엔드
+├── docker-compose.yml # Docker 설정
+└── pom.xml           # Maven 설정
 ```
-
-## 🔐 OAuth2 제공자 설정
-
-### Google OAuth2
-1. [Google Cloud Console](https://console.cloud.google.com/)에서 프로젝트 생성
-2. OAuth2 클라이언트 ID 생성
-3. 승인된 리디렉션 URI: `http://localhost:5173/auth/google/callback`
-
-### Kakao OAuth2
-1. [Kakao Developers](https://developers.kakao.com/)에서 앱 생성
-2. 플랫폼 설정에서 웹 플랫폼 추가
-3. 리디렉션 URI: `http://localhost:5173/auth/kakao/callback`
-
-### Naver OAuth2
-1. [Naver Developers](https://developers.naver.com/)에서 애플리케이션 등록
-2. 서비스 URL: `http://localhost:5173`
-3. Callback URL: `http://localhost:5173/auth/naver/callback`
 
 ## 🎯 주요 기능
 
-### ✅ 구현된 기능
-- **OAuth2 인증**: Google, Kakao, Naver 로그인
-- **프론트엔드 콜백 처리**: React에서 직접 OAuth2 처리
-- **사용자 정보 관리**: 로컬 스토리지 기반
-- **반응형 디자인**: 모바일 친화적 UI
-- **TypeScript 지원**: 타입 안전성 보장
+### 🔐 인증 시스템
+- **이메일/비밀번호 로그인**: 전통적인 로그인 방식
+- **OAuth2 소셜 로그인**: Google, Naver, Kakao 지원
+- **JWT 토큰 기반 인증**: 보안성과 확장성 확보
+- **이메일 인증**: 회원가입 시 이메일 인증 코드 발송
+- **휴대폰 인증**: 휴대폰 번호 인증 기능
 
-### 🔄 인증 흐름
-1. 사용자가 소셜 로그인 버튼 클릭
-2. OAuth2 제공자 인증 페이지로 리다이렉트
-3. 인증 후 프론트엔드 콜백 URL로 리다이렉트
-4. 토큰 교환 및 사용자 정보 가져오기
-5. 대시보드로 이동
+### 👤 사용자 관리
+- **회원가입**: 상세한 사용자 정보 입력 (이름, 닉네임, 생년월일, 성별, 휴대폰번호)
+- **프로필 관리**: 사용자 정보 조회 및 수정
+- **중복 확인**: 이메일, 닉네임, 휴대폰번호 중복 검사
+- **OAuth2 사용자 자동 회원가입**: 소셜 로그인 시 자동 계정 생성
 
-## 🛠️ 기술 스택
+### 🛠️ 기술 스택
 
-- **Frontend**: React 18 + TypeScript
-- **Build Tool**: Vite
-- **Routing**: React Router DOM
-- **Styling**: CSS3 (모듈화)
-- **OAuth2**: 직접 구현 (Auth.js 대신)
+#### Backend
+- **Spring Boot 3.x**: 메인 프레임워크
+- **Spring Security**: 인증 및 권한 관리
+- **Spring Data JPA**: 데이터베이스 접근
+- **JWT**: 토큰 기반 인증
+- **Redis**: 캐싱 및 세션 관리
+- **MySQL**: 메인 데이터베이스
+- **Maven**: 빌드 도구
 
-## 📱 사용법
+#### Frontend
+- **React 18**: 사용자 인터페이스
+- **TypeScript**: 타입 안전성
+- **Vite**: 빌드 도구
+- **React Router**: 라우팅
+- **CSS3**: 스타일링
 
-### 로그인
-1. `/login` 페이지에서 소셜 로그인 버튼 클릭
-2. OAuth2 제공자에서 인증
-3. 자동으로 대시보드로 이동
+## 🚀 빠른 시작
 
-### 로그아웃
-1. 대시보드 우상단의 "로그아웃" 버튼 클릭
-2. 로컬 스토리지에서 사용자 정보 및 토큰 제거
-3. 로그인 페이지로 이동
+### 1. 백엔드 실행
+
+```bash
+# Maven으로 빌드
+mvn clean install
+
+# Spring Boot 애플리케이션 실행
+mvn spring-boot:run
+```
+
+### 2. 프론트엔드 실행
+
+```bash
+cd frontend
+
+# 의존성 설치
+npm install
+
+# 개발 서버 실행
+npm run dev
+```
+
+### 3. Docker로 실행
+
+```bash
+# Docker Compose로 전체 서비스 실행
+docker-compose up -d
+```
+
+## ⚙️ 환경 설정
+
+### Backend 설정 (application-dev.properties)
+
+```properties
+# 데이터베이스 설정
+spring.datasource.url=jdbc:mysql://localhost:3306/fitmate
+spring.datasource.username=your_username
+spring.datasource.password=your_password
+
+# JWT 설정
+jwt.secret=your_jwt_secret_key
+jwt.expiration=86400000
+
+# Redis 설정
+spring.redis.host=localhost
+spring.redis.port=6379
+
+# OAuth2 설정
+oauth2.google.client-id=your_google_client_id
+oauth2.google.client-secret=your_google_client_secret
+oauth2.naver.client-id=your_naver_client_id
+oauth2.naver.client-secret=your_naver_client_secret
+oauth2.kakao.client-id=your_kakao_client_id
+oauth2.kakao.client-secret=your_kakao_client_secret
+```
+
+### Frontend 설정 (frontend/src/config/api.ts)
+
+```typescript
+export const API_ENDPOINTS = {
+  BASE_URL: 'http://localhost:8080/api',
+  LOGIN: '/auth/login',
+  SIGNUP: '/auth/signup',
+  OAUTH2_AUTHORIZATION: (provider: string) => 
+    `http://localhost:8080/oauth2/authorization/${provider}`,
+  // ... 기타 엔드포인트
+};
+```
+
+## 📋 API 엔드포인트
+
+### 인증 관련 API
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/auth/login` | 이메일/비밀번호 로그인 |
+| POST | `/api/auth/signup` | 회원가입 |
+| POST | `/api/auth/send-verification-email` | 이메일 인증 코드 발송 |
+| POST | `/api/auth/verify-email-code` | 이메일 인증 코드 확인 |
+| POST | `/api/auth/verify-phone` | 휴대폰 인증 |
+| GET | `/api/auth/check-email` | 이메일 중복 확인 |
+| GET | `/api/auth/profile` | 사용자 프로필 조회 |
+| POST | `/api/auth/logout` | 로그아웃 |
+
+### OAuth2 관련 API
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/oauth2/authorization/{provider}` | OAuth2 인증 시작 |
+| GET | `/api/oauth2/login-success` | OAuth2 로그인 성공 처리 |
+| GET | `/api/oauth2/login-failure` | OAuth2 로그인 실패 처리 |
+
+## 🗄️ 데이터베이스 스키마
+
+### User 테이블
+
+```sql
+CREATE TABLE users (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password VARCHAR(255),
+    nickname VARCHAR(255),
+    name VARCHAR(255) NOT NULL,
+    birth_date VARCHAR(255),
+    gender VARCHAR(10),
+    phone_number VARCHAR(20),
+    email_verified BOOLEAN DEFAULT FALSE,
+    oauth_provider VARCHAR(50),
+    oauth_id VARCHAR(255),
+    profile_image VARCHAR(500),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+);
+```
 
 ## 🔧 개발 명령어
 
+### Backend
+```bash
+# 개발 서버 실행
+mvn spring-boot:run
+
+# 테스트 실행
+mvn test
+
+# 패키지 빌드
+mvn clean package
+```
+
+### Frontend
 ```bash
 # 개발 서버 실행
 npm run dev
@@ -114,33 +191,49 @@ npm run preview
 npm run type-check
 ```
 
+## 🐳 Docker 지원
+
+```bash
+# 전체 서비스 실행
+docker-compose up -d
+
+# 특정 서비스만 실행
+docker-compose up -d mysql redis
+
+# 로그 확인
+docker-compose logs -f
+
+# 서비스 중지
+docker-compose down
+```
+
+## 🔐 보안 기능
+
+- **JWT 토큰 인증**: 무상태 인증으로 확장성 확보
+- **비밀번호 암호화**: BCrypt를 사용한 안전한 비밀번호 저장
+- **CORS 설정**: 프론트엔드와 백엔드 간 안전한 통신
+- **Redis 캐싱**: 사용자 정보 캐싱으로 성능 향상
+- **OAuth2 보안**: 소셜 로그인 시 안전한 인증 처리
+
 ## 🚨 주의사항
 
-1. **환경변수**: `.env` 파일을 반드시 설정해야 합니다
-2. **OAuth2 설정**: 각 제공자의 개발자 콘솔에서 올바른 리디렉션 URI 설정
-3. **CORS**: 개발 환경에서는 localhost:5173으로 설정
-4. **프로덕션**: 배포 시 HTTPS 필수
+1. **환경변수 설정**: `.env` 파일과 `application-dev.properties` 파일을 반드시 설정
+2. **OAuth2 설정**: 각 소셜 로그인 제공자의 개발자 콘솔에서 올바른 리디렉션 URI 설정
+3. **데이터베이스**: MySQL 서버가 실행 중이어야 함
+4. **Redis**: 캐싱을 위해 Redis 서버 필요
 
-## 🐛 문제 해결
-
-### OAuth2 오류
-- 클라이언트 ID/시크릿 확인
-- 리디렉션 URI 설정 확인
-- 개발자 콘솔에서 앱 상태 확인
-
-### 빌드 오류
-- TypeScript 타입 오류 확인
-- 환경변수 설정 확인
-- 의존성 설치 확인
-
-## 📄 라이선스
-
-MIT License
-
-## 🤝 기여
+## 🤝 기여하기
 
 1. Fork the Project
 2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
 3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
 4. Push to the Branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request 
+5. Open a Pull Request
+
+## 📄 라이선스
+
+MIT License
+
+## 📞 문의
+
+프로젝트에 대한 문의사항이 있으시면 이슈를 생성해 주세요. 
