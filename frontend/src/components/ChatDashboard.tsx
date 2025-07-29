@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { CHAT_SERVER_URL } from '../config/api';
 import UserList from './UserList';
 import ChatRoom from './ChatRoom';
 import ChatStats from './ChatStats';
@@ -26,7 +27,7 @@ const ChatDashboard: React.FC = () => {
   const [users, setUsers] = useState<Map<string, User>>(new Map());
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
-  // const [allMessages, setAllMessages] = useState<Map<string, Message[]>>(new Map());
+  const [allMessages, setAllMessages] = useState<Map<string, Message[]>>(new Map());
   const [unreadCounts, setUnreadCounts] = useState<Map<string, number>>(new Map());
   const [connectionStatus, setConnectionStatus] = useState('연결 중...');
   const currentUserRef = useRef(currentUser);
@@ -34,21 +35,22 @@ const ChatDashboard: React.FC = () => {
   // 새로고침 시 저장된 데이터 복원
   useEffect(() => {
     const savedCurrentUser = localStorage.getItem('chat_currentUser');
-    // const savedAllMessages = localStorage.getItem('chat_allMessages');
+    const savedAllMessages = localStorage.getItem('chat_allMessages');
     
     if (savedCurrentUser && savedCurrentUser !== 'null') {
       const parsedUser = JSON.parse(savedCurrentUser);
       setCurrentUser(parsedUser);
       console.log('🔄 복원된 현재 사용자:', parsedUser);
     }
-    // if (savedAllMessages) {
-    //   setAllMessages(new Map(JSON.parse(savedAllMessages)));
-    // }
+    if (savedAllMessages) {
+      setAllMessages(new Map(JSON.parse(savedAllMessages)));
+    }
   }, []);
 
   useEffect(() => {
     // Socket.IO 연결 (관리자 권한으로)
-    const newSocket = io('http://localhost:3000', {
+    const newSocket = io(CHAT_SERVER_URL, {
+      transports: ['websocket', 'polling'],
       auth: {
         userId: 1, // 관리자 ID
         roles: ['ROLE_ADMIN'] // 관리자 역할
@@ -77,10 +79,12 @@ const ChatDashboard: React.FC = () => {
 
     // 사용자 관련 이벤트
     newSocket.on('userJoined', (data) => {
+      console.log('👤 사용자 접속:', data.sender);
       addUser(data.sender);
     });
 
     newSocket.on('userDisconnected', (data) => {
+      console.log('👤 사용자 접속 해제:', data.sender);
       removeUser(data.sender);
     });
 
@@ -142,55 +146,82 @@ const ChatDashboard: React.FC = () => {
     // 채팅 내역 수신
     newSocket.on('chatHistory', (data) => {
       console.log('📨 채팅 내역 수신:', data);
+      console.log('🔍 현재 선택된 사용자:', currentUserRef.current);
       if (data.userId === currentUserRef.current) {
+        console.log('✅ 현재 사용자와 일치하는 채팅 내역:', data.userId);
         const sorted = (data.history || []).sort((a: Message, b: Message) =>
           new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
         );
+        console.log('📋 정렬된 채팅 내역:', sorted);
         setMessages(sorted);
 
-        // DB에서 받은 데이터로 allMessages 업데이트
-        // setAllMessages(prev => {
-        //   const newMessages = new Map(prev);
-        //   newMessages.set(data.userId, sorted);
-        //   return newMessages;
-        // });
+        // DB에서 받은 데이터로 allMessages 업데이트 (중복 방지)
+        setAllMessages(prev => {
+          const newMessages = new Map(prev);
+          newMessages.set(data.userId, sorted);
+          return newMessages;
+        });
+      } else {
+        console.log('❌ 현재 사용자와 일치하지 않는 채팅 내역:', {
+          receivedUserId: data.userId,
+          currentUser: currentUserRef.current
+        });
       }
     });
 
-    // 모든 채팅 사용자 목록 수신
+    // 모든 채팅 사용자 목록 수신 (새로고침 시 DB에서 복원)
     newSocket.on('allChatUsers', (users) => {
       console.log('📨 모든 채팅 사용자 목록 수신:', users);
       if (users && Array.isArray(users)) {
+        // DB에서 가져온 사용자들을 오프라인 상태로 추가
         users.forEach(username => {
           const fullUsername = normalizeUsername(username);
-          // 관리자는 사용자 목록에서 제외
-          if (!fullUsername.includes('관리자')) {
-            setUsers(prev => {
-              const newUsers = new Map(prev);
-              if (!newUsers.has(fullUsername)) {
-                newUsers.set(fullUsername, {
-                  username: fullUsername,
-                  status: 'offline',
-                  lastMessage: undefined
-                });
-              }
-              return newUsers;
-            });
-          }
+          setUsers(prev => {
+            const newUsers = new Map(prev);
+            if (!newUsers.has(fullUsername)) {
+              newUsers.set(fullUsername, {
+                username: fullUsername,
+                status: 'offline', // DB에서 가져온 사용자는 기본적으로 오프라인
+                lastMessage: undefined
+              });
+            }
+            return newUsers;
+          });
         });
+        console.log('✅ DB에서 사용자 목록 복원 완료');
         
-        // 각 사용자의 최근 메시지 정보 요청 (관리자 제외)
+        // 각 사용자의 최근 메시지 정보 요청
         users.forEach(username => {
           const fullUsername = normalizeUsername(username);
-          if (!fullUsername.includes('관리자')) {
-            newSocket.emit('getUserLastMessage', { userId: fullUsername });
-          }
+          console.log('📤 사용자 최근 메시지 요청:', fullUsername);
+          newSocket.emit('getUserLastMessage', { userId: fullUsername });
+        });
+      } else {
+        console.log('⚠️ DB에서 사용자 목록을 가져오지 못함, 테스트 데이터 사용');
+        // 테스트용 하드코딩된 사용자 목록 (DB 연결 실패 시)
+        const testUsers = ['사용자_test1', '사용자_test2', '사용자_ljs4mu4jp'];
+        testUsers.forEach(username => {
+          setUsers(prev => {
+            const newUsers = new Map(prev);
+            if (!newUsers.has(username)) {
+              newUsers.set(username, {
+                username: username,
+                status: 'offline',
+                lastMessage: {
+                  content: '테스트 메시지',
+                  timestamp: new Date().toISOString()
+                }
+              });
+            }
+            return newUsers;
+          });
         });
       }
     });
 
     // 사용자 최근 메시지 수신
     newSocket.on('userLastMessage', (data) => {
+      console.log('📨 사용자 최근 메시지 수신:', data);
       if (data.userId && data.lastMessage) {
         setUsers(prev => {
           const newUsers = new Map(prev);
@@ -219,7 +250,7 @@ const ChatDashboard: React.FC = () => {
     return () => {
       newSocket.disconnect();
     };
-  }, []);
+  }, []); // 소켓 연결은 한 번만
 
   // currentUser가 변경될 때마다 ref 업데이트
   useEffect(() => {
@@ -232,6 +263,13 @@ const ChatDashboard: React.FC = () => {
       localStorage.setItem('chat_currentUser', JSON.stringify(currentUser));
     }
   }, [currentUser]);
+
+  // allMessages가 변경될 때 로컬 스토리지에 저장
+  useEffect(() => {
+    if (allMessages.size > 0) {
+      localStorage.setItem('chat_allMessages', JSON.stringify(Array.from(allMessages.entries())));
+    }
+  }, [allMessages]);
 
   const joinAsAdmin = (socket: Socket) => {
     socket.emit('joinAsAdmin', {
@@ -273,6 +311,7 @@ const ChatDashboard: React.FC = () => {
       const newUsers = new Map(prev);
       const user = newUsers.get(username);
       if (user) {
+        // 사용자를 삭제하지 않고 상태만 offline으로 변경
         newUsers.set(username, {
           ...user,
           status: 'offline'
@@ -280,6 +319,9 @@ const ChatDashboard: React.FC = () => {
       }
       return newUsers;
     });
+
+    // 현재 선택된 사용자가 오프라인이 되어도 채팅방은 유지
+    // 채팅 내역은 DB에 저장되어 있으므로 계속 볼 수 있음
   };
 
   const handleUserMessage = (data: Message) => {
@@ -288,33 +330,36 @@ const ChatDashboard: React.FC = () => {
 
   const selectUser = (username: string) => {
     const fullUsername = normalizeUsername(username);
+    console.log('👤 사용자 선택:', { original: username, normalized: fullUsername });
     setCurrentUser(fullUsername);
-    
-    // localStorage에 현재 사용자 저장
-    localStorage.setItem('chat_currentUser', JSON.stringify(fullUsername));
 
-    // 채팅방 진입 시 안읽은 메시지 수 리셋
+    // 채팅방 진입 시 안읽은 메시지 수 리셋 (읽음 처리)
     setUnreadCounts(prev => {
       const newCounts = new Map(prev);
       newCounts.set(fullUsername, 0);
       return newCounts;
     });
 
-    // DB에서 최신 데이터를 가져오도록
-    setMessages([]);
+    // 항상 DB에서 최신 데이터를 가져오도록 수정
+    setMessages([]); // 로딩 상태 표시
     if (fullUsername && socket) {
+      console.log('📤 채팅 내역 요청 전송:', { userId: fullUsername, socketConnected: socket.connected });
       socket.emit('getHistory', { userId: fullUsername });
+    } else {
+      console.warn('⚠️ 채팅 내역 요청 실패:', {
+        fullUsername,
+        socketExists: !!socket,
+        socketConnected: socket?.connected
+      });
     }
   };
 
   const backToUserList = () => {
     setCurrentUser(null);
     setMessages([]);
-    // localStorage에서 현재 사용자 제거
-    localStorage.removeItem('chat_currentUser');
   };
 
-  // 안읽은 채팅방 수 계산
+  // 안읽은 채팅방 수 계산 (상담 대기 중인 고객 수)
   const calculateUnreadChatRooms = () => {
     let count = 0;
     unreadCounts.forEach((unreadCount) => {
@@ -337,6 +382,7 @@ const ChatDashboard: React.FC = () => {
     };
 
     socket.emit('sendMessage', messageData);
+    // 메시지는 서버에서 DB 저장 후 다시 받아서 표시되므로 여기서는 추가하지 않음
   };
 
   const showNotification = (sender: string, content: string) => {
@@ -344,16 +390,17 @@ const ChatDashboard: React.FC = () => {
       const notification = new Notification(`새 메시지: ${sender}`, {
         body: content,
         icon: '/favicon.ico',
-        requireInteraction: false,
-        silent: true
+        requireInteraction: false, // 자동으로 사라지도록 설정
+        silent: true // 소리 없이
       });
 
+      // 1.5초 후 자동으로 알림 닫기
       setTimeout(() => {
         notification.close();
       }, 1500);
     }
 
-    // 탭 제목 변경
+    // 탭 제목 변경 (1초로 단축)
     const originalTitle = document.title;
     document.title = `[새 메시지] ${originalTitle}`;
     setTimeout(() => {

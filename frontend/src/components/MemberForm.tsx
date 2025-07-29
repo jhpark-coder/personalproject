@@ -35,8 +35,22 @@ const MemberForm: React.FC = () => {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     console.log('로그인 시도:', { email, password });
-    // TODO: 로그인 로직 구현
-    showModal('로그인', '로그인 기능은 아직 구현되지 않았습니다.', 'info');
+    
+    // 기본 유효성 검사
+    if (!email || !password) {
+      showModal('로그인 실패', '이메일과 비밀번호를 모두 입력해주세요.', 'error');
+      return;
+    }
+
+    // 이메일 형식 검사
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      showModal('로그인 실패', '올바른 이메일 형식을 입력해주세요.', 'error');
+      return;
+    }
+
+    // 실제 로그인 API 호출 (백엔드 연동 시 구현)
+    showModal('로그인', '로그인 기능은 백엔드 연동 후 구현됩니다.', 'info');
   };
 
   const handleSocialLogin = (provider: string) => {
