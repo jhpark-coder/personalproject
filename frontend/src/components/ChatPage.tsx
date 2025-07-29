@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
+import { CHAT_SERVER_URL } from '../config/api';
 import './ChatPage.css';
 
 interface Message {
-  id: string;
+  id?: string;
   sender: string;
   content: string;
   type: 'CHAT' | 'JOIN' | 'LEAVE';
-  timestamp: Date;
+  timestamp: string | Date;
   isAdmin?: boolean;
 }
 
@@ -32,7 +33,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ userId, onClose, isModal = true }) 
 
   useEffect(() => {
     // WebSocket 연결
-    const newSocket = io('http://localhost:3000', {
+    const newSocket = io(CHAT_SERVER_URL, {
       auth: {
         userId: userId,
         roles: ['USER']
@@ -123,8 +124,8 @@ const ChatPage: React.FC<ChatPageProps> = ({ userId, onClose, isModal = true }) 
     }
   };
 
-  const formatTime = (timestamp: Date) => {
-    const date = new Date(timestamp);
+  const formatTime = (timestamp: string | Date) => {
+    const date = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
     const hours = date.getHours();
     const minutes = date.getMinutes();
     const ampm = hours >= 12 ? '오후' : '오전';
@@ -132,8 +133,8 @@ const ChatPage: React.FC<ChatPageProps> = ({ userId, onClose, isModal = true }) 
     return `${ampm} ${displayHours}:${minutes.toString().padStart(2, '0')}`;
   };
 
-  const formatDate = (timestamp: Date) => {
-    const date = new Date(timestamp);
+  const formatDate = (timestamp: string | Date) => {
+    const date = typeof timestamp === 'string' ? new Date(timestamp) : timestamp;
     const year = date.getFullYear().toString().slice(-2);
     const month = date.getMonth() + 1;
     const day = date.getDate();
@@ -177,9 +178,13 @@ const ChatPage: React.FC<ChatPageProps> = ({ userId, onClose, isModal = true }) 
         )}
         
         {messages.map((message, index) => {
+          const currentDate = typeof message.timestamp === 'string' ? new Date(message.timestamp) : message.timestamp;
+          const prevDate = index > 0 ? 
+            (typeof messages[index - 1].timestamp === 'string' ? new Date(messages[index - 1].timestamp) : messages[index - 1].timestamp) : 
+            null;
+          
           const showDate = index === 0 || 
-            new Date(message.timestamp).toDateString() !== 
-            new Date(messages[index - 1].timestamp).toDateString();
+            (prevDate && currentDate instanceof Date && prevDate instanceof Date && currentDate.toDateString() !== prevDate.toDateString());
 
           return (
             <React.Fragment key={message.id || index}>

@@ -16,6 +16,21 @@ services:
     networks:
       - fitmate-network
 
+  # MongoDB (notification-server용)
+  mongo:
+    image: mongo:7
+    container_name: fitmate-mongo
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: adminpassword
+      MONGO_INITDB_DATABASE: communication-server
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - fitmate-network
+
   # Redis 캐시
   redis:
     image: redis:7-alpine
@@ -29,7 +44,9 @@ services:
 
   # Spring Boot 백엔드
   backend:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: fitmate-backend
     ports:
       - "8080:8080"
@@ -46,6 +63,7 @@ services:
 
 volumes:
   mysql_data:
+  mongo_data:
   redis_data:
 
 networks:
