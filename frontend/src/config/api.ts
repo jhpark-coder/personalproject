@@ -1,8 +1,15 @@
 // API 설정
 export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
+export const CHAT_SERVER_URL = import.meta.env.VITE_CHAT_SERVER_URL || 'http://localhost:3000';
 
 // API 엔드포인트
 export const API_ENDPOINTS = {
+  // 백엔드 URL
+  BACKEND_URL: API_BASE_URL,
+  
+  // 통신 서버 URL
+  COMMUNICATION_SERVER_URL: CHAT_SERVER_URL,
+  
   // 인증 관련
   LOGIN: `${API_BASE_URL}/api/auth/login`,
   SIGNUP: `${API_BASE_URL}/api/auth/signup`,
@@ -13,10 +20,20 @@ export const API_ENDPOINTS = {
   SOCIAL_LOGIN: `${API_BASE_URL}/api/auth/social-login`,
   VERIFY_PHONE: `${API_BASE_URL}/api/auth/verify-phone`,
   
+  // 프로필 및 로그아웃
+  PROFILE: `${API_BASE_URL}/api/auth/profile`,
+  LOGOUT: `${API_BASE_URL}/api/auth/logout`,
+  
   // OAuth2 관련
   OAUTH2_LOGIN_SUCCESS: `${API_BASE_URL}/api/oauth2/login-success`,
   OAUTH2_LOGIN_FAILURE: `${API_BASE_URL}/api/oauth2/login-failure`,
   
   // OAuth2 인증 URL
   OAUTH2_AUTHORIZATION: (provider: string) => `${API_BASE_URL}/oauth2/authorization/${provider}`,
+  
+  // 알림 관련
+  NOTIFICATIONS: `${CHAT_SERVER_URL}/api/notifications`,
+  CREATE_NOTIFICATION: `${CHAT_SERVER_URL}/api/notifications/create`,
+  ADMIN_NOTIFICATION: `${CHAT_SERVER_URL}/api/notifications/admin/create`,
+  BROADCAST_NOTIFICATION: `${CHAT_SERVER_URL}/api/notifications/broadcast`,
 } as const; 
