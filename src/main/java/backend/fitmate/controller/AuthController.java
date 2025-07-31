@@ -20,7 +20,7 @@ import backend.fitmate.User.entity.User;
 import backend.fitmate.User.service.UserService;
 import backend.fitmate.config.JwtTokenProvider;
 import backend.fitmate.service.EmailVerificationService;
-import backend.fitmate.service.OAuth2Service;
+
 
 @RestController
 @RequestMapping("/api/auth")
@@ -33,8 +33,7 @@ public class AuthController {
     @Autowired
     private UserService userService;
     
-    @Autowired
-    private OAuth2Service oauth2Service;
+
     
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
@@ -79,7 +78,7 @@ public class AuthController {
                 return ResponseEntity.badRequest().body(response);
             }
             
-            // TODO: 실제 비밀번호 검증 로직 구현 (현재는 임시로 성공 처리)
+            // 비밀번호 검증 로직 구현 필요
             // if (!passwordEncoder.matches(password, user.getPassword())) {
             //     Map<String, Object> response = new HashMap<>();
             //     response.put("success", false);
@@ -123,6 +122,7 @@ public class AuthController {
         String birthDate = signupRequest.get("birthDate");
         String gender = signupRequest.get("gender");
         String phoneNumber = signupRequest.get("phoneNumber");
+        String goal = signupRequest.get("goal"); // 운동 목표 추가
         
         // 필수 필드 검증
         if (email == null || email.trim().isEmpty()) {
@@ -161,8 +161,8 @@ public class AuthController {
         }
         
         try {
-            // 실제 회원가입 처리
-            User user = userService.signup(email, password, nickname, name, birthDate, gender, phoneNumber);
+            // 실제 회원가입 처리 (goal 추가)
+            User user = userService.signup(email, password, nickname, name, birthDate, gender, phoneNumber, goal);
             
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
@@ -175,6 +175,7 @@ public class AuthController {
                 "birthDate", user.getBirthDate(),
                 "gender", user.getGender() != null ? user.getGender() : "",
                 "phoneNumber", user.getPhoneNumber(),
+                "goal", user.getGoal() != null ? user.getGoal() : "general",
                 "emailVerified", user.isEmailVerified()
             ));
             
@@ -292,29 +293,13 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
-    @PostMapping("/social-login")
-    public ResponseEntity<?> socialLogin(@RequestBody Map<String, String> socialLoginRequest) {
-        String provider = socialLoginRequest.get("provider");
-        String code = socialLoginRequest.get("code");
-        
-        // TODO: 소셜 로그인 로직 구현
-        // - OAuth2 토큰 교환
-        // - 사용자 정보 조회
-        // - 회원가입 또는 로그인 처리
-        
-        Map<String, Object> response = new HashMap<>();
-        response.put("success", true);
-        response.put("message", "소셜 로그인 성공");
-        response.put("provider", provider);
-        
-        return ResponseEntity.ok(response);
-    }
+
 
     @PostMapping("/verify-phone")
     public ResponseEntity<?> verifyPhone(@RequestBody Map<String, String> phoneRequest) {
         String phoneNumber = phoneRequest.get("phoneNumber");
         
-        // TODO: 휴대폰 인증 로직 구현
+        // 휴대폰 인증 로직 구현 필요
         // - SMS 발송
         // - 인증번호 검증
         
@@ -325,43 +310,7 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
-    @PostMapping("/oauth2/callback")
-    public ResponseEntity<?> oauth2Callback(@RequestBody Map<String, String> callbackRequest) {
-        String code = callbackRequest.get("code");
-        String provider = callbackRequest.get("provider");
-        String redirectUri = callbackRequest.get("redirectUri");
-        
-        try {
-            // 실제 OAuth2 처리
-            OAuth2Service.OAuth2UserInfo userInfo = oauth2Service.processOAuth2Callback(code, provider, redirectUri);
-            
-            // JWT 토큰 생성
-            String token = jwtTokenProvider.generateToken(userInfo.getId(), userInfo.getEmail(), userInfo.getName());
-            
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("message", "OAuth2 로그인 성공");
-            response.put("token", token);
-            response.put("provider", provider);
-            
-            // user 정보를 HashMap으로 생성 (null 값 허용)
-            Map<String, Object> userData = new HashMap<>();
-            userData.put("id", userInfo.getId());
-            userData.put("email", userInfo.getEmail());
-            userData.put("name", userInfo.getName());
-            userData.put("provider", userInfo.getProvider());
-            userData.put("picture", userInfo.getPicture());
-            
-            response.put("user", userData);
-            
-            return ResponseEntity.ok(response);
-        } catch (Exception e) {
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", false);
-            response.put("message", "OAuth2 처리 중 오류가 발생했습니다: " + e.getMessage());
-            return ResponseEntity.badRequest().body(response);
-        }
-    }
+
 
     @GetMapping("/profile")
     public ResponseEntity<?> getUserProfile() {
