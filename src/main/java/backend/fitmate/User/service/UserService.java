@@ -50,7 +50,7 @@ public class UserService {
      * 사용자 회원가입
      */
     public User signup(String email, String password, String nickname, 
-                      String name, String birthDate, String gender, String phoneNumber) {
+                      String name, String birthDate, String gender, String phoneNumber, String goal) {
         
         // 닉네임 중복 확인 (닉네임이 있는 경우)
         if (nickname != null && !nickname.trim().isEmpty() && isNicknameExists(nickname)) {
@@ -74,6 +74,7 @@ public class UserService {
         user.setBirthDate(birthDate);
         user.setGender(gender);
         user.setPhoneNumber(phoneNumber);
+        user.setGoal(goal); // 운동 목표 설정
         user.setEmailVerified(false);
         
         return userRepository.save(user);
@@ -117,38 +118,38 @@ public class UserService {
     }
 
     /**
-     * OAuth2 사용자 저장
+     * OAuth2 사용자 저장 또는 업데이트
      */
     @CacheEvict(value = "user", allEntries = true)
-    public User saveOAuth2User(User user) {
-        // OAuth2 사용자는 이메일 중복 검사 없이 저장
-        return userRepository.save(user);
-    }
-
-    /**
-     * OAuth2 사용자 생성
-     */
-    @CacheEvict(value = "user", allEntries = true)
-    public User createOAuth2User(String email, String name, String provider, String oauthId) {
-        User user = new User();
-        user.setEmail(email);
-        user.setName(name);
-        user.setOauthProvider(provider);
-        user.setOauthId(oauthId);
-        user.setEmailVerified(true); // OAuth2 사용자는 이메일이 이미 인증됨
-        user.setPassword(null); // OAuth2 사용자는 비밀번호 없음
+    public User saveOrUpdateOAuth2User(String email, String name, String provider, String oauthId, String picture) {
+        // 기존 사용자 찾기 (이메일로)
+        Optional<User> existingUser = userRepository.findByEmail(email);
         
-        User savedUser = userRepository.save(user);
-        
-        // 저장된 사용자의 ID가 null이면 이메일로 다시 조회
-        if (savedUser.getId() == null) {
-            Optional<User> foundUser = userRepository.findByEmail(email);
-            if (foundUser.isPresent()) {
-                return foundUser.get();
+        if (existingUser.isPresent()) {
+            // 기존 사용자 업데이트
+            User user = existingUser.get();
+            user.setName(name);
+            user.setOauthProvider(provider);
+            user.setOauthId(oauthId);
+            user.setEmailVerified(true);
+            if (picture != null) {
+                user.setProfileImage(picture);
             }
+            return userRepository.save(user);
+        } else {
+            // 새 사용자 생성
+            User newUser = new User();
+            newUser.setEmail(email);
+            newUser.setName(name);
+            newUser.setOauthProvider(provider);
+            newUser.setOauthId(oauthId);
+            newUser.setEmailVerified(true);
+            newUser.setPassword(null); // OAuth2 사용자는 비밀번호 없음
+            if (picture != null) {
+                newUser.setProfileImage(picture);
+            }
+            return userRepository.save(newUser);
         }
-        
-        return savedUser;
     }
 
     /**

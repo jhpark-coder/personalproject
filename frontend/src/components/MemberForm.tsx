@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import Modal from './Modal';
 import { API_ENDPOINTS } from '../config/api';
 import './MemberForm.css';
 
 const MemberForm: React.FC = () => {
+  const navigate = useNavigate();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [emailFocused, setEmailFocused] = useState(false);
@@ -32,7 +33,7 @@ const MemberForm: React.FC = () => {
     setPassword(e.target.value);
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     console.log('로그인 시도:', { email, password });
     
@@ -49,8 +50,43 @@ const MemberForm: React.FC = () => {
       return;
     }
 
-    // 실제 로그인 API 호출 (백엔드 연동 시 구현)
-    showModal('로그인', '로그인 기능은 백엔드 연동 후 구현됩니다.', 'info');
+    try {
+      // 실제 로그인 API 호출
+      const response = await fetch(API_ENDPOINTS.LOGIN, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: email,
+          password: password
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        // JWT 토큰을 localStorage에 저장
+        localStorage.setItem('token', data.token);
+        
+        // 사용자 정보를 localStorage에 저장 (선택사항)
+        if (data.user) {
+          localStorage.setItem('user', JSON.stringify(data.user));
+        }
+        
+        showModal('로그인 성공', '로그인이 완료되었습니다!', 'success');
+        
+        // 1.5초 후 대시보드로 이동
+        setTimeout(() => {
+          navigate('/dashboard');
+        }, 1500);
+      } else {
+        showModal('로그인 실패', data.message || '이메일 또는 비밀번호가 올바르지 않습니다.', 'error');
+      }
+    } catch (error) {
+      console.error('로그인 실패:', error);
+      showModal('로그인 실패', '로그인에 실패했습니다. 다시 시도해주세요.', 'error');
+    }
   };
 
   const handleSocialLogin = (provider: string) => {
