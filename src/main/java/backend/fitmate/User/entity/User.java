@@ -66,6 +66,9 @@ public class User implements Serializable {
     @Column
     private String profileImage; // 프로필 이미지 URL
     
+    @Column
+    private String goal; // 운동 목표: "general", "weight_loss", "muscle_gain", "strength", "endurance"
+    
     @CreatedDate
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
