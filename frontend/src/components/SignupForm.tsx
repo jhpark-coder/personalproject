@@ -13,6 +13,7 @@ interface FormErrors {
   gender?: string;
   phoneNumber?: string;
   verificationCode?: string;
+  goal?: string;
 }
 
 const SignupForm: React.FC = () => {
@@ -24,7 +25,8 @@ const SignupForm: React.FC = () => {
     birthDate: '',
     gender: '',
     phoneNumber: '',
-    verificationCode: ''
+    verificationCode: '',
+    goal: 'general' // 기본값 추가
   });
 
   const [errors, setErrors] = useState<FormErrors>({});
@@ -174,6 +176,13 @@ const SignupForm: React.FC = () => {
     }));
   };
 
+  const handleGoalChange = (goal: string) => {
+    setFormData(prev => ({
+      ...prev,
+      goal
+    }));
+  };
+
   const handleEmailVerificationRequest = async () => {
     const emailError = validateEmail(formData.email);
     if (emailError) {
@@ -261,7 +270,8 @@ const SignupForm: React.FC = () => {
             name: formData.name,
             birthDate: formData.birthDate,
             gender: formData.gender,
-            phoneNumber: formData.phoneNumber
+            phoneNumber: formData.phoneNumber,
+            goal: formData.goal // 운동 목표 추가
           }),
         });
 
@@ -486,6 +496,48 @@ const SignupForm: React.FC = () => {
                 onClick={() => handleGenderChange('none')}
               >
                 선택안함
+              </button>
+            </div>
+          </div>
+
+          {/* 운동 목표 선택 */}
+          <div className="goal-selection">
+            <h4>운동 목표 (선택)</h4>
+            <div className="goal-buttons">
+              <button
+                type="button"
+                className={`goal-btn ${formData.goal === 'general' ? 'active' : ''}`}
+                onClick={() => handleGoalChange('general')}
+              >
+                일반 건강
+              </button>
+              <button
+                type="button"
+                className={`goal-btn ${formData.goal === 'weight_loss' ? 'active' : ''}`}
+                onClick={() => handleGoalChange('weight_loss')}
+              >
+                체중 감량
+              </button>
+              <button
+                type="button"
+                className={`goal-btn ${formData.goal === 'muscle_gain' ? 'active' : ''}`}
+                onClick={() => handleGoalChange('muscle_gain')}
+              >
+                근육 증가
+              </button>
+              <button
+                type="button"
+                className={`goal-btn ${formData.goal === 'strength' ? 'active' : ''}`}
+                onClick={() => handleGoalChange('strength')}
+              >
+                근력 향상
+              </button>
+              <button
+                type="button"
+                className={`goal-btn ${formData.goal === 'endurance' ? 'active' : ''}`}
+                onClick={() => handleGoalChange('endurance')}
+              >
+                지구력 향상
               </button>
             </div>
           </div>
