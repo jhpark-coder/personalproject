@@ -1,0 +1,18 @@
+# notification-server/Dockerfile.dev
+
+# NestJS 개발 환경을 위한 Dockerfile
+FROM node:20-alpine
+WORKDIR /usr/src/app
+
+# 의존성 설치
+COPY package*.json ./
+RUN npm install
+
+# 소스 코드 복사 (볼륨 마운트와 함께 사용)
+COPY . .
+
+# NestJS 개발 서버는 3000번 포트를 사용
+EXPOSE 3000
+
+# start:dev 스크립트를 실행하여 hot-reload 활성화
+CMD ["npm", "run", "start:dev"] 

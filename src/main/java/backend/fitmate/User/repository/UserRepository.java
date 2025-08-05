@@ -1,16 +1,17 @@
 package backend.fitmate.User.repository;
 
-import backend.fitmate.User.entity.User;
+import java.util.Optional;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
-import java.util.Optional;
+import backend.fitmate.User.entity.User;
 
 @Repository
 public interface UserRepository extends JpaRepository<User, Long> {
     
     /**
-     * 이메일로 사용자 조회
+     * 이메일로 사용자를 찾습니다.
      */
     Optional<User> findByEmail(String email);
     

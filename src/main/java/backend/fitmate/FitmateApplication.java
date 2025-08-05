@@ -5,6 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import org.springframework.web.client.RestTemplate;
 
@@ -12,6 +13,7 @@ import org.springframework.web.client.RestTemplate;
 @EnableCaching
 @EnableJpaAuditing
 @ConfigurationPropertiesScan
+@EnableAspectJAutoProxy
 public class FitmateApplication {
 
 	public static void main(String[] args) {

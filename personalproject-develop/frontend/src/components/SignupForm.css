@@ -1,0 +1,374 @@
+.signup-form-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background-color: #f5f5f5;
+  padding: 20px;
+}
+
+.signup-form-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  padding: 40px;
+  width: 100%;
+  max-width: 500px;
+}
+
+.signup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #eee;
+}
+
+.signup-header h2 {
+  margin: 0;
+  color: #333;
+  font-size: 24px;
+  font-weight: 600;
+}
+
+.back-to-login {
+  color: #4CAF50;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 500;
+  transition: color 0.3s ease;
+}
+
+.back-to-login:hover {
+  color: #45a049;
+  text-decoration: underline;
+}
+
+.signup-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
+}
+
+.input_item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background-color: white;
+  transition: all 0.3s ease;
+  margin-bottom: 5px;
+}
+
+.input_item:focus-within {
+  border-color: #4CAF50;
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+}
+
+.input_item.error {
+  border-color: #f44336;
+  box-shadow: 0 0 0 2px rgba(244, 67, 54, 0.2);
+}
+
+.input_item.error:focus-within {
+  border-color: #f44336;
+  box-shadow: 0 0 0 2px rgba(244, 67, 54, 0.2);
+}
+
+.input-icon {
+  padding: 0 15px;
+  font-size: 18px;
+  color: #666;
+  display: flex;
+  align-items: center;
+  height: 50px;
+  transition: color 0.3s ease;
+}
+
+.input_item.error .input-icon {
+  color: #f44336;
+}
+
+.input_field {
+  flex: 1;
+  padding: 15px;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  background: transparent;
+  color: #222;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+}
+
+.input_field::placeholder {
+  color: #999;
+  transition: color 0.3s ease;
+}
+
+.input_field.error {
+  color: #f44336;
+}
+
+.input_field.error::placeholder {
+  color: #f44336;
+}
+
+.email-verification-btn {
+  background: #4CAF50;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-right: 15px;
+  white-space: nowrap;
+}
+
+.email-verification-btn:hover:not(:disabled) {
+  background: #45a049;
+}
+
+.email-verification-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.email-verification-btn.loading {
+  background: #ff9800;
+  cursor: wait;
+}
+
+.email-verification-btn.completed {
+  background: #4CAF50;
+  cursor: not-allowed;
+}
+
+.email-verification-btn.sent {
+  background: #2196F3;
+  cursor: not-allowed;
+}
+
+.verify-code-btn {
+  background: #4CAF50;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-right: 15px;
+  white-space: nowrap;
+}
+
+.verify-code-btn:hover {
+  background: #45a049;
+}
+
+.verify-code-btn.completed {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.verify-code-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.error-message {
+  position: absolute;
+  bottom: -22px;
+  left: 60px;
+  color: #f44336;
+  font-size: 12px;
+  font-weight: 500;
+  background-color: white;
+  padding: 2px 4px;
+  border-radius: 4px;
+  z-index: 2;
+}
+
+.password-toggle {
+  background: none;
+  border: none;
+  padding: 0 15px;
+  font-size: 18px;
+  cursor: pointer;
+  color: #666;
+  display: flex;
+  align-items: center;
+  height: 50px;
+  transition: color 0.3s ease;
+}
+
+.password-toggle:hover {
+  color: #4CAF50;
+}
+
+.input_item.error .password-toggle {
+  color: #f44336;
+}
+
+.gender-selection {
+  margin: 20px 0;
+}
+
+.gender-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.gender-btn {
+  flex: 1;
+  padding: 12px 20px;
+  border: 1px solid #ddd;
+  background: white;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  color: #666;
+}
+
+.gender-btn:hover {
+  border-color: #4CAF50;
+  color: #4CAF50;
+}
+
+.gender-btn.active {
+  background-color: #4CAF50;
+  color: white;
+  border-color: #4CAF50;
+}
+
+/* 운동 목표 선택 스타일 */
+.goal-selection {
+  margin: 20px 0;
+}
+
+.goal-selection h4 {
+  margin: 0 0 15px 0;
+  color: #333;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.goal-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.goal-btn {
+  flex: 1;
+  min-width: 120px;
+  padding: 12px 16px;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  background-color: white;
+  color: #666;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: center;
+}
+
+.goal-btn:hover {
+  border-color: #4CAF50;
+  color: #4CAF50;
+  background-color: #f8f9fa;
+}
+
+.goal-btn.active {
+  background-color: #4CAF50;
+  color: white;
+  border-color: #4CAF50;
+}
+
+.verification-notice {
+  color: #4CAF50;
+  font-size: 13px;
+  text-align: center;
+  margin: 15px 0;
+  line-height: 1.4;
+}
+
+.phone-section {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.verification-button {
+  width: 100%;
+  padding: 16px;
+  background-color: #4CAF50;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+  margin-top: 20px;
+}
+
+.verification-button:hover {
+  background-color: #45a049;
+}
+
+.verification-button:active {
+  transform: translateY(1px);
+}
+
+/* 반응형 디자인 */
+@media (max-width: 600px) {
+  .signup-form-card {
+    padding: 20px;
+    margin: 10px;
+  }
+  
+  .signup-header {
+    flex-direction: column;
+    gap: 10px;
+    text-align: center;
+  }
+  
+  .gender-buttons {
+    flex-direction: column;
+  }
+  
+  .input_item {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .input-icon {
+    position: absolute;
+    left: 15px;
+    top: 15px;
+    z-index: 2;
+  }
+  
+  .input_field {
+    padding-left: 50px;
+  }
+  
+  .error-message {
+    left: 50px;
+    bottom: -25px;
+  }
+} 
