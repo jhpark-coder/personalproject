@@ -48,13 +48,18 @@
 .signup-form {
   display: flex;
   flex-direction: column;
-  gap: 20px;
 }
 
 .input-group {
   display: flex;
   flex-direction: column;
-  gap: 25px;
+  gap: 15px; /* 필드 그룹 간의 간격 */
+  margin-bottom: 15px; /* 그룹 간의 하단 마진 */
+}
+
+.form-control {
+  position: relative;
+  padding-bottom: 20px; /* 에러 메시지를 위한 공간 확보 */
 }
 
 .input_item {
@@ -65,7 +70,7 @@
   border-radius: 8px;
   background-color: white;
   transition: all 0.3s ease;
-  margin-bottom: 5px;
+  /* margin-bottom: 30px; 제거 */
 }
 
 .input_item:focus-within {
@@ -189,15 +194,13 @@
 
 .error-message {
   position: absolute;
-  bottom: -22px;
-  left: 60px;
+  top: 65px; /* input item 높이(65px) 바로 아래에 위치하도록 수정 */
+  left: 100px;
   color: #f44336;
   font-size: 12px;
   font-weight: 500;
-  background-color: white;
-  padding: 2px 4px;
-  border-radius: 4px;
-  z-index: 2;
+  line-height: 1.4;
+  background: none;
 }
 
 .password-toggle {
@@ -248,51 +251,6 @@
 }
 
 .gender-btn.active {
-  background-color: #4CAF50;
-  color: white;
-  border-color: #4CAF50;
-}
-
-/* 운동 목표 선택 스타일 */
-.goal-selection {
-  margin: 20px 0;
-}
-
-.goal-selection h4 {
-  margin: 0 0 15px 0;
-  color: #333;
-  font-size: 16px;
-  font-weight: 500;
-}
-
-.goal-buttons {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.goal-btn {
-  flex: 1;
-  min-width: 120px;
-  padding: 12px 16px;
-  border: 2px solid #ddd;
-  border-radius: 8px;
-  background-color: white;
-  color: #666;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  text-align: center;
-}
-
-.goal-btn:hover {
-  border-color: #4CAF50;
-  color: #4CAF50;
-  background-color: #f8f9fa;
-}
-
-.goal-btn.active {
   background-color: #4CAF50;
   color: white;
   border-color: #4CAF50;
@@ -368,7 +326,8 @@
   }
   
   .error-message {
-    left: 50px;
-    bottom: -25px;
+    position: static;
+    margin-top: 5px;
+    margin-left: 50px;
   }
 } 

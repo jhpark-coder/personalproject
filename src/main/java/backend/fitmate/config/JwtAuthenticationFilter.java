@@ -2,65 +2,73 @@ package backend.fitmate.config;
 
 import java.io.IOException;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
+import backend.fitmate.User.repository.UserRepository;
 import backend.fitmate.service.CustomUserDetailsService;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.MalformedJwtException;
+import io.jsonwebtoken.UnsupportedJwtException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 
-@Component
+@RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-    @Autowired
-    private JwtTokenProvider jwtTokenProvider;
-    
-    @Autowired
-    private CustomUserDetailsService customUserDetailsService;
+    private final JwtTokenProvider jwtTokenProvider;
+    private final CustomUserDetailsService customUserDetailsService;
+    private final UserRepository userRepository;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
+        String requestURI = request.getRequestURI();
+        String token = resolveToken(request);
         
-        try {
-            String jwt = getJwtFromRequest(request);
-            
-            if (StringUtils.hasText(jwt)) {
-                logger.info("JWT 토큰 발견: " + jwt.substring(0, Math.min(20, jwt.length())) + "...");
-                
-                if (jwtTokenProvider.validateToken(jwt)) {
-                    String userId = jwtTokenProvider.getUserIdFromToken(jwt);
-                    logger.info("JWT 토큰 유효, 사용자 ID: " + userId);
-                    
-                    UserDetails userDetails = customUserDetailsService.loadUserByUsername(userId);
-                    UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                            userDetails, null, userDetails.getAuthorities());
-                    
+        System.err.println("🔍 JWT Filter - URI: " + requestURI);
+        System.err.println("🔍 JWT Filter - Token present: " + (token != null));
+        
+        if (token != null) {
+            System.err.println("🔍 JWT Filter - Token (앞 20자): " + token.substring(0, Math.min(20, token.length())) + "...");
+            try {
+                if (jwtTokenProvider.validateToken(token)) {
+                    Authentication authentication = jwtTokenProvider.getAuthentication(token);
                     SecurityContextHolder.getContext().setAuthentication(authentication);
-                    logger.info("인증 컨텍스트에 사용자 설정 완료: " + userId);
+                    System.err.println("🔍 JWT Filter - 인증 성공, 사용자: " + authentication.getName());
+                    System.err.println("🔍 JWT Filter - 권한: " + authentication.getAuthorities());
                 } else {
-                    logger.warn("JWT 토큰이 유효하지 않음");
+                    System.err.println("🔍 JWT Filter - 토큰 검증 실패");
                 }
-            } else {
-                logger.debug("JWT 토큰이 요청에 없음");
+            } catch (io.jsonwebtoken.security.SecurityException | MalformedJwtException e) {
+                logger.warn("잘못된 JWT 서명입니다.", e);
+                request.setAttribute("exception", "Invalid-Token");
+            } catch (ExpiredJwtException e) {
+                logger.warn("만료된 JWT 토큰입니다.", e);
+                request.setAttribute("exception", "Expired-Token");
+            } catch (UnsupportedJwtException e) {
+                logger.warn("지원되지 않는 JWT 토큰입니다.", e);
+                request.setAttribute("exception", "Unsupported-Token");
+            } catch (IllegalArgumentException e) {
+                logger.warn("JWT 토큰이 잘못되었습니다.", e);
+                request.setAttribute("exception", "Illegal-Argument");
+            } catch (Exception e) {
+                logger.error("JWT 필터 처리 중 예외 발생", e);
+                request.setAttribute("exception", "Unknown-Error");
             }
-        } catch (Exception ex) {
-            logger.error("Could not set user authentication in security context", ex);
+        } else {
+            logger.debug("JWT 토큰이 없어 인증 컨텍스트를 설정하지 않음");
         }
-
         filterChain.doFilter(request, response);
     }
 
-    private String getJwtFromRequest(HttpServletRequest request) {
+    private String resolveToken(HttpServletRequest request) {
         String bearerToken = request.getHeader("Authorization");
-        if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
+        if (bearerToken != null && bearerToken.startsWith("Bearer ")) {
             return bearerToken.substring(7);
         }
         return null;
