@@ -13,12 +13,10 @@ export default defineConfig({
     }
   },
   build: {
-    chunkSizeWarningLimit: 1000, // TensorFlow.js 라이브러리 크기 때문에 경고 제한 증가
+    chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
         manualChunks: {
-          // TensorFlow.js를 별도 청크로 분리
-          'tensorflow': ['@tensorflow/tfjs', '@tensorflow-models/pose-detection'],
           'vendor': ['react', 'react-dom']
         }
       }

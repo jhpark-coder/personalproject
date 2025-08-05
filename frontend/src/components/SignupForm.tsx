@@ -13,7 +13,6 @@ interface FormErrors {
   gender?: string;
   phoneNumber?: string;
   verificationCode?: string;
-  goal?: string;
 }
 
 const SignupForm: React.FC = () => {
@@ -26,7 +25,6 @@ const SignupForm: React.FC = () => {
     gender: '',
     phoneNumber: '',
     verificationCode: '',
-    goal: 'general' // 기본값 추가
   });
 
   const [errors, setErrors] = useState<FormErrors>({});
@@ -176,13 +174,6 @@ const SignupForm: React.FC = () => {
     }));
   };
 
-  const handleGoalChange = (goal: string) => {
-    setFormData(prev => ({
-      ...prev,
-      goal
-    }));
-  };
-
   const handleEmailVerificationRequest = async () => {
     const emailError = validateEmail(formData.email);
     if (emailError) {
@@ -271,7 +262,6 @@ const SignupForm: React.FC = () => {
             birthDate: formData.birthDate,
             gender: formData.gender,
             phoneNumber: formData.phoneNumber,
-            goal: formData.goal // 운동 목표 추가
           }),
         });
 
@@ -340,133 +330,145 @@ const SignupForm: React.FC = () => {
         <form onSubmit={handleSubmit} className="signup-form">
           {/* 첫 번째 그룹 */}
           <div className="input-group">
-            <div className={`input_item ${getFieldError('email') ? 'error' : ''}`}>
-              <div className="input-icon">📧</div>
-              <input
-                type="email"
-                id="email"
-                name="email"
-                value={formData.email}
-                onChange={(e) => handleInputChange('email', e.target.value)}
-                onBlur={() => handleBlur('email')}
-                className={`input_field ${getFieldError('email') ? 'error' : ''}`}
-                placeholder="이메일주소 *"
-                autoComplete="email"
-              />
-              <button
-                type="button"
-                className={`email-verification-btn ${
-                  isEmailVerificationLoading ? 'loading' : 
-                  isEmailVerificationCompleted ? 'completed' :
-                  showVerificationCode ? 'sent' : ''
-                }`}
-                onClick={handleEmailVerificationRequest}
-                disabled={getEmailVerificationButtonDisabled()}
-              >
-                {getEmailVerificationButtonText()}
-              </button>
+            <div className="form-control">
+              <div className={`input_item ${getFieldError('email') ? 'error' : ''}`}>
+                <div className="input-icon">📧</div>
+                <input
+                  type="email"
+                  id="email"
+                  name="email"
+                  value={formData.email}
+                  onChange={(e) => handleInputChange('email', e.target.value)}
+                  onBlur={() => handleBlur('email')}
+                  className={`input_field ${getFieldError('email') ? 'error' : ''}`}
+                  placeholder="이메일주소 *"
+                  autoComplete="email"
+                />
+                <button
+                  type="button"
+                  className={`email-verification-btn ${
+                    isEmailVerificationLoading ? 'loading' : 
+                    isEmailVerificationCompleted ? 'completed' :
+                    showVerificationCode ? 'sent' : ''
+                  }`}
+                  onClick={handleEmailVerificationRequest}
+                  disabled={getEmailVerificationButtonDisabled()}
+                >
+                  {getEmailVerificationButtonText()}
+                </button>
+              </div>
               {getFieldError('email') && (
                 <div className="error-message">{getFieldError('email')}</div>
               )}
             </div>
 
             {showVerificationCode && (
-              <div className="input_item">
-                <div className="input-icon">🔐</div>
-                <input
-                  type="text"
-                  id="verificationCode"
-                  name="verificationCode"
-                  value={formData.verificationCode}
-                  onChange={(e) => handleInputChange('verificationCode', e.target.value)}
-                  className="input_field"
-                  placeholder="인증번호 6자리"
-                  maxLength={6}
-                  disabled={isEmailVerificationCompleted}
-                />
-                <button
-                  type="button"
-                  className={`verify-code-btn ${isEmailVerificationCompleted ? 'completed' : ''}`}
-                  onClick={handleVerificationCodeSubmit}
-                  disabled={isEmailVerificationCompleted}
-                >
-                  {isEmailVerificationCompleted ? '인증완료' : '인증하기'}
-                </button>
+              <div className="form-control">
+                <div className="input_item">
+                  <div className="input-icon">🔐</div>
+                  <input
+                    type="text"
+                    id="verificationCode"
+                    name="verificationCode"
+                    value={formData.verificationCode}
+                    onChange={(e) => handleInputChange('verificationCode', e.target.value)}
+                    className="input_field"
+                    placeholder="인증번호 6자리"
+                    maxLength={6}
+                    disabled={isEmailVerificationCompleted}
+                  />
+                  <button
+                    type="button"
+                    className={`verify-code-btn ${isEmailVerificationCompleted ? 'completed' : ''}`}
+                    onClick={handleVerificationCodeSubmit}
+                    disabled={isEmailVerificationCompleted}
+                  >
+                    {isEmailVerificationCompleted ? '인증완료' : '인증하기'}
+                  </button>
+                </div>
               </div>
             )}
 
-            <div className={`input_item ${getFieldError('password') ? 'error' : ''}`}>
-              <div className="input-icon">🔒</div>
-              <input
-                type={showPassword ? 'text' : 'password'}
-                id="password"
-                name="password"
-                value={formData.password}
-                onChange={(e) => handleInputChange('password', e.target.value)}
-                onBlur={() => handleBlur('password')}
-                className={`input_field ${getFieldError('password') ? 'error' : ''}`}
-                placeholder="비밀번호 *"
-                autoComplete="new-password"
-              />
-              <button
-                type="button"
-                className="password-toggle"
-                onClick={() => setShowPassword(!showPassword)}
-              >
-                {showPassword ? '👁️' : '👁️‍🗨️'}
-              </button>
+            <div className="form-control">
+              <div className={`input_item ${getFieldError('password') ? 'error' : ''}`}>
+                <div className="input-icon">🔒</div>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  id="password"
+                  name="password"
+                  value={formData.password}
+                  onChange={(e) => handleInputChange('password', e.target.value)}
+                  onBlur={() => handleBlur('password')}
+                  className={`input_field ${getFieldError('password') ? 'error' : ''}`}
+                  placeholder="비밀번호 *"
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? '👁️' : '👁️‍🗨️'}
+                </button>
+              </div>
               {getFieldError('password') && (
                 <div className="error-message">{getFieldError('password')}</div>
               )}
             </div>
 
-            <div className="input_item">
-              <div className="input-icon">👤</div>
-              <input
-                type="text"
-                id="nickname"
-                name="nickname"
-                value={formData.nickname}
-                onChange={(e) => handleInputChange('nickname', e.target.value)}
-                onBlur={() => handleBlur('nickname')}
-                className="input_field"
-                placeholder="닉네임"
-              />
+            <div className="form-control">
+              <div className="input_item">
+                <div className="input-icon">👤</div>
+                <input
+                  type="text"
+                  id="nickname"
+                  name="nickname"
+                  value={formData.nickname}
+                  onChange={(e) => handleInputChange('nickname', e.target.value)}
+                  onBlur={() => handleBlur('nickname')}
+                  className="input_field"
+                  placeholder="닉네임"
+                />
+              </div>
             </div>
           </div>
 
           {/* 두 번째 그룹 */}
           <div className="input-group">
-            <div className={`input_item ${getFieldError('name') ? 'error' : ''}`}>
-              <div className="input-icon">👤</div>
-              <input
-                type="text"
-                id="name"
-                name="name"
-                value={formData.name}
-                onChange={(e) => handleInputChange('name', e.target.value)}
-                onBlur={() => handleBlur('name')}
-                className={`input_field ${getFieldError('name') ? 'error' : ''}`}
-                placeholder="이름 *"
-              />
+            <div className="form-control">
+              <div className={`input_item ${getFieldError('name') ? 'error' : ''}`}>
+                <div className="input-icon">👤</div>
+                <input
+                  type="text"
+                  id="name"
+                  name="name"
+                  value={formData.name}
+                  onChange={(e) => handleInputChange('name', e.target.value)}
+                  onBlur={() => handleBlur('name')}
+                  className={`input_field ${getFieldError('name') ? 'error' : ''}`}
+                  placeholder="이름 *"
+                />
+              </div>
               {getFieldError('name') && (
                 <div className="error-message">{getFieldError('name')}</div>
               )}
             </div>
 
-            <div className={`input_item ${getFieldError('birthDate') ? 'error' : ''}`}>
-              <div className="input-icon">📅</div>
-              <input
-                type="text"
-                id="birthDate"
-                name="birthDate"
-                value={formData.birthDate}
-                onChange={(e) => handleInputChange('birthDate', e.target.value)}
-                onBlur={() => handleBlur('birthDate')}
-                className={`input_field ${getFieldError('birthDate') ? 'error' : ''}`}
-                placeholder="생년월일 8자리 *"
-                maxLength={8}
-              />
+            <div className="form-control">
+              <div className={`input_item ${getFieldError('birthDate') ? 'error' : ''}`}>
+                <div className="input-icon">📅</div>
+                <input
+                  type="text"
+                  id="birthDate"
+                  name="birthDate"
+                  value={formData.birthDate}
+                  onChange={(e) => handleInputChange('birthDate', e.target.value)}
+                  onBlur={() => handleBlur('birthDate')}
+                  className={`input_field ${getFieldError('birthDate') ? 'error' : ''}`}
+                  placeholder="생년월일 8자리 *"
+                  maxLength={8}
+                />
+              </div>
               {getFieldError('birthDate') && (
                 <div className="error-message">{getFieldError('birthDate')}</div>
               )}
@@ -500,66 +502,26 @@ const SignupForm: React.FC = () => {
             </div>
           </div>
 
-          {/* 운동 목표 선택 */}
-          <div className="goal-selection">
-            <h4>운동 목표 (선택)</h4>
-            <div className="goal-buttons">
-              <button
-                type="button"
-                className={`goal-btn ${formData.goal === 'general' ? 'active' : ''}`}
-                onClick={() => handleGoalChange('general')}
-              >
-                일반 건강
-              </button>
-              <button
-                type="button"
-                className={`goal-btn ${formData.goal === 'weight_loss' ? 'active' : ''}`}
-                onClick={() => handleGoalChange('weight_loss')}
-              >
-                체중 감량
-              </button>
-              <button
-                type="button"
-                className={`goal-btn ${formData.goal === 'muscle_gain' ? 'active' : ''}`}
-                onClick={() => handleGoalChange('muscle_gain')}
-              >
-                근육 증가
-              </button>
-              <button
-                type="button"
-                className={`goal-btn ${formData.goal === 'strength' ? 'active' : ''}`}
-                onClick={() => handleGoalChange('strength')}
-              >
-                근력 향상
-              </button>
-              <button
-                type="button"
-                className={`goal-btn ${formData.goal === 'endurance' ? 'active' : ''}`}
-                onClick={() => handleGoalChange('endurance')}
-              >
-                지구력 향상
-              </button>
-            </div>
-          </div>
-
           <div className="verification-notice">
             신분증 상의 이름, 생년월일, 성별과 일치하지 않으면 실명인증이 불가합니다.
           </div>
 
           {/* 전화번호 섹션 */}
           <div className="phone-section">
-            <div className={`input_item ${getFieldError('phoneNumber') ? 'error' : ''}`}>
-              <div className="input-icon">📱</div>
-              <input
-                type="tel"
-                id="phoneNumber"
-                name="phoneNumber"
-                value={formData.phoneNumber}
-                onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
-                onBlur={() => handleBlur('phoneNumber')}
-                className={`input_field ${getFieldError('phoneNumber') ? 'error' : ''}`}
-                placeholder="휴대전화번호 *"
-              />
+            <div className="form-control">
+              <div className={`input_item ${getFieldError('phoneNumber') ? 'error' : ''}`}>
+                <div className="input-icon">📱</div>
+                <input
+                  type="tel"
+                  id="phoneNumber"
+                  name="phoneNumber"
+                  value={formData.phoneNumber}
+                  onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
+                  onBlur={() => handleBlur('phoneNumber')}
+                  className={`input_field ${getFieldError('phoneNumber') ? 'error' : ''}`}
+                  placeholder="휴대전화번호 *"
+                />
+              </div>
               {getFieldError('phoneNumber') && (
                 <div className="error-message">{getFieldError('phoneNumber')}</div>
               )}

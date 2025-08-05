@@ -1,225 +1,265 @@
+
 package backend.fitmate.config;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
+import java.util.concurrent.TimeUnit;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.Authentication;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClient;
+import org.springframework.security.oauth2.client.OAuth2AuthorizedClientService;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
-import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler;
-import org.springframework.security.web.authentication.SimpleUrlAuthenticationFailureHandler;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
-import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService;
-import org.springframework.security.oauth2.client.userinfo.OAuth2UserRequest;
-import org.springframework.security.oauth2.client.userinfo.OAuth2UserService;
-import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
+import org.springframework.web.util.UriComponentsBuilder;
 
-import backend.fitmate.User.service.UserService;
 import backend.fitmate.User.entity.User;
-
-import jakarta.servlet.ServletException;
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import java.io.IOException;
+import backend.fitmate.User.repository.UserRepository;
+import backend.fitmate.User.service.UserService;
+import backend.fitmate.service.CustomUserDetailsService;
+import lombok.RequiredArgsConstructor;
 
 @Configuration
 @EnableWebSecurity
+@RequiredArgsConstructor
 public class SecurityConfig {
 
-    @Value("${app.frontend.url}")
-    private String frontendUrl;
-
-    @Autowired
-    private JwtTokenProvider jwtTokenProvider;
-
-    @Autowired
-    private JwtAuthenticationFilter jwtAuthenticationFilter;
-
-    @Autowired
-    private UserService userService;
-
-    @Autowired
-    private NaverOAuth2UserService naverOAuth2UserService;
-
-    @Autowired
-    private KakaoOAuth2UserService kakaoOAuth2UserService;
-
-    @Bean
-    public OAuth2UserService<OAuth2UserRequest, OAuth2User> oauth2UserService() {
-        return userRequest -> {
-            String registrationId = userRequest.getClientRegistration().getRegistrationId();
-            
-            System.out.println("=== OAuth2 User Service 호출됨 ===");
-            System.out.println("Registration ID: " + registrationId);
-            System.out.println("Client ID: " + userRequest.getClientRegistration().getClientId());
-            System.out.println("Client Secret: " + (userRequest.getClientRegistration().getClientSecret() != null ? "있음" : "없음"));
-            
-            // 카카오의 경우 전용 서비스 사용
-            if ("kakao".equals(registrationId)) {
-                return kakaoOAuth2UserService.loadUser(userRequest);
-            }
-            
-            // 네이버의 경우 전용 서비스 사용
-            if ("naver".equals(registrationId)) {
-                return naverOAuth2UserService.loadUser(userRequest);
-            }
-            
-            // 다른 제공자들은 기본 서비스 사용
-            DefaultOAuth2UserService delegate = new DefaultOAuth2UserService();
-            OAuth2User oauth2User = delegate.loadUser(userRequest);
-            
-            Map<String, Object> attributes = new HashMap<>(oauth2User.getAttributes());
-            attributes.put("provider", registrationId);
-            
-            return new DefaultOAuth2User(
-                oauth2User.getAuthorities(),
-                attributes,
-                oauth2User.getName()
-            );
-        };
-    }
+    private final JwtTokenProvider jwtTokenProvider;
+    private final CustomUserDetailsService customUserDetailsService;
+    private final UserRepository userRepository;
+    private final UserService userService;
+    private final CustomOAuth2UserService customOAuth2UserService;
+    private final RedisTemplate<String, Object> redisTemplate;
+    private final OAuth2AuthorizedClientService clientService;
     
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
-            .csrf(csrf -> csrf.disable())
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(authz -> authz
-                .requestMatchers("/api/auth/**").permitAll()
-                .requestMatchers("/oauth2/authorization/**").permitAll()
-                .requestMatchers("/login/oauth2/code/**").permitAll()
-                .requestMatchers("/login").permitAll()
-                .requestMatchers("/oauth2/**").permitAll()
+                // 인증이 필요없는 공개 엔드포인트들
+                .requestMatchers(
+                    "/api/auth/login", 
+                    "/api/auth/signup", 
+                    "/api/auth/send-verification-email",
+                    "/api/auth/verify-email-code",
+                    "/api/auth/resend-verification-email",
+                    "/api/auth/check-email",
+                    "/api/auth/verify-phone"
+                ).permitAll()
+                // OAuth2 관련 경로
+                .requestMatchers("/oauth2/**", "/login/oauth2/**", "/error").permitAll()
+                // 나머지는 모두 인증 필요 (profile, logout, update-* 등)
                 .anyRequest().authenticated()
             )
             .oauth2Login(oauth2 -> oauth2
                 .userInfoEndpoint(userInfo -> userInfo
-                    .userService(oauth2UserService())
+                    .userService(customOAuth2UserService)
                 )
-                .successHandler(new OAuth2AuthenticationSuccessHandler())
-                .failureUrl(frontendUrl + "/login?error=oauth2_failed")
+                .successHandler(oAuth2AuthenticationSuccessHandler())
             )
-            .formLogin(form -> form.disable())
-            .httpBasic(basic -> basic.disable())
-            .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(new JwtAuthenticationFilter(jwtTokenProvider, customUserDetailsService, userRepository),
+                    UsernamePasswordAuthenticationFilter.class)
+            .csrf(csrf -> csrf.disable())
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+            .sessionManagement(session -> session
+                .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+            );
         
         return http.build();
     }
 
-    // OAuth2 성공 핸들러
-    public class OAuth2AuthenticationSuccessHandler extends SimpleUrlAuthenticationSuccessHandler {
-        
-        @Override
-        public void onAuthenticationSuccess(HttpServletRequest request, 
-                                         HttpServletResponse response, 
-                                         Authentication authentication) throws IOException, ServletException {
+    @Bean
+    public AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler() {
+        return (request, response, authentication) -> {
+            OAuth2User oAuth2User = (OAuth2User) authentication.getPrincipal();
+            String registrationId = ((org.springframework.security.oauth2.client.authentication.OAuth2AuthenticationToken) authentication)
+                    .getAuthorizedClientRegistrationId();
+
+            Map<String, Object> attributes = oAuth2User.getAttributes();
             
-            System.out.println("=== OAuth2 성공 핸들러 실행됨 ===");
-            System.out.println("요청 URL: " + request.getRequestURL());
-            System.out.println("요청 파라미터: " + request.getQueryString());
-            System.out.println("요청 헤더: " + Collections.list(request.getHeaderNames()));
+            System.err.println("🚀 OAuth2 Success Handler 시작!");
+            System.err.println("🚀 Provider: " + registrationId);
+            System.err.println("🚀 All attributes: " + attributes);
             
-            OAuth2User oauth2User = (OAuth2User) authentication.getPrincipal();
+            // 각 제공자별로 데이터 추출
+            String email, name, picture, oauthId;
             
-            // provider 정보 추출
-            String provider = (String) oauth2User.getAttribute("provider");
-            if (provider == null) {
-                provider = "google"; // 기본값
-            }
-            
-            System.out.println("Provider: " + provider);
-            System.out.println("OAuth2User 전체 속성: " + oauth2User.getAttributes());
-            
-            // 사용자 정보 추출
-            String email = null;
-            String name = null;
-            String picture = null;
-            String oauthId = null;
-            
-            switch (provider) {
-                case "google":
-                    email = oauth2User.getAttribute("email");
-                    name = oauth2User.getAttribute("name");
-                    picture = oauth2User.getAttribute("picture");
-                    oauthId = oauth2User.getAttribute("sub");
-                    break;
-                case "kakao":
-                    // KakaoOAuth2UserService에서 이미 처리된 정보를 직접 사용
-                    email = oauth2User.getAttribute("email");
-                    name = oauth2User.getAttribute("name");
-                    picture = oauth2User.getAttribute("picture");
-                    // id가 Long 타입일 수 있으므로 String으로 변환
-                    Object idObj = oauth2User.getAttribute("id");
-                    oauthId = idObj != null ? idObj.toString() : null;
-                    System.out.println("카카오 사용자 정보 추출: email=" + email + ", name=" + name + ", picture=" + picture + ", oauthId=" + oauthId);
-                    break;
-                case "naver":
-                    // NaverOAuth2UserService에서 이미 response 객체를 풀어서 저장했으므로 직접 가져옴
-                    email = oauth2User.getAttribute("email");
-                    name = oauth2User.getAttribute("name");
-                    picture = oauth2User.getAttribute("profile_image");
-                    oauthId = oauth2User.getAttribute("id");
-                    break;
-            }
-            
-            System.out.println("추출된 사용자 정보 - email: " + email + ", name: " + name + ", picture: " + picture + ", oauthId: " + oauthId);
-            
-            // 사용자 정보를 데이터베이스에 저장/업데이트
-            if (email != null && name != null) {
-                User savedUser = userService.saveOrUpdateOAuth2User(email, name, provider, oauthId, picture);
+            try {
+                switch (registrationId) {
+                    case "google":
+                        email = (String) attributes.get("email");
+                        name = (String) attributes.get("name");
+                        picture = (String) attributes.get("picture");
+                        oauthId = (String) attributes.get("sub");
+                        System.err.println("🚀 Google - email: " + email + ", name: " + name + ", oauthId: " + oauthId);
+                        break;
+                    case "naver":
+                        // CustomOAuth2UserService에서 이미 평탄화되어 직접 접근 가능
+                        email = (String) attributes.get("email");
+                        name = (String) attributes.get("name");
+                        picture = (String) attributes.get("profile_image");  // 네이버는 profile_image 필드명 확인 필요
+                        oauthId = (String) attributes.get("id");
+                        System.err.println("🚀 Naver - email: " + email + ", name: " + name + ", picture: " + picture + ", oauthId: " + oauthId);
+                        
+                        // picture가 null이면 다른 필드명들을 시도
+                        if (picture == null) {
+                            picture = (String) attributes.get("profile_image_url");
+                            System.err.println("🚀 Naver - profile_image_url 시도: " + picture);
+                        }
+                        if (picture == null) {
+                            picture = ""; // 기본값 설정
+                            System.err.println("🚀 Naver - picture를 빈 문자열로 설정");
+                        }
+                        break;
+                    case "kakao":
+                        Map<String, Object> kakaoAccount = (Map<String, Object>) attributes.get("kakao_account");
+                        Map<String, Object> kakaoProfile = (Map<String, Object>) kakaoAccount.get("profile");
+                        email = (String) kakaoAccount.get("email");
+                        name = (String) kakaoProfile.get("nickname");
+                        picture = (String) kakaoProfile.get("profile_image_url");
+                        oauthId = attributes.get("id").toString();
+                        System.err.println("🚀 Kakao - email: " + email + ", name: " + name + ", oauthId: " + oauthId);
+                        break;
+                    default:
+                        throw new RuntimeException("지원하지 않는 OAuth2 제공자입니다: " + registrationId);
+                }
+
+                // 캘린더 연동 요청인지 확인 (Redis에서 Google OAuth ID로)
+                boolean isCalendarRequest = false;
+                Long calendarLinkingUserId = null;
                 
-                // 새 사용자인지 확인 (createdAt과 updatedAt이 같으면 새 사용자)
-                boolean isNewUser = savedUser.getCreatedAt().equals(savedUser.getUpdatedAt());
+                try {
+                    // 모든 활성 캘린더 연동 요청 확인 (Google 계정이면 무조건 연동)
+                    java.util.Set<String> keys = redisTemplate.keys("calendar_linking_user:*");
+                    if (keys != null && !keys.isEmpty() && "google".equals(registrationId)) {
+                        // Google OAuth2이고 활성 캘린더 연동 요청이 있으면 첫 번째 것으로 연동
+                        String firstKey = keys.iterator().next();
+                        String storedUserId = (String) redisTemplate.opsForValue().get(firstKey);
+                        if (storedUserId != null) {
+                            try {
+                                Long userId = Long.parseLong(storedUserId);
+                                User user = userRepository.findById(userId).orElse(null);
+                                if (user != null) {
+                                    isCalendarRequest = true;
+                                    calendarLinkingUserId = userId;
+                                    redisTemplate.delete(firstKey); // 사용 후 삭제
+                                    System.err.println("🚀 Redis에서 캘린더 연동 감지! 사용자 ID: " + userId + ", Google 이메일: " + email);
+                                } else {
+                                    System.err.println("🚨 사용자를 찾을 수 없음: " + userId);
+                                }
+                            } catch (NumberFormatException e) {
+                                System.err.println("🚨 잘못된 사용자 ID 형식: " + storedUserId);
+                            }
+                        }
+                    }
+                    
+                    if (!isCalendarRequest) {
+                        System.err.println("🚀 Redis에 캘린더 연동 정보 없음 또는 Google이 아님 (provider: " + registrationId + ", 이메일: " + email + ")");
+                    }
+                } catch (Exception e) {
+                    System.err.println("🚨 Redis 캘린더 연동 정보 조회 실패: " + e.getMessage());
+                }
+
+                System.err.println("🚀 사용자 정보 저장 시작...");
+                System.err.println("🚀 캘린더 연동 요청: " + isCalendarRequest);
                 
-                // JWT 토큰 생성 (사용자 ID 사용)
-                String token = jwtTokenProvider.generateToken(savedUser.getId().toString(), email, name);
+                User user;
+                boolean isNewUser = false;
                 
-                // 프론트엔드로 리다이렉트 (토큰을 URL 파라미터로 전달)
-                String redirectUrl = frontendUrl + "/#/auth/callback?success=true&token=" + token + 
-                                   "&provider=" + provider + "&email=" + URLEncoder.encode(email, StandardCharsets.UTF_8) + 
-                                   "&isNewUser=" + isNewUser;
-                
-                if (picture != null) {
-                    redirectUrl += "&picture=" + URLEncoder.encode(picture, StandardCharsets.UTF_8);
+                if (isCalendarRequest && "google".equals(registrationId) && calendarLinkingUserId != null) {
+                    // 캘린더 연동: 기존 사용자에 Google 정보만 추가
+                    user = userService.addGoogleCalendarInfoByUserId(calendarLinkingUserId, email, name, picture, oauthId);
+                    isNewUser = false; // 캘린더 연동은 항상 기존 사용자
+                } else {
+                    // 일반 OAuth2 로그인
+                    user = userService.saveOrUpdateOAuth2User(email, name, picture, registrationId, oauthId);
+                    isNewUser = user.getCreatedAt().isAfter(java.time.LocalDateTime.now().minusSeconds(5));
                 }
                 
-                System.out.println("리다이렉트 URL: " + redirectUrl);
-                getRedirectStrategy().sendRedirect(request, response, redirectUrl);
-            } else {
-                System.out.println("필수 사용자 정보 누락");
-                // 필수 정보가 없는 경우 에러 페이지로 리다이렉트
-                getRedirectStrategy().sendRedirect(request, response, frontendUrl + "/login?error=missing_info");
+                System.err.println("🚀 사용자 저장 완료: " + user.getId() + ", isNewUser: " + isNewUser);
+
+                // 캘린더 연동인 경우 Google OAuth2 토큰을 Redis에 저장
+                if (isCalendarRequest && "google".equals(registrationId) && user.getGoogleOAuthId() != null) {
+                    try {
+                        OAuth2AuthorizedClient client = clientService.loadAuthorizedClient("google", oauthId);
+                        if (client != null) {
+                            String accessToken = client.getAccessToken().getTokenValue();
+                            String refreshToken = client.getRefreshToken() != null ? client.getRefreshToken().getTokenValue() : null;
+                            
+                            // Redis에 Google 토큰 저장
+                            String key = "google_token:" + user.getGoogleOAuthId();
+                            Map<String, String> tokenData = new HashMap<>();
+                            tokenData.put("access_token", accessToken);
+                            if (refreshToken != null) {
+                                tokenData.put("refresh_token", refreshToken);
+                            }
+                            tokenData.put("timestamp", String.valueOf(System.currentTimeMillis()));
+                            
+                            redisTemplate.opsForHash().putAll(key, tokenData);
+                            redisTemplate.expire(key, 3600, TimeUnit.SECONDS); // 1시간 TTL
+                            
+                            System.err.println("🚀 Google 토큰 Redis 저장 완료: " + user.getGoogleOAuthId());
+                        } else {
+                            System.err.println("🚨 OAuth2 클라이언트를 찾을 수 없음: " + oauthId);
+                        }
+                    } catch (Exception e) {
+                        System.err.println("🚨 Google 토큰 Redis 저장 실패: " + e.getMessage());
+                    }
+                }
+
+                System.err.println("🚀 JWT 토큰 생성 시작...");
+                String token = jwtTokenProvider.createToken(user.getId(), user.getEmail(), user.getName(),
+                        user.getOauthProvider(), user.getOauthId(), user.getProfileImage());
+                System.err.println("🚀 JWT 토큰 생성 완료: " + (token != null ? "성공" : "실패"));
+
+                UriComponentsBuilder urlBuilder = UriComponentsBuilder.fromUriString("https://localhost:5173/#/auth/callback")
+                        .queryParam("success", "true")
+                        .queryParam("token", token)
+                        .queryParam("provider", user.getOauthProvider())
+                        .queryParam("email", user.getEmail())
+                        .queryParam("name", user.getName())
+                        .queryParam("isNewUser", String.valueOf(isNewUser))
+                        .queryParam("picture", user.getProfileImage());
+
+                // 캘린더 연동 요청인 경우에만 calendarOnly 파라미터 추가
+                if (isCalendarRequest) {
+                    urlBuilder.queryParam("calendarOnly", "true");
+                }
+
+                String targetUrl = urlBuilder.build().encode(StandardCharsets.UTF_8).toUriString();
+                System.err.println("🚀 리다이렉트 URL: " + targetUrl);
+
+                response.sendRedirect(targetUrl);
+                System.err.println("🚀 리다이렉트 완료!");
+                
+            } catch (Exception e) {
+                System.err.println("🚨 OAuth2 Success Handler 에러: " + e.getMessage());
+                e.printStackTrace();
+                throw e;
             }
-        }
+        };
     }
+
+    // CustomOAuth2UserService로 통합되었으므로 이 Bean은 더 이상 필요 없음
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        // HTTPS 환경을 포함한 모든 origin 허용
-        configuration.setAllowedOriginPatterns(Arrays.asList("*"));
-        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+        configuration.setAllowedOrigins(Arrays.asList("http://localhost:5173", "https://localhost:5173"));
+        configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(Arrays.asList("*"));
         configuration.setAllowCredentials(true);
-        // HTTPS 환경에서의 쿠키 및 인증 헤더 허용
-        configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Type"));
-        configuration.setMaxAge(3600L); // 1시간 캐시
-        
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
