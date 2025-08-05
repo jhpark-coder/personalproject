@@ -68,7 +68,7 @@ public class RedisConfig {
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(config)
                 .withCacheConfiguration("user", 
-                    RedisCacheConfiguration.defaultCacheConfig().entryTtl(Duration.ofMinutes(10)))
+                    RedisCacheConfiguration.defaultCacheConfig().entryTtl(Duration.ofMinutes(1)))
                 .withCacheConfiguration("oauth2", 
                     RedisCacheConfiguration.defaultCacheConfig().entryTtl(Duration.ofMinutes(5)))
                 .build();

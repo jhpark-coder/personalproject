@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Modal from './Modal';
 import { API_ENDPOINTS } from '../config/api';
@@ -11,19 +11,13 @@ const MemberForm: React.FC = () => {
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  
-  // 모달 상태
-  const [modal, setModal] = useState<{
-    isOpen: boolean;
-    title: string;
-    message: string;
-    type: 'success' | 'error' | 'info';
-  }>({
+  const [modal, setModal] = useState({
     isOpen: false,
     title: '',
     message: '',
-    type: 'info'
+    type: 'info' as 'success' | 'error' | 'info'
   });
+  const [isRateLimitTesting, setIsRateLimitTesting] = useState(false);
 
   const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setEmail(e.target.value);
@@ -31,6 +25,43 @@ const MemberForm: React.FC = () => {
 
   const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setPassword(e.target.value);
+  };
+
+  // Rate Limiting 테스트 함수 추가
+  const testRateLimiting = async () => {
+    // 이미 테스트 중이면 중복 실행 방지
+    if (isRateLimitTesting) {
+      return;
+    }
+
+    setIsRateLimitTesting(true);
+    
+    try {
+      const response = await fetch(`${API_ENDPOINTS.BACKEND_URL}/test/login-page`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+
+      const data = await response.json();
+      
+      if (response.status === 429) {
+        showModal('Rate Limiting 테스트', '요청이 너무 많습니다! (분당 10회 제한)', 'error');
+      } else if (data.success) {
+        const remainingTokens = data.remainingTokens || '알 수 없음';
+        const totalCapacity = data.totalCapacity || 10;
+        showModal('Rate Limiting 테스트', 
+          `성공! 남은 요청: ${remainingTokens}/${totalCapacity}회`, 'success');
+      } else {
+        showModal('Rate Limiting 테스트', data.message || '테스트 실패', 'error');
+      }
+    } catch (error) {
+      console.error('Rate Limiting 테스트 실패:', error);
+      showModal('Rate Limiting 테스트', '테스트 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setIsRateLimitTesting(false);
+    }
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -112,6 +143,26 @@ const MemberForm: React.FC = () => {
   return (
     <div className="member-form-container">
       <div className="member-form-card">
+        {/* Rate Limiting 테스트 버튼 추가 */}
+        <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+          <button 
+            onClick={testRateLimiting}
+            disabled={isRateLimitTesting}
+            style={{
+              padding: '10px 20px',
+              backgroundColor: isRateLimitTesting ? '#6c757d' : '#007bff',
+              color: 'white',
+              border: 'none',
+              borderRadius: '5px',
+              cursor: isRateLimitTesting ? 'not-allowed' : 'pointer',
+              fontSize: '14px',
+              opacity: isRateLimitTesting ? 0.6 : 1
+            }}
+          >
+            {isRateLimitTesting ? '⏳ 테스트 중...' : '🚀 Rate Limiting 테스트 (분당 10회)'}
+          </button>
+        </div>
+
         <form onSubmit={handleLogin} className="member-form">
           <div className="input-group">
             <div className="input_item id" id="input_item_email">

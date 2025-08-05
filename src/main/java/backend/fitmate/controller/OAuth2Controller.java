@@ -1,21 +1,24 @@
 package backend.fitmate.controller;
 
+import java.util.HashMap;
+import java.util.Map;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
 
-import java.util.HashMap;
-import java.util.Map;
+import backend.fitmate.config.RateLimit;
 
 @RestController
 @RequestMapping("/oauth2")
 @CrossOrigin(origins = "${app.frontend.url}", allowCredentials = "true")
 public class OAuth2Controller {
 
-    @GetMapping("/callback")
+    @GetMapping("/manual-callback")
+    @RateLimit(bucketName = "oauth2Bucket", keyType = RateLimit.KeyType.IP)
     public ResponseEntity<?> oauth2Callback(@RequestParam(required = false) String code,
                                           @RequestParam(required = false) String state,
                                           @RequestParam(required = false) String error) {
