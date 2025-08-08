@@ -26,10 +26,13 @@ public class CustomUserDetailsService implements UserDetailsService {
             User user = userService.findById(id)
                     .orElseThrow(() -> new UsernameNotFoundException("User not found with id: " + userId));
 
+            // 사용자의 실제 role 사용 (기본값: ROLE_USER)
+            String userRole = user.getRole() != null ? user.getRole() : "ROLE_USER";
+
             return new org.springframework.security.core.userdetails.User(
                     String.valueOf(user.getId()),
                     user.getPassword() != null ? user.getPassword() : "", // 비밀번호가 없는 소셜 로그인을 고려
-                    Collections.singletonList(new SimpleGrantedAuthority("ROLE_USER"))
+                    Collections.singletonList(new SimpleGrantedAuthority(userRole))
             );
         } catch (NumberFormatException e) {
             throw new UsernameNotFoundException("Invalid user ID format: " + userId);

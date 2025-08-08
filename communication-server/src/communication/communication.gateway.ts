@@ -19,7 +19,8 @@ import { Notification } from '../schemas/notification.schema';
   cors: {
     origin: [
       'http://localhost:8080',  // Spring Boot 백엔드
-      'http://localhost:5173',  // React 프론트엔드
+      'http://localhost:5173',  // React 프론트엔드 (HTTP)
+      'https://localhost:5173', // React 프론트엔드 (HTTPS)
       'http://localhost:4000',  // 추가 프론트엔드
       'file://',
       '*'
@@ -85,6 +86,13 @@ export class CommunicationGateway implements OnGatewayInit, OnGatewayConnection,
   // ===== 채팅 관련 기능 =====
   @SubscribeMessage('joinChat')
   async handleJoinChat(@MessageBody() data: ChatUserDto, @ConnectedSocket() client: Socket) {
+    // 관리자가 일반 사용자로 입장하려고 할 때 차단
+    const userRoles = this.getUserRolesFromSocket(client);
+    if (userRoles && userRoles.includes('ROLE_ADMIN')) {
+      this.logger.log(`🚫 관리자가 일반 사용자로 입장 시도 차단: ${data.sender}`);
+      return { status: 'blocked', message: '관리자는 일반 사용자로 입장할 수 없습니다.' };
+    }
+    
     client.join(data.sender);
     this.logger.log(`👤 사용자 ${data.sender}가 채팅에 참가했습니다.`);
     this.chatService.addOnlineUser(data.sender, client.id);
@@ -121,19 +129,32 @@ export class CommunicationGateway implements OnGatewayInit, OnGatewayConnection,
 
   @SubscribeMessage('sendMessage')
   async handleSendMessage(@MessageBody() data: ChatMessageDto, @ConnectedSocket() client: Socket) {
+    this.logger.log(`📤 메시지 수신:`, data);
     const savedMessage = await this.chatService.saveMessage(data);
+    
+    // 관리자 역할 확인
+    const userRoles = this.getUserRolesFromSocket(client);
+    const isAdmin = userRoles && userRoles.includes('ROLE_ADMIN');
+    
+    // isAdmin 필드 추가
+    const messageWithAdminFlag = { ...savedMessage, isAdmin };
     
     if (data.recipient && data.recipient !== '') {
       // 관리자가 특정 사용자에게 답장
-      this.server.to(data.recipient).emit('adminReply', savedMessage);
-      this.server.to('admin').emit('adminReply', savedMessage);
+      this.server.to(data.recipient).emit('adminReply', messageWithAdminFlag);
+      this.server.to('admin').emit('adminReply', messageWithAdminFlag);
+    } else if (isAdmin) {
+      // 관리자가 보낸 메시지는 관리자 방에만 전송
+      this.server.to('admin').emit('adminReply', messageWithAdminFlag);
     } else {
       // 일반 사용자 메시지
-      this.server.to('admin').emit('userMessage', savedMessage);
-      this.server.to(data.sender).emit('chatMessage', savedMessage);
+      this.server.to('admin').emit('userMessage', messageWithAdminFlag);
+      // 사용자 자신에게도 메시지 전송 (확인용)
+      this.server.to(data.sender).emit('chatMessage', messageWithAdminFlag);
     }
     
-    return savedMessage;
+    this.logger.log(`✅ 메시지 처리 완료:`, messageWithAdminFlag);
+    return messageWithAdminFlag;
   }
 
   @SubscribeMessage('getHistory')
@@ -179,6 +200,13 @@ export class CommunicationGateway implements OnGatewayInit, OnGatewayConnection,
   }
 
   // ===== 알림 관련 기능 =====
+  @SubscribeMessage('subscribe')
+  async handleSubscribe(@MessageBody() data: { userId: string }, @ConnectedSocket() client: Socket) {
+    this.logger.log(`📢 사용자 ${data.userId}가 알림을 구독했습니다.`);
+    client.join(String(data.userId));
+    this.logger.log(`👤 클라이언트 ${client.id}가 사용자 ID '${data.userId}' 방에 참가했습니다.`);
+  }
+
   public sendNotificationToUser(userId: string, notification: Notification) {
     this.logger.log(`📢 ${userId}번 사용자에게 알림 전송:`, notification);
     this.server.to(String(userId)).emit('newNotification', notification);

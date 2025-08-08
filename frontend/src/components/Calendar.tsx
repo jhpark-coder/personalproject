@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { API_ENDPOINTS } from '../config/api';
+import { useUser } from '../context/UserContext';
+import NavigationBar from './NavigationBar';
+import ChatButton from './ChatButton';
 import './Calendar.css';
 
 interface CalendarEvent {
@@ -17,12 +20,28 @@ interface CalendarEvent {
     displayName: string;
   };
   created?: string;
+  type?: 'holiday' | 'user';
+}
+
+interface WorkoutRecord {
+  id: number;
+  workoutType: string;
+  workoutDate: string;
+  duration?: number;
+  calories?: number;
+  sets?: number;
+  reps?: number;
+  weight?: number;
+  notes?: string;
 }
 
 const Calendar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useUser();
   const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [holidays, setHolidays] = useState<CalendarEvent[]>([]);
+  const [workouts, setWorkouts] = useState<WorkoutRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [calendarStatus, setCalendarStatus] = useState<any>(null);
@@ -40,57 +59,179 @@ const Calendar: React.FC = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [viewMode, setViewMode] = useState<'list' | 'calendar'>('calendar');
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [loadedHolidayYear, setLoadedHolidayYear] = useState<number>(0);
 
   useEffect(() => {
     // URL 파라미터에서 토큰 확인
     const urlParams = new URLSearchParams(location.search);
     const token = urlParams.get('token');
     const success = urlParams.get('success');
-    const existingUser = urlParams.get('existingUser');
-    const newUser = urlParams.get('newUser');
-    const calendarOnly = urlParams.get('calendarOnly');
-    const calendarLinked = urlParams.get('calendarLinked');
-    
-    console.log('=== Calendar 컴포넌트 OAuth2 콜백 처리 ===');
-    console.log('URL 파라미터:', window.location.search);
-    console.log('Success:', success);
-    console.log('Token 존재:', !!token);
-    console.log('기존 사용자:', existingUser);
-    console.log('새 사용자:', newUser);
-    console.log('캘린더 전용:', calendarOnly);
-    console.log('캘린더 연동됨:', calendarLinked);
     
     if (success === 'true' && token) {
       // 캘린더 연동 완료 - 토큰 저장
       localStorage.setItem('token', token);
-      console.log('캘린더 연동 토큰 저장됨');
       
-      // 임시 토큰인 경우 처리
       const tempToken = urlParams.get('tempToken');
       if (tempToken === 'true') {
-        console.log('임시 토큰 감지됨 - 기존 사용자 토큰으로 교체 필요');
-        // 임시 토큰은 5분 후 만료되므로, 사용자가 다시 로그인하도록 안내
-        // 또는 기존 토큰이 있다면 그것을 사용
         const existingToken = localStorage.getItem('existingToken');
         if (existingToken) {
           localStorage.setItem('token', existingToken);
-          console.log('기존 토큰으로 복원됨');
         }
       }
       
       // URL에서 파라미터 제거
       navigate('/calendar', { replace: true });
-      return;
+    } else {
+      checkCalendarStatus();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search, navigate]);
+
+  useEffect(() => {
+    if (calendarStatus) {
+      if (calendarStatus.connected) {
+        loadEvents();
+      } else {
+        setLoading(false);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [calendarStatus]);
+
+  useEffect(() => {
+    const year = currentDate.getFullYear();
+    if (year !== loadedHolidayYear) {
+      loadHolidays(year);
+      setLoadedHolidayYear(year);
+    }
+  }, [currentDate, loadedHolidayYear]);
+
+  // 운동 기록 로드
+  useEffect(() => {
+    loadWorkouts();
+  }, []);
+
+  const loadWorkouts = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+
+      const userId = getUserId();
+      if (!userId) return;
+
+      const response = await fetch(`${API_ENDPOINTS.MYPAGE_WORKOUTS(userId)}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        // API 응답에서 workouts 배열 추출
+        const workoutsArray = data.workouts || data.content || data || [];
+        setWorkouts(Array.isArray(workoutsArray) ? workoutsArray : []);
+      }
+    } catch (error) {
+      console.error('운동 기록 로드 실패:', error);
+      setWorkouts([]); // 에러 시 빈 배열로 초기화
+    }
+  };
+
+  const getUserId = () => {
+    const token = localStorage.getItem('token');
+    if (!token) return null;
+    try { return JSON.parse(atob(token.split('.')[1])).sub; } catch { return null; }
+  };
+
+  // 주간 히트맵 렌더링
+  const renderWeeklyHeatmap = () => {
+    const today = new Date();
+    const startOfWeek = new Date(today);
+    startOfWeek.setDate(today.getDate() - today.getDay()); // 일요일부터 시작
+    
+    const weekDays = ['일', '월', '화', '수', '목', '금', '토'];
+    const heatmapDays = [];
+    
+    // workouts가 배열인지 확인
+    if (!Array.isArray(workouts)) {
+      return null; // workouts가 배열이 아니면 히트맵을 렌더링하지 않음
     }
     
-    checkCalendarStatus();
-    loadEvents();
-  }, [location, navigate]);
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(startOfWeek);
+      date.setDate(startOfWeek.getDate() + i);
+      
+      const dateStr = date.toISOString().split('T')[0];
+      const hasWorkout = workouts.some(workout => 
+        workout.workoutDate === dateStr
+      );
+      
+      const isToday = date.toDateString() === today.toDateString();
+      
+      heatmapDays.push(
+        <div 
+          key={i} 
+          className={`heatmap-day ${hasWorkout ? 'has-workout' : ''} ${isToday ? 'today' : ''}`}
+        >
+          <div className="day-label">{weekDays[i]}</div>
+          <div className="day-indicator"></div>
+        </div>
+      );
+    }
+    
+    const workoutDays = workouts.filter(workout => {
+      const workoutDate = new Date(workout.workoutDate);
+      const weekStart = new Date(startOfWeek);
+      const weekEnd = new Date(startOfWeek);
+      weekEnd.setDate(weekStart.getDate() + 6);
+      return workoutDate >= weekStart && workoutDate <= weekEnd;
+    }).length;
+    
+    return (
+      <div className="weekly-heatmap">
+        <div className="heatmap-header">
+          <h4>이번 주 운동 현황</h4>
+          <span className="workout-count">{workoutDays}일 운동 완료!</span>
+        </div>
+        <div className="heatmap-grid">
+          {heatmapDays}
+        </div>
+      </div>
+    );
+  };
 
+  // 선택된 날짜의 운동 기록
+  const getWorkoutsForDate = (date: Date) => {
+    if (!Array.isArray(workouts)) return [];
+    const dateStr = date.toISOString().split('T')[0];
+    return workouts.filter(workout => workout.workoutDate === dateStr);
+  };
 
+  const loadHolidays = async (year: number) => {
+    try {
+      const response = await fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/KR`);
+      if (response.ok) {
+        const data = await response.json();
+        const holidayEvents: CalendarEvent[] = data.map((holiday: any) => ({
+          id: `holiday-${holiday.date}`,
+          title: holiday.localName,
+          startDate: holiday.date,
+          endDate: holiday.date,
+          isAllDay: true,
+          htmlLink: '',
+          type: 'holiday',
+        }));
+        setHolidays(holidayEvents);
+      }
+    } catch (error) {
+      console.error('공휴일 정보 로드 실패:', error);
+    }
+  };
 
   const checkCalendarStatus = async () => {
     try {
+      setLoading(true);
       const token = localStorage.getItem('token');
       const response = await fetch(API_ENDPOINTS.CALENDAR_STATUS, {
         headers: {
@@ -102,12 +243,12 @@ const Calendar: React.FC = () => {
       setCalendarStatus(data);
     } catch (error) {
       console.error('캘린더 상태 확인 실패:', error);
+      setCalendarStatus({ connected: false });
     }
   };
 
   const loadEvents = async () => {
     try {
-      setLoading(true);
       const token = localStorage.getItem('token');
       const response = await fetch(`${API_ENDPOINTS.CALENDAR_EVENTS}?maxResults=20`, {
         headers: {
@@ -119,8 +260,6 @@ const Calendar: React.FC = () => {
       if (response.ok) {
         const data = await response.json();
         console.log('받은 캘린더 이벤트 데이터:', data);
-        
-
         
         setEvents(data);
       } else {
@@ -289,13 +428,22 @@ const Calendar: React.FC = () => {
   };
 
   const getEventsForDate = (date: Date) => {
-    return events.filter(event => {
+    const userEvents = events.filter(event => {
       // 새로운 백엔드 형식에 맞게 수정
       const eventStart = new Date(event.startDate);
       const eventDate = new Date(eventStart.getFullYear(), eventStart.getMonth(), eventStart.getDate());
       const targetDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
       return eventDate.getTime() === targetDate.getTime();
     });
+    
+    const holidayEvents = holidays.filter(holiday => {
+      const holidayStart = new Date(holiday.startDate);
+      const holidayDate = new Date(holidayStart.getFullYear(), holidayStart.getMonth(), holidayStart.getDate());
+      const targetDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      return holidayDate.getTime() === targetDate.getTime();
+    });
+
+    return [...userEvents, ...holidayEvents];
   };
 
   const renderCalendar = () => {
@@ -310,22 +458,34 @@ const Calendar: React.FC = () => {
     // 현재 달의 날들
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(currentDate.getFullYear(), currentDate.getMonth(), day);
+      const dayOfWeek = date.getDay(); // 0: Sunday, 6: Saturday
       const dayEvents = getEventsForDate(date);
+      const dayWorkouts = getWorkoutsForDate(date);
+      const hasUserEvent = dayEvents.some(e => e.type !== 'holiday');
+      const hasHoliday = dayEvents.some(e => e.type === 'holiday');
+      const hasWorkout = dayWorkouts.length > 0;
       const isToday = new Date().toDateString() === date.toDateString();
       const isSelected = selectedDate && selectedDate.toDateString() === date.toDateString();
       
+      const dayClasses = [
+        'calendar-day',
+        isToday ? 'today' : '',
+        isSelected ? 'selected' : '',
+        hasUserEvent ? 'has-events' : '',
+        hasHoliday ? 'has-holiday' : '',
+        hasWorkout ? 'has-workout' : '',
+        dayOfWeek === 0 ? 'sunday' : '',
+        dayOfWeek === 6 ? 'saturday' : '',
+      ].filter(Boolean).join(' ');
+
       days.push(
         <div 
           key={day} 
-          className={`calendar-day ${isToday ? 'today' : ''} ${isSelected ? 'selected' : ''} ${dayEvents.length > 0 ? 'has-events' : ''}`}
+          className={dayClasses}
           onClick={() => setSelectedDate(date)}
         >
           <span className="day-number">{day}</span>
-          {dayEvents.length > 0 && (
-            <div className="event-indicator">
-              <span className="event-count">{dayEvents.length}</span>
-            </div>
-          )}
+          {hasWorkout && <div className="workout-indicator">💪</div>}
         </div>
       );
     }
@@ -392,48 +552,11 @@ const Calendar: React.FC = () => {
     }
   };
 
-  // JWT에서 userId 추출 함수는 더 이상 사용되지 않습니다.
-  /*
-  function getUserIdFromToken(token: string | null): string {
-    if (!token) return '';
-    try {
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      return payload.sub;
-    } catch {
-      return '';
-    }
-  }
-  */
-
-  if (!calendarStatus?.connected) {
-    return (
-      <div className="calendar-container">
-        <div className="calendar-header">
-          <button onClick={() => navigate(-1)} className="back-button">
-            ←
-          </button>
-          <h1>캘린더</h1>
-        </div>
-        
-        <div className="calendar-disconnected">
-          <div className="disconnected-content">
-            <div className="calendar-icon">📅</div>
-            <h3>Google Calendar 연동이 필요합니다</h3>
-            <p>운동 일정을 Google Calendar에 추가하려면 Google 계정과 연동해주세요.</p>
-            <button onClick={handleConnectGoogleCalendar} className="connect-btn">
-              Google Calendar 연동하기
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="calendar-container">
       <div className="calendar-header">
         <button onClick={() => navigate(-1)} className="back-button">
-          ← 뒤로
+          ←
         </button>
         <h1>캘린더</h1>
         <div className="calendar-controls">
@@ -459,6 +582,19 @@ const Calendar: React.FC = () => {
           </button>
         </div>
       </div>
+
+      {/* 주간 히트맵 */}
+      {renderWeeklyHeatmap()}
+
+      {!calendarStatus?.connected && !loading && (
+        <div className="calendar-disconnected-banner">
+          <h3>Google Calendar 연동</h3>
+          <p>운동 일정을 Google Calendar와 동기화하여 편하게 관리하세요.</p>
+          <button onClick={handleConnectGoogleCalendar} className="connect-btn">
+            Google Calendar 연동하기
+          </button>
+        </div>
+      )}
 
       {error && (
         <div className="error-message">
@@ -560,13 +696,13 @@ const Calendar: React.FC = () => {
             
             <div className="calendar-grid">
               <div className="calendar-weekdays">
-                <div className="weekday">일</div>
+                <div className="weekday sunday">일</div>
                 <div className="weekday">월</div>
                 <div className="weekday">화</div>
                 <div className="weekday">수</div>
                 <div className="weekday">목</div>
                 <div className="weekday">금</div>
-                <div className="weekday">토</div>
+                <div className="weekday saturday">토</div>
               </div>
               <div className="calendar-days">
                 {renderCalendar()}
@@ -576,28 +712,60 @@ const Calendar: React.FC = () => {
             {selectedDate && (
               <div className="selected-date-events">
                 <h4>{selectedDate.toLocaleDateString('ko-KR')} 일정</h4>
-                {getEventsForDate(selectedDate).length === 0 ? (
-                  <p>해당 날짜에 일정이 없습니다.</p>
-                ) : (
-                  getEventsForDate(selectedDate).map((event) => (
-                    <div key={event.id} className="event-item">
-                      <div className="event-header">
-                        <h5>{event.title}</h5>
-                        <a href={event.htmlLink} target="_blank" rel="noopener noreferrer" className="google-link">
-                          Google Calendar에서 보기
-                        </a>
+                
+                {/* 운동 기록 */}
+                {getWorkoutsForDate(selectedDate).length > 0 && (
+                  <div className="workout-section">
+                    <h5>💪 운동 기록</h5>
+                    {getWorkoutsForDate(selectedDate).map((workout) => (
+                      <div key={workout.id} className="workout-item">
+                        <div className="workout-header">
+                          <h6>{workout.workoutType}</h6>
+                          {workout.duration && <span className="duration">{workout.duration}분</span>}
+                        </div>
+                        <div className="workout-details">
+                          {workout.sets && workout.reps && (
+                            <span>{workout.sets}세트 × {workout.reps}회</span>
+                          )}
+                          {workout.weight && <span>{workout.weight}kg</span>}
+                          {workout.calories && <span>{workout.calories}kcal</span>}
+                        </div>
+                        {workout.notes && <p className="workout-notes">{workout.notes}</p>}
                       </div>
-                      {event.description && (
-                        <p className="event-description">{event.description}</p>
-                      )}
-                      {event.location && (
-                        <p className="event-location">📍 {event.location}</p>
-                      )}
-                      <div className="event-time">
-                        <span>{formatEventDateTime(event)}</span>
+                    ))}
+                  </div>
+                )}
+                
+                {/* 캘린더 이벤트 */}
+                {getEventsForDate(selectedDate).length > 0 && (
+                  <div className="events-section">
+                    <h5>📅 일정</h5>
+                    {getEventsForDate(selectedDate).map((event) => (
+                      <div key={event.id} className={`event-item ${event.type === 'holiday' ? 'holiday-event' : ''}`}>
+                        <div className="event-header">
+                          <h6>{event.title}</h6>
+                          {event.type !== 'holiday' && event.htmlLink && (
+                          <a href={event.htmlLink} target="_blank" rel="noopener noreferrer" className="google-link">
+                            Google Calendar에서 보기
+                          </a>
+                          )}
+                        </div>
+                        {event.description && (
+                          <p className="event-description">{event.description}</p>
+                        )}
+                        {event.location && (
+                          <p className="event-location">📍 {event.location}</p>
+                        )}
+                        <div className="event-time">
+                          <span>{formatEventDateTime(event)}</span>
+                        </div>
                       </div>
-                    </div>
-                  ))
+                    ))}
+                  </div>
+                )}
+                
+                {getWorkoutsForDate(selectedDate).length === 0 && getEventsForDate(selectedDate).length === 0 && (
+                  <p>해당 날짜에 기록이 없습니다.</p>
                 )}
               </div>
             )}
@@ -605,7 +773,7 @@ const Calendar: React.FC = () => {
         ) : (
           <div className="events-list">
             <h3>다가오는 일정</h3>
-            {events.length === 0 ? (
+            {events.length === 0 && holidays.length === 0 ? (
               <div className="no-events">
                 <p>등록된 일정이 없습니다.</p>
                 <button onClick={() => setShowCreateForm(true)} className="add-first-event-btn">
@@ -613,13 +781,15 @@ const Calendar: React.FC = () => {
                 </button>
               </div>
             ) : (
-              events.map((event) => (
-                <div key={event.id} className="event-item">
+              [...events, ...holidays].sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()).map((event) => (
+                <div key={event.id} className={`event-item ${event.type === 'holiday' ? 'holiday-event' : ''}`}>
                   <div className="event-header">
                     <h4>{event.title}</h4>
+                    {event.type !== 'holiday' && event.htmlLink && (
                     <a href={event.htmlLink} target="_blank" rel="noopener noreferrer" className="google-link">
                       Google Calendar에서 보기
                     </a>
+                    )}
                   </div>
                   
                   {event.description && (
@@ -639,6 +809,10 @@ const Calendar: React.FC = () => {
           </div>
         )}
       </div>
+      <NavigationBar />
+      
+      {/* 챗봇 버튼 */}
+      <ChatButton />
     </div>
   );
 };

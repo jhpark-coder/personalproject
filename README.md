@@ -98,44 +98,29 @@ FitMate는 AI 기술을 활용한 개인 맞춤형 운동 플랫폼입니다. �
 - **AI 인사이트** - 운동 패턴 분석 및 개선 제안
 - **목표 진행도** - 목표 달성률 시각화
 
-## 📅 오늘 개발한 기능 (2025-08-06)
+### 8. 운동 데이터 관리
+- **MET 데이터 매핑** - CSV 기반 MET 값 및 강도 매핑 자동화
+- **초기 운동 세트 제공** - 헬스장에서 수행 가능한 대표 운동 내장
+- **수동 업데이트 없음** - 외부 Wger API 연동 제거로 네트워크 의존성 최소화
 
-### 1. Twilio SMS 연동
-- **환경 설정**: `.env.development` 파일 구성
-- **SMS 서비스**: 기본 SMS, 운동 추천, 맞춤형 메시지 발송
-- **에러 처리**: SMS 발송 실패 시 적절한 에러 핸들링
-- **보안**: Twilio 자격 증명 안전한 관리
+## 🔄 최근 개선 사항 (2025-08-08)
 
-### 2. 스케줄러 시스템
-- **@nestjs/schedule** 패키지 설치 및 설정
-- **자동 알림 발송**: 설정된 시간에 자동 SMS/알림 발송
-- **비용 효율적 설계**: SMS는 핵심 기능에만, 사이트 알림은 무제한 사용
-
-### 3. 알림 스케줄러 기능
-- **매일 오전 9시 운동 알림** - SMS + 사이트 알림
-- **매주 일요일 오후 6시 주간 리포트** - SMS + 사이트 알림
-- **매일 자정 목표 달성 확인** - 사이트 알림만
-- **매일 오후 3시 운동 습관 형성 알림** - 사이트 알림만
-
-### 4. 환경 변수 관리
-- **개발 환경**: `.env.development` 설정
-- **프로덕션 환경**: `.env.production` 설정
-- **ConfigModule**: NestJS 환경 변수 관리
-- **보안**: 민감한 정보 환경 변수로 관리
+- **CORS 개선 (요청 오리진 반사 허용)**: `communication-server/src/main.ts`
+  - 개발 환경에서 `'*'`가 허용 오리진 목록에 포함되면 `origin: true`로 동작하여 브라우저 요청 오리진을 그대로 반사합니다.
+- **Nginx 프록시 추가**: `nginx/nginx.conf`
+  - `location /sms/`를 `communication-server:3000`으로 프록시하여 프론트가 상대경로(`/sms/...`)로도 통신 서버에 접근 가능.
+- **프론트 통신 서버 URL 폴백**: `frontend/src/config/api.ts`
+  - 환경변수 미설정 시 `CHAT_SERVER_URL`을 항상 `http://localhost:3000`으로 폴백.
+- **Twilio OTP 요청 안정성 강화**: `frontend/src/components/SignupForm.tsx`
+  - OTP 요청 시 `response.ok`와 `content-type`을 검사해 HTML 오류 페이지 수신 시에도 안전하게 에러 처리.
 
 ## 🔧 설치 및 실행
 
 ### 1. 환경 설정
 ```bash
-# 환경 변수 파일 생성
-cp .env.example .env.development
-cp .env.example .env.production
-
-# 환경 변수 설정
-NODE_ENV=development
-TWILIO_ACCOUNT_SID=your_twilio_account_sid
-TWILIO_AUTH_TOKEN=your_twilio_auth_token
-TWILIO_PHONE_NUMBER=your_twilio_phone_number
+# 환경 변수 파일 생성 (예시)
+cp .env.example communication-server/.env.development
+# Twilio 자격증명과 Redis, MongoDB, 프록시 대상 등을 설정하세요.
 ```
 
 ### 2. 의존성 설치
@@ -144,38 +129,29 @@ TWILIO_PHONE_NUMBER=your_twilio_phone_number
 cd frontend
 npm install
 
-# Backend
-cd ../src
+# Backend (Spring Boot)
+cd ..
 ./mvnw install
 
-# Communication Server
-cd ../communication-server
+# Communication Server (NestJS)
+cd communication-server
 npm install
 ```
 
-### 3. 데이터베이스 설정
+### 3. 프론트 빌드 (Nginx가 정적 파일을 서빙)
 ```bash
-# MongoDB 실행
-docker-compose up -d mongo
-
-# Redis 실행
-docker-compose up -d redis
-```
-
-### 4. 서버 실행
-```bash
-# Frontend (개발 모드)
 cd frontend
-npm run dev
-
-# Backend (Spring Boot)
-cd ../src
-./mvnw spring-boot:run
-
-# Communication Server
-cd ../communication-server
-npm run start:dev
+npm run build
 ```
+
+### 4. Docker로 전체 스택 실행
+```bash
+cd ..
+docker compose up -d --build
+```
+- 접속: `http://localhost`
+- 프론트는 Nginx 컨테이너에서 `frontend/dist` 정적 파일로 서빙됩니다.
+- `/sms/*` 요청은 Nginx가 통신 서버(`communication-server:3000`)로 프록시합니다.
 
 ## 📱 API 엔드포인트
 
@@ -184,18 +160,14 @@ npm run start:dev
 - `POST /sms/workout-recommendation` - 운동 추천 SMS
 - `POST /sms/custom` - 맞춤형 SMS
 - `POST /sms/health` - SMS 서비스 상태 확인
+- `POST /sms/request-otp` - OTP 인증 코드 요청
+- `POST /sms/verify-otp` - OTP 인증 코드 검증
 
 ### 알림 API (Communication Server)
 - `POST /api/notifications/create` - 알림 생성
 - `GET /api/notifications/user/:userId` - 사용자 알림 조회
 - `PUT /api/notifications/:id/read` - 알림 읽음 처리
 - `GET /api/notifications/user/:userId/unread-count` - 읽지 않은 알림 개수
-
-### WebSocket 이벤트
-- `joinChat` - 채팅 참가
-- `sendMessage` - 메시지 전송
-- `getHistory` - 채팅 내역 조회
-- `joinAsAdmin` - 관리자로 참가
 
 ## 🐳 Docker 실행
 
@@ -214,14 +186,14 @@ docker-compose logs -f communication-server
 
 ### 로그 확인
 ```bash
-# Communication Server 로그
+# Communication Server 로그 (개발 모드)
+cd communication-server
 npm run start:dev
 
 # 주요 로그 메시지
-🏃‍♂️ 일일 운동 알림 스케줄러 실행
-📊 주간 리포트 스케줄러 실행
-🎯 목표 달성 확인 스케줄러 실행
-💪 운동 습관 형성 알림 스케줄러 실행
+🚀 통신 서버가 실행 중입니다: http://localhost:3000
+📡 WebSocket 서버: ws://localhost:3000
+🌐 CORS 허용 도메인: [reflect request origin] 또는 허용 목록
 ```
 
 ### 성능 모니터링
@@ -233,39 +205,30 @@ npm run start:dev
 ## 🔒 보안
 
 ### 환경 변수 보안
-- **민감한 정보**: Twilio 자격 증명, 데이터베이스 비밀번호
-- **개발/프로덕션 분리**: 환경별 설정 파일 분리
-- **Git 무시**: `.env` 파일 Git 추적 제외
+- Twilio 자격증명, DB 비밀번호 등 민감한 정보는 `.env`로 관리하고 Git에 커밋하지 마세요.
+- 프로덕션에서는 와일드카드 CORS(`*`)를 사용하지 마세요.
 
 ### API 보안
 - **JWT 인증**: 토큰 기반 사용자 인증
-- **CORS 설정**: 허용된 도메인만 접근
-- **Rate Limiting**: API 요청 제한
+- **CORS 설정**: 허용된 도메인만 접근 (개발 외 환경에서 화이트리스트 사용)
+- **Rate Limiting**: OTP 요청 등 민감 API에 요청 제한
 
 ## 🚀 배포
 
 ### 개발 환경
 ```bash
-# 개발 모드 실행
-npm run start:dev
+# 개발 모드 실행 (개별)
+cd frontend && npm run dev
+cd communication-server && npm run start:dev
 ```
 
 ### 프로덕션 환경
 ```bash
-# 빌드
-npm run build
+# 프론트 빌드
+cd frontend && npm run build
 
-# 프로덕션 실행
-npm run start:prod
-```
-
-### Docker 배포
-```bash
-# 이미지 빌드
-docker build -t fitmate-communication-server .
-
-# 컨테이너 실행
-docker run -d -p 3001:3001 fitmate-communication-server
+# Docker로 배포
+cd .. && docker compose up -d --build
 ```
 
 ## 📈 향후 개발 계획

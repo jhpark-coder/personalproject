@@ -1,9 +1,14 @@
 // API 설정
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080';
-export const CHAT_SERVER_URL = import.meta.env.VITE_CHAT_SERVER_URL || 'http://localhost:3000';
+const isDevelopment = import.meta.env.DEV;
+
+const DEFAULT_BACKEND_URL = isDevelopment ? 'http://localhost:8080' : '';
+// 통신 서버는 환경변수 미설정 시 항상 localhost:3000으로 폴백
+const DEFAULT_CHAT_SERVER_URL = 'http://localhost:3000';
+
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || DEFAULT_BACKEND_URL;
+export const CHAT_SERVER_URL = import.meta.env.VITE_CHAT_SERVER_URL || DEFAULT_CHAT_SERVER_URL;
 
 // 개발 환경에서는 HTTP 허용, 프로덕션에서는 HTTPS 사용
-const isDevelopment = import.meta.env.DEV;
 const backendUrl = isDevelopment ? API_BASE_URL : API_BASE_URL.replace('http://', 'https://');
 
 // API 엔드포인트
@@ -17,9 +22,10 @@ export const API_ENDPOINTS = {
   // 인증 관련
   LOGIN: `${backendUrl}/api/auth/login`,
   SIGNUP: `${backendUrl}/api/auth/signup`,
-  SEND_VERIFICATION_EMAIL: `${backendUrl}/api/auth/send-verification-email`,
-  VERIFY_EMAIL_CODE: `${backendUrl}/api/auth/verify-email-code`,
-  RESEND_VERIFICATION_EMAIL: `${backendUrl}/api/auth/resend-verification-email`,
+  // 이메일 인증 관련 - 문자 인증으로 대체하여 주석처리
+  // SEND_VERIFICATION_EMAIL: `${backendUrl}/api/auth/send-verification-email`,
+  // VERIFY_EMAIL_CODE: `${backendUrl}/api/auth/verify-email-code`,
+  // RESEND_VERIFICATION_EMAIL: `${backendUrl}/api/auth/resend-verification-email`,
   CHECK_EMAIL: `${backendUrl}/api/auth/check-email`,
   VERIFY_PHONE: `${backendUrl}/api/auth/verify-phone`,
   
@@ -33,7 +39,7 @@ export const API_ENDPOINTS = {
   
   // 온보딩 관련
   UPDATE_BASIC_INFO: `${backendUrl}/api/auth/update-basic-info`,
-  UPDATE_BODY_INFO: `${backendUrl}/api/auth/update-body-info`,
+
   
   // 알림 관련
   NOTIFICATIONS: `${CHAT_SERVER_URL}/api/notifications`,
@@ -46,9 +52,20 @@ export const API_ENDPOINTS = {
   WORKOUT_PROGRAMS: `${backendUrl}/api/workout/programs`,
   WORKOUT_PROGRAM: (id: string) => `${backendUrl}/api/workout/programs/${id}`,
   
+  // 운동정보 관련
+  EXERCISES: `${backendUrl}/api/exercise-information`,
+  
   // 분석 데이터 관련
   BODY_DATA: `${backendUrl}/api/analytics/body`,
   WORKOUT_STATS: `${backendUrl}/api/analytics/stats`,
+  
+  // 마이페이지 관련
+  MYPAGE_DASHBOARD: (userId: string) => `${backendUrl}/api/mypage/${userId}/dashboard`,
+  MYPAGE_TRENDS: (userId: string) => `${backendUrl}/api/mypage/${userId}/trends`,
+  MYPAGE_WORKOUTS: (userId: string) => `${backendUrl}/api/mypage/${userId}/workouts`,
+  MYPAGE_BODY_RECORDS: (userId: string) => `${backendUrl}/api/mypage/${userId}/body-records`,
+  MYPAGE_REPORT: (userId: string) => `${backendUrl}/api/mypage/${userId}/report`,
+  MYPAGE_RECORDS_ROOM: (userId: string) => `${backendUrl}/api/mypage/${userId}/records-room`,
   
   // 대시보드 관련
   DASHBOARD_DATA: `${backendUrl}/api/dashboard/data`, // 통합 API

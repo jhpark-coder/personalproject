@@ -8,14 +8,15 @@ export default registerAs('app', () => ({
   // 서버 설정
   server: {
     port: process.env.PORT || 3000,
-    host: process.env.HOST || '0.0.0.0',
+    host: process.env.HOST || '127.0.0.1',
   },
 
   // CORS 설정
   cors: {
     origins: [
       'http://localhost:8080',  // Spring Boot 백엔드
-      'http://localhost:5173',  // React 프론트엔드
+      'http://localhost:5173',  // React 프론트엔드 (HTTP)
+      'https://localhost:5173', // React 프론트엔드 (HTTPS)
       'http://localhost:4000',  // 추가 프론트엔드
       process.env.FRONTEND_URL || 'http://localhost:8080',
       process.env.NODE_ENV === 'development' ? '*' : undefined,

@@ -45,6 +45,18 @@ const ChatDashboard: React.FC = () => {
     if (savedAllMessages) {
       setAllMessages(new Map(JSON.parse(savedAllMessages)));
     }
+    
+    // 기존 사용자 목록에서 관리자 제거
+    setUsers(prev => {
+      const newUsers = new Map(prev);
+      for (const [username, user] of newUsers.entries()) {
+        if (username.includes('관리자') || username.includes('admin')) {
+          console.log('🚫 기존 관리자 사용자 제거:', username);
+          newUsers.delete(username);
+        }
+      }
+      return newUsers;
+    });
   }, []);
 
   useEffect(() => {
@@ -173,9 +185,16 @@ const ChatDashboard: React.FC = () => {
     newSocket.on('allChatUsers', (users) => {
       console.log('📨 모든 채팅 사용자 목록 수신:', users);
       if (users && Array.isArray(users)) {
-        // DB에서 가져온 사용자들을 오프라인 상태로 추가
+        // DB에서 가져온 사용자들을 오프라인 상태로 추가 (관리자 제외)
         users.forEach(username => {
           const fullUsername = normalizeUsername(username);
+          
+          // 관리자는 사용자 목록에서 제외
+          if (fullUsername.includes('관리자') || fullUsername.includes('admin')) {
+            console.log('🚫 관리자 사용자 목록에서 제외:', fullUsername);
+            return;
+          }
+          
           setUsers(prev => {
             const newUsers = new Map(prev);
             if (!newUsers.has(fullUsername)) {
@@ -190,9 +209,15 @@ const ChatDashboard: React.FC = () => {
         });
         console.log('✅ DB에서 사용자 목록 복원 완료');
         
-        // 각 사용자의 최근 메시지 정보 요청
+        // 각 사용자의 최근 메시지 정보 요청 (관리자 제외)
         users.forEach(username => {
           const fullUsername = normalizeUsername(username);
+          
+          // 관리자는 메시지 요청에서도 제외
+          if (fullUsername.includes('관리자') || fullUsername.includes('admin')) {
+            return;
+          }
+          
           console.log('📤 사용자 최근 메시지 요청:', fullUsername);
           newSocket.emit('getUserLastMessage', { userId: fullUsername });
         });
@@ -284,6 +309,13 @@ const ChatDashboard: React.FC = () => {
 
   const addUser = (username: string) => {
     const fullUsername = normalizeUsername(username);
+    
+    // 관리자 자신은 사용자 목록에 추가하지 않음
+    if (fullUsername.includes('관리자') || fullUsername.includes('admin')) {
+      console.log('🚫 관리자 사용자 목록에서 제외:', fullUsername);
+      return;
+    }
+    
     setUsers(prev => {
       const newUsers = new Map(prev);
       if (!newUsers.has(fullUsername)) {
@@ -411,39 +443,95 @@ const ChatDashboard: React.FC = () => {
   return (
     <div className="chat-dashboard">
       {/* 헤더 */}
-      <div className="chat-header">
-        <div>
-          <h4 className="mb-0">
-            <i className="fas fa-comments"></i>
-            관리자 채팅 대시보드
-          </h4>
-          <small className={`text-${connectionStatus === '연결됨' ? 'success' : 'danger'}`}>
-            {connectionStatus}
-          </small>
+      <div className="dashboard-header">
+        <div className="header-left">
+          <div className="chat-icon">💬</div>
+          <div className="header-text">
+            <div className="dashboard-title">관리자 채팅 대시보드</div>
+            <div className="connection-status">{connectionStatus}</div>
+          </div>
         </div>
-        <ChatStats
-          onlineUsers={Array.from(users.values()).filter(user => user.status === 'online').length}
-          totalMessages={calculateUnreadChatRooms()}
-        />
+        <div className="header-stats">
+          <div className="stat-box">
+            <span className="stat-number">{Array.from(users.values()).filter(user => user.status === 'online').length}</span>
+            <span className="stat-label">온라인</span>
+          </div>
+          <div className="stat-box">
+            <span className="stat-number">{calculateUnreadChatRooms()}</span>
+            <span className="stat-label">대기</span>
+          </div>
+        </div>
       </div>
 
-      {/* 메인 영역 */}
-      <div className="chat-main">
-        {/* 사용자 목록 */}
-        <UserList
-          users={Array.from(users.values())}
-          currentUser={currentUser}
-          onSelectUser={selectUser}
-          unreadCounts={unreadCounts}
-        />
-
-        {/* 채팅 영역 */}
-        <ChatRoom
-          currentUser={currentUser}
-          messages={messages}
-          onSendMessage={sendMessage}
-          onBackToUserList={backToUserList}
-        />
+      {/* 메인 콘텐츠 */}
+      <div className="dashboard-content">
+        {!currentUser ? (
+          // 채팅 목록 화면 (카카오톡 스타일)
+          <div className="chat-list-view">
+            <div className="chat-list-header">
+              <h2>사용자 목록 ({Array.from(users.values()).filter(user => user.status === 'online').length} 온라인, {Array.from(users.values()).filter(user => user.status === 'offline').length} 오프라인)</h2>
+            </div>
+            
+            <div className="chat-list">
+              {Array.from(users.values()).length === 0 ? (
+                <div className="empty-chat-list">
+                  <div className="empty-icon">💬</div>
+                  <div className="empty-text">아직 채팅할 사용자가 없습니다</div>
+                </div>
+              ) : (
+                Array.from(users.values()).map((user) => (
+                  <div
+                    key={user.username}
+                    className={`chat-item ${user.status === 'online' ? 'online' : 'offline'}`}
+                    onClick={() => selectUser(user.username)}
+                  >
+                    <div className="chat-item-avatar">
+                      <div className="avatar-circle">
+                        <span className="avatar-text">{user.username.charAt(0)}</span>
+                      </div>
+                      {user.status === 'online' && <div className="online-indicator"></div>}
+                    </div>
+                    
+                    <div className="chat-item-content">
+                      <div className="chat-item-header">
+                        <span className="chat-item-name">{user.username}</span>
+                        <span className="chat-item-status">
+                          {user.status === 'online' ? '(온라인)' : '(오프라인)'}
+                        </span>
+                      </div>
+                      
+                      {user.lastMessage ? (
+                        <div className="chat-item-message">
+                          {user.lastMessage.content.length > 20 
+                            ? user.lastMessage.content.substring(0, 20) + '...' 
+                            : user.lastMessage.content}
+                        </div>
+                      ) : (
+                        <div className="chat-item-message no-message">메시지 없음</div>
+                      )}
+                    </div>
+                    
+                    {unreadCounts.get(user.username) > 0 && (
+                      <div className="unread-badge">
+                        {unreadCounts.get(user.username)}
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        ) : (
+          // 채팅방 화면 (전체 화면)
+          <div className="chat-room-view">
+            <ChatRoom
+              currentUser={currentUser}
+              messages={messages}
+              onSendMessage={sendMessage}
+              onBack={backToUserList}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

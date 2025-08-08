@@ -55,7 +55,9 @@ public class SecurityConfig {
                     "/api/auth/verify-email-code",
                     "/api/auth/resend-verification-email",
                     "/api/auth/check-email",
-                    "/api/auth/verify-phone"
+                    "/api/auth/verify-phone",
+                    "/api/exercises/**",
+                    "/api/exercise-information/**"
                 ).permitAll()
                 // OAuth2 관련 경로
                 .requestMatchers("/oauth2/**", "/login/oauth2/**", "/error").permitAll()
@@ -220,24 +222,21 @@ public class SecurityConfig {
 
                 System.err.println("🚀 JWT 토큰 생성 시작...");
                 String token = jwtTokenProvider.createToken(user.getId(), user.getEmail(), user.getName(),
-                        user.getOauthProvider(), user.getOauthId(), user.getProfileImage());
+                        user.getOauthProvider(), user.getOauthId(), user.getProfileImage(), user.getRole());
                 System.err.println("🚀 JWT 토큰 생성 완료: " + (token != null ? "성공" : "실패"));
 
-                UriComponentsBuilder urlBuilder = UriComponentsBuilder.fromUriString("https://localhost:5173/#/auth/callback")
+                String targetUrl = UriComponentsBuilder.fromUriString("https://localhost:5173/#/auth/callback")
                         .queryParam("success", "true")
                         .queryParam("token", token)
                         .queryParam("provider", user.getOauthProvider())
                         .queryParam("email", user.getEmail())
                         .queryParam("name", user.getName())
                         .queryParam("isNewUser", String.valueOf(isNewUser))
-                        .queryParam("picture", user.getProfileImage());
+                        .queryParam("picture", user.getProfileImage())
+                        .build()
+                        .encode(StandardCharsets.UTF_8)
+                        .toUriString();
 
-                // 캘린더 연동 요청인 경우에만 calendarOnly 파라미터 추가
-                if (isCalendarRequest) {
-                    urlBuilder.queryParam("calendarOnly", "true");
-                }
-
-                String targetUrl = urlBuilder.build().encode(StandardCharsets.UTF_8).toUriString();
                 System.err.println("🚀 리다이렉트 URL: " + targetUrl);
 
                 response.sendRedirect(targetUrl);
@@ -250,8 +249,6 @@ public class SecurityConfig {
             }
         };
     }
-
-    // CustomOAuth2UserService로 통합되었으므로 이 Bean은 더 이상 필요 없음
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
