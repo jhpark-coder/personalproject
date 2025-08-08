@@ -270,6 +270,156 @@
   gap: 15px;
 }
 
+.sms-verification-btn {
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+  margin-left: 10px;
+}
+
+.sms-verification-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+}
+
+.sms-verification-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.sms-verification-btn.completed {
+  background: #4CAF50;
+}
+
+.success-message {
+  color: #4CAF50;
+  font-size: 12px;
+  margin-top: 5px;
+  font-weight: 500;
+}
+
+.verify-sms-btn {
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+  margin-left: 10px;
+}
+
+.verify-sms-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+}
+
+.verify-sms-btn:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* SMS 타이머 섹션 스타일 */
+.sms-timer-section {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 10px;
+  padding: 12px 15px;
+  background-color: #f8f9fa;
+  border-radius: 6px;
+  border: 1px solid #e9ecef;
+}
+
+.timer-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.timer-icon {
+  font-size: 16px;
+  color: #6c757d;
+}
+
+.timer-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: #495057;
+}
+
+/* 시간연장 버튼 스타일 */
+.extend-time-btn {
+  padding: 6px 12px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-decoration: underline;
+}
+
+.extend-time-btn:hover:not(:disabled) {
+  background-color: #0056b3;
+  transform: translateY(-1px);
+}
+
+.extend-time-btn:disabled {
+  background-color: #6c757d;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* SMS 안내 메시지 */
+.sms-notice {
+  margin-top: 8px;
+  font-size: 12px;
+  color: #6c757d;
+  line-height: 1.4;
+  padding: 0 2px;
+}
+
+/* Twilio OTP 인증 스타일 */
+.otp-section {
+  margin-top: 15px;
+  padding: 15px;
+  background: rgba(40, 167, 69, 0.1);
+  border: 1px solid rgba(40, 167, 69, 0.3);
+  border-radius: 8px;
+}
+
+.otp-notice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #155724;
+}
+
+.otp-icon {
+  font-size: 16px;
+}
+
+.otp-text {
+  font-weight: 500;
+}
+
 .verification-button {
   width: 100%;
   padding: 16px;

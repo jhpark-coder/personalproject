@@ -1,39 +1,49 @@
-import React, { useState } from 'react';
-import ChatPage from './ChatPage';
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import './ChatButton.css';
 
-interface ChatButtonProps {
-  userId: number;
-}
+// JWT 토큰에서 role을 추출하는 함수
+const getRoleFromToken = (): string => {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) return 'ROLE_USER';
+    
+    // JWT 토큰 디코딩 (base64)
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.role || 'ROLE_USER';
+  } catch (error) {
+    console.error('토큰에서 role 추출 실패:', error);
+    return 'ROLE_USER';
+  }
+};
 
-const ChatButton: React.FC<ChatButtonProps> = ({ userId }) => {
-  const [isChatOpen, setIsChatOpen] = useState(false);
+const ChatButton: React.FC = () => {
+  const navigate = useNavigate();
 
-  const openChat = () => {
-    setIsChatOpen(true);
+  const handleChatClick = () => {
+    const userRole = getRoleFromToken();
+    const isAdmin = userRole === 'ROLE_ADMIN';
+    
+    if (isAdmin) {
+      navigate('/chat-dashboard');
+    } else {
+      navigate('/chat');
+    }
   };
 
-  const closeChat = () => {
-    setIsChatOpen(false);
-  };
+  // 사용자 권한 확인
+  const userRole = getRoleFromToken();
+  const isAdmin = userRole === 'ROLE_ADMIN';
 
   return (
-    <>
-      {/* 챗봇 버튼 */}
-      <button className="chat-button" onClick={openChat}>
-        <div className="chat-button-icon">💬</div>
-        <span className="chat-button-text">챗봇 문의</span>
-      </button>
-
-      {/* 채팅 페이지 모달 */}
-      {isChatOpen && (
-        <div className="chat-modal-overlay">
-                  <div className="chat-modal">
-          <ChatPage userId={userId} onClose={closeChat} isModal={true} />
-        </div>
-        </div>
-      )}
-    </>
+    <button className="chat-button" onClick={handleChatClick}>
+      <div className="chat-button-icon">
+        {isAdmin ? '👨‍💼' : '💬'}
+      </div>
+      <span className="chat-button-text">
+        {isAdmin ? '관리자 대시보드' : '챗봇 문의'}
+      </span>
+    </button>
   );
 };
 

@@ -109,25 +109,11 @@ public class User implements Serializable {
     @Column
     private String experience; // 운동 경험: "beginner", "intermediate", "advanced"
     
-    // 상세 신체정보 필드들 (선택사항)
+    // 인바디 상세 정보 필드 제거
+
     @Column
-    private String bodyFatPercentage; // 체지방률 (%)
-    
-    @Column
-    private String muscleMass; // 근육량 (kg)
-    
-    @Column
-    private String basalMetabolicRate; // 기초대사량 (kcal)
-    
-    @Column
-    private String bodyWaterPercentage; // 체수분률 (%)
-    
-    @Column
-    private String boneMass; // 골격근량 (kg)
-    
-    @Column
-    private String visceralFatLevel; // 내장지방레벨
-    
+    private String role = "ROLE_USER"; // 사용자 권한: ROLE_USER, ROLE_ADMIN
+
     @CreatedDate
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;

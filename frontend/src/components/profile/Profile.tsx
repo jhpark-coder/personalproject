@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useUser } from '../../context/UserContext';
 import NavigationBar from '../NavigationBar';
+import ChatButton from '../ChatButton';
 import './Profile.css';
+
 
 const Profile: React.FC = () => {
   const { user, loading, error, refresh } = useUser();
@@ -143,89 +145,39 @@ const Profile: React.FC = () => {
           </div>
         </div>
 
-        {/* 운동 통계 섹션 */}
-        <div className="workout-stats">
-          <h3 className="stats-title">운동 통계</h3>
-          <div className="stats-grid">
-            <div className="stat-card">
-              <div className="stat-icon">🏋️‍♂️</div>
-              <div className="stat-content">
-                <div className="stat-value">12</div>
-                <div className="stat-label">총<br/>운동 횟수</div>
-              </div>
-            </div>
-            
-            <div className="stat-card">
-              <div className="stat-icon">⏱️</div>
-              <div className="stat-content">
-                <div className="stat-value">3.2</div>
-                <div className="stat-label">평균<br/>운동 시간</div>
-              </div>
-            </div>
-            
-            <div className="stat-card">
-              <div className="stat-icon">🎯</div>
-              <div className="stat-content">
-                <div className="stat-value">85%</div>
-                <div className="stat-label">목표<br/>달성률</div>
-              </div>
-            </div>
-            
-            <div className="stat-card">
-              <div className="stat-icon">🔥</div>
-              <div className="stat-content">
-                <div className="stat-value">7</div>
-                <div className="stat-label">연속<br/>운동일</div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* 기본 정보 섹션 (컴팩트하게) */}
+        {/* 기본 정보 섹션 */}
         <div className="basic-info">
           <h3 className="info-title">기본 정보</h3>
           <div className="info-grid">
-            {user.height && (
-              <div className="info-item">
-                <span className="info-label">키</span>
-                <span className="info-value">{user.height}cm</span>
-              </div>
-            )}
+            <div className="info-item">
+              <span className="info-label">키</span>
+              <span className="info-value">{user.height ? `${user.height}cm` : '미입력'}</span>
+            </div>
             
-            {user.weight && (
-              <div className="info-item">
-                <span className="info-label">체중</span>
-                <span className="info-value">{user.weight}kg</span>
-              </div>
-            )}
+            <div className="info-item">
+              <span className="info-label">체중</span>
+              <span className="info-value">{user.weight ? `${user.weight}kg` : '미입력'}</span>
+            </div>
             
-            {user.age && (
-              <div className="info-item">
-                <span className="info-label">나이</span>
-                <span className="info-value">{user.age}세</span>
-              </div>
-            )}
+            <div className="info-item">
+              <span className="info-label">나이</span>
+              <span className="info-value">{user.age ? `${user.age}세` : '미입력'}</span>
+            </div>
             
-            {user.gender && (
-              <div className="info-item">
-                <span className="info-label">성별</span>
-                <span className="info-value">{getGenderDisplayName(user.gender)}</span>
-              </div>
-            )}
+            <div className="info-item">
+              <span className="info-label">성별</span>
+              <span className="info-value">{user.gender ? getGenderDisplayName(user.gender) : '미입력'}</span>
+            </div>
             
-            {user.phoneNumber && (
-              <div className="info-item">
-                <span className="info-label">번호</span>
-                <span className="info-value">{user.phoneNumber}</span>
-              </div>
-            )}
+            <div className="info-item">
+              <span className="info-label">번호</span>
+              <span className="info-value">{user.phoneNumber || '미입력'}</span>
+            </div>
             
-            {user.birthDate && (
-              <div className="info-item">
-                <span className="info-label">생년월일</span>
-                <span className="info-value">{user.birthDate}</span>
-              </div>
-            )}
+            <div className="info-item">
+              <span className="info-label">생년월일</span>
+              <span className="info-value">{user.birthDate || '미입력'}</span>
+            </div>
           </div>
         </div>
 
@@ -238,6 +190,14 @@ const Profile: React.FC = () => {
             <span>운동 통계 분석</span>
             <span>📈</span>
           </button>
+          <button onClick={() => navigate('/records-room')} className="action-button analytics-button">
+            <span>나의 기록실</span>
+            <span>🏆</span>
+          </button>
+          <button onClick={() => navigate('/body-records/new')} className="action-button analytics-button">
+            <span>신체 기록 추가</span>
+            <span>➕</span>
+          </button>
           <button onClick={handleLogout} className="logout-button">
             로그아웃
           </button>
@@ -246,6 +206,9 @@ const Profile: React.FC = () => {
 
       {/* 하단 네비게이션 */}
       <NavigationBar />
+      
+      {/* 챗봇 버튼 */}
+      <ChatButton />
     </div>
   );
 };

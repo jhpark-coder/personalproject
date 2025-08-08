@@ -23,7 +23,8 @@ export default defineConfig({
     }
   },
   define: {
-    'process.env.VITE_API_BASE_URL': JSON.stringify('http://localhost:8080'),
-    'process.env.VITE_DEV_MODE': JSON.stringify('true')
+    'import.meta.env.VITE_API_BASE_URL': JSON.stringify('http://localhost:8080'),
+    'import.meta.env.VITE_CHAT_SERVER_URL': JSON.stringify('http://localhost:3000'),
+    'import.meta.env.VITE_DEV_MODE': JSON.stringify('true')
   }
 })

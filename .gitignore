@@ -110,3 +110,9 @@ public
 ### Temporary folders ###
 tmp/
 temp/
+
+### Firebase ###
+serviceAccountKey.json
+firebase-service-account.json
+fitmate-467303-firebase-adminsdk-fbsvc-1e63c389f3.json
+src/main/resources/fitmate-467303-firebase-adminsdk-fbsvc-1e63c389f3.json

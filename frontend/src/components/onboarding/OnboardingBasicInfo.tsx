@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_ENDPOINTS } from '../../config/api';
 import './OnboardingBasicInfo.css';
@@ -23,6 +23,19 @@ const OnboardingBasicInfo: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
 
+  // SMS 인증 관련 상태
+  const [showSmsCodeInput, setShowSmsCodeInput] = useState(false);
+  const [isSmsVerified, setIsSmsVerified] = useState(false);
+  const [smsCode, setSmsCode] = useState('');
+  const [isSmsLoading, setIsSmsLoading] = useState(false);
+  const [verifiedPhoneNumber, setVerifiedPhoneNumber] = useState('');
+  
+  // 타이머 관련 상태 추가
+  const [timeLeft, setTimeLeft] = useState<number>(0); // 초 단위
+  const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [canExtend, setCanExtend] = useState(false);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
   // 생년월일로부터 나이 계산하는 함수
   const calculateAgeFromBirthDate = (birthDate: string): string => {
     if (!birthDate || birthDate.length !== 8) return '';
@@ -46,6 +59,199 @@ const OnboardingBasicInfo: React.FC = () => {
     } catch (error) {
       console.error('나이 계산 오류:', error);
       return '';
+    }
+  };
+
+  // 전화번호 형식 변환 함수
+  const formatPhoneNumber = (phoneNumber: string): string => {
+    // 010-XXXX-XXXX 형식을 +82-10-XXXX-XXXX로 변환
+    if (phoneNumber.startsWith('010-')) {
+      return phoneNumber.replace('010-', '+82-10-');
+    }
+    // 이미 +82로 시작하면 그대로 반환
+    if (phoneNumber.startsWith('+82')) {
+      return phoneNumber;
+    }
+    // 다른 형식이면 그대로 반환
+    return phoneNumber;
+  };
+
+  // 전화번호 유효성 검사
+  const validatePhoneNumber = (phoneNumber: string): string | undefined => {
+    if (!phoneNumber) return '휴대전화번호를 입력해주세요';
+    const phoneRegex = /^01[0-9]-\d{3,4}-\d{4}$/;
+    if (!phoneRegex.test(phoneNumber)) {
+      return '올바른 휴대전화번호 형식을 입력해주세요 (예: 010-1234-5678)';
+    }
+    return undefined;
+  };
+
+  // 타이머 시작 함수
+  const startTimer = (duration: number = 300) => { // 5분 = 300초
+    setTimeLeft(duration);
+    setIsTimerRunning(true);
+    setCanExtend(false);
+    
+    timerRef.current = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          // 타이머 종료
+          setIsTimerRunning(false);
+          setCanExtend(true);
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  // 타이머 정리
+  const clearTimer = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    setIsTimerRunning(false);
+    setTimeLeft(0);
+  };
+
+  // 시간 형식 변환 (분:초)
+  const formatTime = (seconds: number): string => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes.toString().padStart(2, '0')}분${remainingSeconds.toString().padStart(2, '0')}초`;
+  };
+
+  // 컴포넌트 언마운트 시 타이머 정리
+  useEffect(() => {
+    return () => {
+      clearTimer();
+    };
+  }, []);
+
+  // SMS 인증 코드 발송
+  const handleSmsSend = async () => {
+    const phoneError = validatePhoneNumber(formData.phoneNumber);
+    if (phoneError) {
+      setErrors(prev => ({ ...prev, phoneNumber: phoneError }));
+      return;
+    }
+
+    setIsSmsLoading(true);
+    
+    try {
+      const formattedPhone = formatPhoneNumber(formData.phoneNumber);
+      const response = await fetch(API_ENDPOINTS.VERIFY_PHONE, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ phoneNumber: formattedPhone }),
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setShowSmsCodeInput(true);
+        
+        // 타이머 시작
+        startTimer();
+        
+        alert('SMS 인증 코드가 발송되었습니다.');
+      } else {
+        alert(data.message || 'SMS 발송에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('SMS 발송 실패:', error);
+      alert('SMS 발송에 실패했습니다. 다시 시도해주세요.');
+    } finally {
+      setIsSmsLoading(false);
+    }
+  };
+
+  // SMS 인증 코드 검증
+  const handleSmsVerify = async () => {
+    if (!smsCode.trim()) {
+      alert('인증번호를 입력해주세요.');
+      return;
+    }
+
+    setIsSmsLoading(true);
+    
+    try {
+      const formattedPhone = formatPhoneNumber(formData.phoneNumber);
+      const response = await fetch(API_ENDPOINTS.VERIFY_PHONE, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          phoneNumber: formattedPhone,
+          code: smsCode 
+        }),
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        setIsSmsVerified(true);
+        setVerifiedPhoneNumber(formData.phoneNumber);
+        setShowSmsCodeInput(false);
+        
+        // 타이머 정리
+        clearTimer();
+        
+        alert('전화번호 인증이 완료되었습니다!');
+      } else {
+        alert(data.message || '인증 코드가 올바르지 않습니다.');
+      }
+    } catch (error) {
+      console.error('SMS 인증 실패:', error);
+      alert('인증에 실패했습니다. 다시 시도해주세요.');
+    } finally {
+      setIsSmsLoading(false);
+    }
+  };
+
+  // 시간연장 함수
+  const handleExtendTime = async () => {
+    const phoneError = validatePhoneNumber(formData.phoneNumber);
+    if (phoneError) {
+      setErrors(prev => ({ ...prev, phoneNumber: phoneError }));
+      return;
+    }
+
+    setIsSmsLoading(true);
+    
+    try {
+      const formattedPhone = formatPhoneNumber(formData.phoneNumber);
+      const response = await fetch(API_ENDPOINTS.VERIFY_PHONE, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ phoneNumber: formattedPhone }),
+      });
+
+      const data = await response.json();
+      
+      if (data.success) {
+        // 타이머 재시작
+        clearTimer();
+        startTimer();
+        
+        alert('SMS 인증 코드가 재발송되었습니다.');
+      } else {
+        alert(data.message || 'SMS 재발송에 실패했습니다.');
+      }
+    } catch (error) {
+      console.error('SMS 재발송 실패:', error);
+      alert('SMS 재발송에 실패했습니다. 다시 시도해주세요.');
+    } finally {
+      setIsSmsLoading(false);
     }
   };
 
@@ -94,6 +300,12 @@ const OnboardingBasicInfo: React.FC = () => {
               gender: user.gender || '',
               phoneNumber: user.phoneNumber || ''
             });
+
+            // 기존에 인증된 전화번호가 있으면 인증 완료 상태로 설정
+            if (user.phoneNumber) {
+              setIsSmsVerified(true);
+              setVerifiedPhoneNumber(user.phoneNumber);
+            }
           } else {
             console.log('사용자 데이터가 없거나 실패:', data);
           }
@@ -130,6 +342,11 @@ const OnboardingBasicInfo: React.FC = () => {
       newErrors.age = '올바른 나이를 입력해주세요 (13-100세)';
     }
 
+    // 전화번호 인증 검사
+    if (!isSmsVerified) {
+      newErrors.phoneNumber = '전화번호 인증이 필요합니다';
+    }
+
     return newErrors;
   };
 
@@ -153,19 +370,19 @@ const OnboardingBasicInfo: React.FC = () => {
           return;
         }
 
-        // 기본 정보를 서버에 저장
-        const response = await fetch(API_ENDPOINTS.UPDATE_BASIC_INFO, {
-          method: 'PUT',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(formData)
-        });
+                  // 기본 정보를 서버에 저장
+          const response = await fetch(API_ENDPOINTS.UPDATE_BASIC_INFO, {
+            method: 'PUT',
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(formData)
+          });
 
-        if (response.ok) {
-          // 다음 단계로 이동
-          navigate('/onboarding/body-info');
+          if (response.ok) {
+            // 다음 단계: 완료 화면
+            navigate('/onboarding/complete');
         } else {
           console.error('기본 정보 저장 실패');
         }
@@ -267,15 +484,125 @@ const OnboardingBasicInfo: React.FC = () => {
 
           <div className="form-group">
             <label>연락처 *</label>
-            <input
-              type="tel"
-              value={formData.phoneNumber}
-              onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
-              placeholder="예: 010-1234-5678"
-              className={errors.phoneNumber ? 'error' : ''}
-            />
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
+              <input
+                type="tel"
+                value={formData.phoneNumber}
+                onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
+                placeholder="예: 010-1234-5678"
+                className={errors.phoneNumber ? 'error' : ''}
+                disabled={isSmsVerified}
+                style={{ flex: 1 }}
+              />
+              <button
+                type="button"
+                onClick={handleSmsSend}
+                disabled={isSmsVerified || isSmsLoading || !formData.phoneNumber}
+                style={{
+                  padding: '10px 15px',
+                  backgroundColor: isSmsVerified ? '#28a745' : '#007bff',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '5px',
+                  cursor: isSmsVerified || isSmsLoading || !formData.phoneNumber ? 'not-allowed' : 'pointer',
+                  fontSize: '12px',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                {isSmsVerified ? '인증완료' : isSmsLoading ? '전송중...' : 'SMS 인증'}
+              </button>
+            </div>
             {errors.phoneNumber && <span className="error-message">{errors.phoneNumber}</span>}
+            {isSmsVerified && (
+              <span style={{ color: '#28a745', fontSize: '12px' }}>✅ 전화번호 인증이 완료되었습니다.</span>
+            )}
           </div>
+
+          {/* SMS 인증 코드 입력 */}
+          {showSmsCodeInput && !isSmsVerified && (
+            <div className="form-group">
+              <label>SMS 인증 코드</label>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end' }}>
+                <input
+                  type="text"
+                  value={smsCode}
+                  onChange={(e) => setSmsCode(e.target.value)}
+                  placeholder="SMS 인증 코드 6자리"
+                  maxLength={6}
+                  disabled={isSmsLoading}
+                  style={{ flex: 1 }}
+                />
+                <button
+                  type="button"
+                  onClick={handleSmsVerify}
+                  disabled={isSmsLoading || !smsCode.trim()}
+                  style={{
+                    padding: '10px 15px',
+                    backgroundColor: '#007bff',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '5px',
+                    cursor: isSmsLoading || !smsCode.trim() ? 'not-allowed' : 'pointer',
+                    fontSize: '12px',
+                    whiteSpace: 'nowrap'
+                  }}
+                >
+                  {isSmsLoading ? '인증중...' : '인증하기'}
+                </button>
+              </div>
+              
+              {/* 타이머 및 연장 버튼 */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginTop: '10px',
+                padding: '12px 15px',
+                backgroundColor: '#f8f9fa',
+                borderRadius: '6px',
+                border: '1px solid #e9ecef'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '16px', color: '#6c757d' }}>⏰</span>
+                  <span style={{ fontSize: '14px', fontWeight: '500', color: '#495057' }}>
+                    {isTimerRunning ? formatTime(timeLeft) : '시간 만료'}
+                  </span>
+                </div>
+                
+                {canExtend && (
+                  <button
+                    type="button"
+                    onClick={handleExtendTime}
+                    disabled={isSmsLoading}
+                    style={{
+                      padding: '6px 12px',
+                      backgroundColor: '#007bff',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      fontSize: '12px',
+                      fontWeight: '500',
+                      cursor: isSmsLoading ? 'not-allowed' : 'pointer',
+                      textDecoration: 'underline',
+                      opacity: isSmsLoading ? 0.6 : 1
+                    }}
+                  >
+                    시간연장
+                  </button>
+                )}
+              </div>
+              
+              <div style={{
+                marginTop: '8px',
+                fontSize: '12px',
+                color: '#6c757d',
+                lineHeight: '1.4',
+                padding: '0 2px'
+              }}>
+                인증번호를 발송했습니다. 인증 문자가 오지 않으면 시간연장을 눌러주세요.
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -284,6 +611,7 @@ const OnboardingBasicInfo: React.FC = () => {
         <button
           className="button button-primary button-full"
           onClick={handleNext}
+          disabled={!isSmsVerified}
         >
           다음
         </button>

@@ -29,14 +29,33 @@
 }
 
 /* 기존 스타일들... */
-.dashboard-container {
-  min-height: 100vh;
-  background-color: var(--gray-50);
-  padding-bottom: 15px;
-}
+ .dashboard-container {
+   min-height: 100vh;
+   background-color: var(--gray-50);
+   padding-bottom: env(safe-area-inset-bottom);
+   width: 100%;
+ }
 
 .dashboard-content {
-  padding: var(--spacing-lg);
+  padding: var(--spacing-md) var(--spacing-md) 0;
+  width: 100%;
+  max-width: 100%;
+}
+
+/* 대시보드에서는 공통 카드 마진 제거 */
+.dashboard-container .card {
+  margin: 0;
+}
+
+/* 대시보드 카드 하단 여백 완전 제거 */
+.dashboard-container .goal-card,
+.dashboard-container .stats-card {
+  margin-bottom: 0;
+}
+
+/* 대시보드 콘텐츠의 마지막 요소는 여백 제거 */
+.dashboard-content > :last-child {
+  margin-bottom: 0 !important;
 }
 
 /* 헤더 스타일 */
@@ -85,6 +104,7 @@
 /* 목표 카드 */
 .goal-card {
   margin-bottom: var(--spacing-lg);
+  width: 100%;
 }
 
 .goal-info {
@@ -150,6 +170,7 @@
 /* 통계 카드 */
 .stats-card {
   margin-bottom: var(--spacing-lg);
+  width: 100%;
 }
 
 .arrow-button {
@@ -198,9 +219,17 @@
   display: flex;
   flex-direction: column;
   gap: var(--spacing-lg);
+  width: 100%;
 }
 
 .stats-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  width: 100%;
+}
+
+.stats-item {
   text-align: center;
 }
 
@@ -217,6 +246,10 @@
   margin-bottom: var(--spacing-xs);
 }
 
+.stats-value.calories-value {
+  color: var(--secondary-orange);
+}
+
 .stats-comparison {
   font-size: var(--text-sm);
   color: var(--secondary-green);
@@ -228,14 +261,18 @@
   flex-direction: column;
   align-items: center;
   gap: var(--spacing-sm);
+  width: 100%;
+  padding: 0;
 }
 
 .chart-placeholder {
   display: flex;
   align-items: end;
-  gap: var(--spacing-sm);
+  justify-content: space-between;
+  gap: var(--spacing-xs);
   height: 120px;
   width: 100%;
+  position: relative;
 }
 
 .chart-bar {
@@ -243,6 +280,8 @@
   background-color: var(--gray-300);
   border-radius: var(--radius-sm);
   transition: all 0.3s ease;
+  min-width: 0;
+  position: relative;
 }
 
 .chart-bar.active {
@@ -255,6 +294,16 @@
   width: 100%;
   font-size: var(--text-xs);
   color: var(--gray-500);
+  margin-top: var(--spacing-xs);
+}
+
+.chart-labels span {
+  flex: 1;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 var(--spacing-xs);
 }
 
 /* 추천 루틴 팝업 */
@@ -373,8 +422,19 @@
 
 /* 실외 사용을 위한 개선사항 */
 @media (max-width: 480px) {
+  .dashboard-container {
+    padding-bottom: env(safe-area-inset-bottom);
+    width: 100%;
+  }
+  
   .dashboard-content {
-    padding: var(--spacing-md);
+    padding: var(--spacing-sm) var(--spacing-sm) 0;
+    width: 100%;
+  }
+
+  /* 모바일에서도 카드 마진 제거 유지 */
+  .dashboard-container .card {
+    margin: 0;
   }
   
   .goal-title {
@@ -387,6 +447,15 @@
   
   .chart-placeholder {
     height: 100px;
+    gap: var(--spacing-xs);
+  }
+  
+  .chart-labels {
+    font-size: 10px;
+  }
+  
+  .chart-labels span {
+    padding: 0 2px;
   }
 }
 
