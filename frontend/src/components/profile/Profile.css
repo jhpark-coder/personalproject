@@ -386,7 +386,7 @@
 .profile-container .profile-content {
   max-width: 480px;
   margin: 0 auto;
-  padding: var(--spacing-lg) var(--spacing-md) 100px var(--spacing-md);
+  padding: var(--spacing-lg) var(--spacing-md) calc(64px + env(safe-area-inset-bottom)) var(--spacing-md);
 }
 
 .profile-container h1 {
@@ -656,6 +656,168 @@
   font-weight: 700;
 }
 
+/* 기존 CSS 유지하면서 새로운 섹션들 추가 */
+
+/* 신체 변화 섹션 */
+.body-changes {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 16px;
+  padding: 20px;
+  margin: 20px 0;
+  color: white;
+}
+
+.changes-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
+  margin-top: 15px;
+}
+
+.change-card {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 15px;
+  text-align: center;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.change-icon {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+.change-value {
+  font-size: 18px;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+
+.change-label {
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+/* 최근 운동 기록 섹션 */
+.recent-workouts {
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  margin: 20px 0;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.workout-list {
+  margin-top: 15px;
+}
+
+.workout-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.workout-item:last-child {
+  border-bottom: none;
+}
+
+.workout-date {
+  font-size: 14px;
+  color: #666;
+  font-weight: 500;
+  min-width: 60px;
+}
+
+.workout-info {
+  flex: 1;
+  margin-left: 15px;
+}
+
+.workout-type {
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.workout-details {
+  font-size: 12px;
+  color: #666;
+}
+
+/* 로딩 및 에러 상태 */
+.stats-loading {
+  text-align: center;
+  padding: 20px;
+  color: #666;
+  font-style: italic;
+}
+
+.stats-error {
+  text-align: center;
+  padding: 20px;
+  color: #e74c3c;
+}
+
+.stats-error p {
+  margin-bottom: 10px;
+}
+
+.retry-button {
+  background: #3498db;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.retry-button:hover {
+  background: #2980b9;
+}
+
+/* 기존 스타일 개선 */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 15px;
+  margin-top: 15px;
+}
+
+.stat-card {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  padding: 20px;
+  color: white;
+  text-align: center;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+  transition: transform 0.2s ease;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+}
+
+.stat-icon {
+  font-size: 28px;
+  margin-bottom: 10px;
+}
+
+.stat-value {
+  font-size: 24px;
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.stat-label {
+  font-size: 12px;
+  opacity: 0.9;
+  line-height: 1.3;
+}
+
 /* 반응형 디자인 */
 @media (max-width: 768px) {
   .profile-container .profile-content {
@@ -726,6 +888,37 @@
   .stat-value {
     font-size: var(--text-lg);
   }
+
+  .changes-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  
+  .workout-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .workout-date {
+    margin-bottom: 8px;
+  }
+  
+  .workout-info {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .changes-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .stat-card {
+    padding: 15px;
+  }
+  
+  .stat-value {
+    font-size: 20px;
+  }
 }
 
 /* 네비게이션 바 스타일은 index.css에서 관리됩니다 */
@@ -759,4 +952,107 @@
   }
   
   /* 네비게이션 바 스타일은 index.css에서 관리됩니다 */
+} 
+
+/* Records Room 전용 레이아웃 조정 */
+.records-room .basic-info .info-grid {
+  display: grid;
+  grid-template-columns: 1fr; /* 세로 1열 */
+  gap: var(--spacing-sm);
+}
+
+.records-room .basic-info .info-item {
+  display: grid;
+  grid-template-columns: 110px 1fr; /* 라벨 고정폭 + 값 영역 */
+  align-items: center;
+  padding: var(--spacing-md);
+}
+
+.records-room .basic-info .info-label {
+  text-align: left;
+  color: var(--gray-700);
+}
+
+.records-room .basic-info .info-value {
+  text-align: left;
+  font-weight: 700;
+}
+
+.records-room .basic-info .info-value {
+  text-align: center;
+  font-weight: 700;
+}
+
+.records-room .basic-info .value-stack {
+  display: grid;
+  grid-template-rows: auto auto auto; /* 1x3 */
+  row-gap: 4px;
+}
+
+.records-room .basic-info .value-stack .primary {
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--gray-900);
+}
+
+.records-room .basic-info .value-stack .secondary {
+  font-size: 0.9rem;
+  color: var(--gray-800);
+}
+
+.records-room .basic-info .value-stack .tertiary {
+  font-size: 0.85rem;
+  color: var(--gray-600);
+}
+
+@media (max-width: 420px) {
+  .records-room .basic-info .info-item {
+    grid-template-columns: 90px 1fr;
+  }
+} 
+
+/* Body Record Form 전용 스타일 */
+.profile-container .basic-info input,
+.profile-container .basic-info textarea {
+  width: 100%;
+  max-width: 120px;
+  padding: 8px 12px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  background: white;
+  transition: border-color 0.2s ease;
+}
+
+.profile-container .basic-info input:focus,
+.profile-container .basic-info textarea:focus {
+  outline: none;
+  border-color: var(--primary-blue);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+
+.profile-container .basic-info textarea {
+  max-width: none;
+  min-height: 40px;
+  max-height: 40px;
+  resize: vertical;
+}
+
+.profile-container .basic-info .info-item[style*="grid-column"] {
+  grid-column: 1 / span 2;
+}
+
+.profile-container .basic-info .info-item[style*="grid-column"] input,
+.profile-container .basic-info .info-item[style*="grid-column"] textarea {
+  max-width: none;
+} 
+
+/* 메모 필드 라벨 너비 조정 */
+.profile-container .basic-info .info-item[style*="grid-column"] .info-label {
+  min-width: 40px;
+  white-space: nowrap;
+} 
+
+.profile-container .profile-content > :last-child {
+  margin-bottom: 12px !important;
 } 

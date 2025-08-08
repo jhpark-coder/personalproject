@@ -1,10 +1,30 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { API_ENDPOINTS } from '../config/api';
+import { useUser } from '../context/UserContext';
+import ChatButton from './ChatButton';
+import NavigationBar from './NavigationBar';
 import './Dashboard.css';
+
+// JWT 토큰에서 role을 추출하는 함수
+const getRoleFromToken = (): string => {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) return 'ROLE_USER';
+    
+    // JWT 토큰 디코딩 (base64)
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.role || 'ROLE_USER';
+  } catch (error) {
+    console.error('토큰에서 role 추출 실패:', error);
+    return 'ROLE_USER';
+  }
+};
 
 interface WorkoutData {
   time: string;
+  calories: string;
+  caloriesComparison: string;
   volume: string;
   count: string;
   comparison: string;
@@ -28,14 +48,40 @@ interface RecommendationData {
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useUser();
   const [workoutData, setWorkoutData] = useState<WorkoutData | null>(null);
   const [goalData, setGoalData] = useState<GoalData | null>(null);
   const [recommendationData, setRecommendationData] = useState<RecommendationData | null>(null);
   const [showRecommendation, setShowRecommendation] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
+  // 최근 5일간의 날짜 라벨 생성
+  const generateWeekLabels = () => {
+    const labels = [];
+    const today = new Date();
+    
+    for (let i = 4; i >= 0; i--) {
+      const date = new Date(today);
+      date.setDate(today.getDate() - i);
+      const day = date.getDate();
+      const weekDay = ['일', '월', '화', '수', '목', '금', '토'][date.getDay()];
+      labels.push(`${day}/${weekDay}`);
+    }
+    
+    return labels;
+  };
 
   // 온보딩 완료 여부 확인
   useEffect(() => {
+    const userRole = getRoleFromToken();
+    const isAdmin = userRole === 'ROLE_ADMIN';
+    
+    // 관리자는 온보딩 체크를 건너뛰고 바로 대시보드 데이터 로드
+    if (isAdmin) {
+      console.log('👨‍💼 관리자: 온보딩 체크 건너뛰고 대시보드 데이터 로드');
+      loadDashboardData();
+      return;
+    }
+    
     const onboardingCompleted = localStorage.getItem('onboardingCompleted');
     const currentProvider = localStorage.getItem('currentProvider');
     const providerOnboardingKey = currentProvider ? `onboardingCompleted_${currentProvider}` : null;
@@ -48,10 +94,10 @@ const Dashboard: React.FC = () => {
     
     // 전체 onboarding이 완료되었거나, 현재 provider의 onboarding이 완료된 경우
     if (onboardingCompleted === 'true' || providerOnboardingCompleted === 'true') {
-      console.log('onboarding 완료, 대시보드 데이터 로드');
+      console.log('✅ onboarding 완료, 대시보드 데이터 로드');
       loadDashboardData();
     } else {
-      console.log('onboarding 미완료, onboarding 페이지로 이동');
+      console.log('❌ onboarding 미완료, onboarding 페이지로 이동');
       navigate('/onboarding/experience');
     }
   }, [navigate]);
@@ -119,7 +165,6 @@ const Dashboard: React.FC = () => {
         <div className="header-content">
           <div className="app-title">FitMate</div>
           <div className="header-actions">
-            <button className="upgrade-button">업그레이드</button>
             <button className="settings-button" onClick={() => navigate('/settings')}>
               ⚙️
             </button>
@@ -169,37 +214,53 @@ const Dashboard: React.FC = () => {
             <button className="arrow-button">→</button>
           </div>
           
-          <div className="stats-tabs">
-            <button className="tab-button active">시간</button>
-            <button className="tab-button">볼륨</button>
-            <button className="tab-button">밀도</button>
-          </div>
-          
           <div className="stats-content">
             <div className="stats-summary">
-              <p>이번 주 평균 운동 시간은</p>
-              <h2 className="stats-value">{workoutData?.time || '0분'}입니다</h2>
-              <p className="stats-comparison">{workoutData?.comparison || '데이터 없음'}</p>
+              <div className="stats-item">
+                <p>이번 주 총 운동 시간은</p>
+                <h2 className="stats-value">{workoutData?.time || '0분'}</h2>
+                <p className="stats-comparison">{workoutData?.comparison || '데이터 없음'}</p>
+              </div>
+              
+              <div className="stats-item">
+                <p>이번 주 총 소모 칼로리는</p>
+                <h2 className="stats-value calories-value">{workoutData?.calories || '0 kcal'}</h2>
+                <p className="stats-comparison">{workoutData?.caloriesComparison || '데이터 없음'}</p>
+              </div>
             </div>
             
             <div className="stats-chart">
               <div className="chart-placeholder">
-                {workoutData?.chartData.map((data, index) => (
-                  <div 
-                    key={index}
-                    className={`chart-bar ${index === workoutData.chartData.length - 1 ? 'active' : ''}`}
-                    style={{ height: `${data.value}%` }}
-                  ></div>
-                )) || Array(5).fill(0).map((_, index) => (
-                  <div key={index} className="chart-bar" style={{ height: '20%' }}></div>
-                ))}
+                {workoutData?.chartData && workoutData.chartData.length > 0 ? (
+                  workoutData.chartData.map((data, index) => (
+                    <div 
+                      key={index}
+                      className={`chart-bar ${index === workoutData.chartData.length - 1 ? 'active' : ''}`}
+                      style={{ height: `${data.value}%` }}
+                    ></div>
+                  ))
+                ) : (
+                  Array(5).fill(0).map((_, index) => (
+                    <div key={index} className="chart-bar" style={{ height: '20%' }}></div>
+                  ))
+                )}
               </div>
               <div className="chart-labels">
-                <span>~05-03</span>
-                <span>~05-10</span>
-                <span>~05-17</span>
-                <span>~05-24</span>
-                <span>~05-31</span>
+                {workoutData?.chartData && workoutData.chartData.length > 0 ? (
+                  // 실제 데이터가 있으면 데이터 개수만큼 라벨 생성
+                  workoutData.chartData.map((_, index) => {
+                    const date = new Date();
+                    date.setDate(date.getDate() - (workoutData.chartData.length - 1 - index));
+                    const day = date.getDate();
+                    const weekDay = ['일', '월', '화', '수', '목', '금', '토'][date.getDay()];
+                    return <span key={index}>{`${day}/${weekDay}`}</span>;
+                  })
+                ) : (
+                  // 데이터가 없으면 5일치 기본 라벨
+                  generateWeekLabels().map((label, index) => (
+                    <span key={index}>{label}</span>
+                  ))
+                )}
               </div>
             </div>
           </div>
@@ -237,24 +298,10 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* 하단 네비게이션 */}
-      <div className="navigation-bar">
-        <Link to="/" className="nav-item active">
-          <div className="nav-icon">🏠</div>
-          <span>홈</span>
-        </Link>
-        <Link to="/calendar" className="nav-item">
-          <div className="nav-icon">📅</div>
-          <span>캘린더</span>
-        </Link>
-        <Link to="/programs" className="nav-item">
-          <div className="nav-icon">🏋️‍♂️</div>
-          <span>라이브러리</span>
-        </Link>
-        <Link to="/profile" className="nav-item">
-          <div className="nav-icon">👤</div>
-          <span>마이페이지</span>
-        </Link>
-      </div>
+      <NavigationBar />
+
+      {/* 챗봇 버튼 */}
+      <ChatButton />
     </div>
   );
 };

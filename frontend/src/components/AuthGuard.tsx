@@ -1,20 +1,19 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { API_ENDPOINTS } from '../config/api';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { useUser } from '../context/UserContext';
 
-interface JwtPayload {
-  exp?: number; // 만료 시간 (Unix epoch, 초 단위)
-}
-
-// 간단한 JWT 디코더 (의존성 없이 base64 디코딩)
-const decodeToken = (token: string): JwtPayload | null => {
+// JWT 토큰에서 role을 추출하는 함수
+const getRoleFromToken = (): string => {
   try {
-    const parts = token.split('.');
-    if (parts.length !== 3) return null;
-    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
-    return payload as JwtPayload;
-  } catch (e) {
-    return null;
+    const token = localStorage.getItem('token');
+    if (!token) return 'ROLE_USER';
+    
+    // JWT 토큰 디코딩 (base64)
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.role || 'ROLE_USER';
+  } catch (error) {
+    console.error('토큰에서 role 추출 실패:', error);
+    return 'ROLE_USER';
   }
 };
 
@@ -25,91 +24,79 @@ interface AuthGuardProps {
 
 const AuthGuard: React.FC<AuthGuardProps> = ({ children, requireAuth = true }) => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { user, loading, error } = useUser();
   const [isLoading, setIsLoading] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
-    checkAuthStatus();
-  }, []);
-
-  const checkAuthStatus = async () => {
-    const token = localStorage.getItem('token');
+    console.log('🔍 AuthGuard useEffect:', { 
+      user: user?.id, 
+      loading, 
+      error,
+      hasUser: !!user,
+      hasError: !!error,
+      requireAuth,
+      retryCount,
+      pathname: location.pathname
+    });
     
-    if (!token) {
-      if (requireAuth) {
-        // 인증이 필요한 페이지인데 토큰이 없으면 로그인 페이지로
+    // 라우트 변경 시 스크롤을 맨 위로 이동
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+
+    if (!loading) {
+      if (user && !error) {
+        console.log('✅ AuthGuard: 인증 성공');
+        
+        // 관리자 체크 및 온보딩 페이지 처리
+        const userRole = getRoleFromToken();
+        const isAdmin = userRole === 'ROLE_ADMIN';
+        const isOnboardingPage = location.pathname.startsWith('/onboarding');
+        const onboardingCompleted = localStorage.getItem('onboardingCompleted') === 'true';
+        
+        // 관리자가 온보딩 페이지에 접근하려고 하면 메인 페이지로 리다이렉트
+        if (isAdmin && isOnboardingPage) {
+          console.log('👨‍💼 관리자 온보딩 페이지 접근 차단, 메인 페이지로 이동');
+          navigate('/');
+          return;
+        }
+        
+        // 일반 사용자가 온보딩을 완료하지 않았고 온보딩 페이지가 아닌 경우
+        if (!isAdmin && !onboardingCompleted && !isOnboardingPage && location.pathname !== '/') {
+          console.log('📝 온보딩 미완료, 온보딩 페이지로 이동');
+          navigate('/onboarding/experience');
+          return;
+        }
+        
+        setIsAuthenticated(true);
+        setIsLoading(false);
+        setRetryCount(0); // 성공 시 재시도 카운트 리셋
+      } else if (error && requireAuth) {
+        console.log('❌ AuthGuard: 인증 실패, 로그인 페이지로 이동');
+        console.log('❌ AuthGuard 상세:', { error, user: user?.id });
+        
+        // 재시도 로직 (최대 2회)
+        if (retryCount < 2 && (error.includes('FAILED') || error.includes('서버 응답 시간 초과'))) {
+          console.log(`🔄 AuthGuard 재시도 ${retryCount + 1}/2`);
+          setRetryCount(prev => prev + 1);
+          setTimeout(() => {
+            // UserContext의 refresh 함수 호출
+            window.location.reload();
+          }, 2000);
+          return;
+        }
+        
         navigate('/login');
-        return;
-      } else {
-        // 인증이 필요없는 페이지면 그대로 표시
         setIsAuthenticated(false);
         setIsLoading(false);
-        return;
+      } else if (!requireAuth) {
+        console.log('ℹ️ AuthGuard: 인증 불필요한 페이지');
+        setIsAuthenticated(false);
+        setIsLoading(false);
       }
     }
-    // 1) 토큰 만료 여부 확인 (클라이언트 측)
-    const decoded = decodeToken(token);
-    if (!decoded) {
-      // 디코딩 실패 시 토큰 무효로 판단
-      localStorage.removeItem('token');
-      if (requireAuth) navigate('/login');
-      setIsAuthenticated(false);
-      setIsLoading(false);
-      return;
-    }
-    const currentTimeSec = Date.now() / 1000;
-    if (decoded && decoded.exp && decoded.exp < currentTimeSec) {
-      // 만료된 토큰 → 제거 후 로그인 페이지로 이동
-      localStorage.removeItem('token');
-      if (requireAuth) navigate('/login');
-      setIsAuthenticated(false);
-      setIsLoading(false);
-      return;
-    }
-
-    // 2) 백엔드에 실제 프로필 요청으로 토큰 유효성 확인 (옵셔널, 실패 시 로그아웃)
-    try {
-      console.log('🔍 AuthGuard: 백엔드 프로필 요청 시작');
-      console.log('🔍 URL:', API_ENDPOINTS.PROFILE);
-      console.log('🔍 Token (앞 20자):', token.substring(0, 20) + '...');
-      
-      const res = await fetch(API_ENDPOINTS.PROFILE, {
-        method: 'GET',
-        headers: { 
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      
-      console.log('🔍 Response status:', res.status);
-      console.log('🔍 Response ok:', res.ok);
-      
-      if (!res.ok) {
-        const errorText = await res.text();
-        console.error('🔍 Response error text:', errorText);
-        throw new Error(`HTTP ${res.status}: ${errorText}`);
-      }
-      
-      const data = await res.json();
-      console.log('🔍 Response data:', data);
-      
-      if (!data.success) {
-        console.error('🔍 Backend returned success=false:', data.message);
-        throw new Error('Backend authentication failed');
-      }
-      
-      console.log('🔍 AuthGuard: 백엔드 인증 성공');
-      setIsAuthenticated(true);
-    } catch (e) {
-      console.error('🔍 AuthGuard: 백엔드 인증 실패:', e);
-      // 실패 → 토큰 제거 및 로그인 페이지 이동
-      localStorage.removeItem('token');
-      if (requireAuth) navigate('/login');
-      setIsAuthenticated(false);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+  }, [user, loading, error, requireAuth, navigate, retryCount, location.pathname]);
 
   if (isLoading) {
     return (

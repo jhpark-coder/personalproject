@@ -1,8 +1,62 @@
-import { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import Modal from './Modal';
 import { API_ENDPOINTS } from '../config/api';
 import './SignupForm.css';
+
+// Firebase SDK import
+import { initializeApp } from 'firebase/app';
+import { getAuth, RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
+
+// Firebase 설정
+const firebaseConfig = {
+  apiKey: "AIzaSyDWpoEZA43chfYY0LOOce-Rtwa-tfWnp-8",
+  authDomain: "fitmate-467303.firebaseapp.com",
+  projectId: "fitmate-467303",
+  storageBucket: "fitmate-467303.appspot.com",
+  messagingSenderId: "581520849563",
+  appId: "1:581520849563:web:fitmate-app"
+};
+
+// Firebase 초기화
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+
+// reCAPTCHA 설정
+let recaptchaVerifier: RecaptchaVerifier | null = null;
+
+// reCAPTCHA 초기화 함수
+const initializeRecaptcha = async () => {
+  try {
+    // 기존 reCAPTCHA가 있으면 정리
+    if (recaptchaVerifier) {
+      try {
+        recaptchaVerifier.clear();
+      } catch (e) {
+        console.log('기존 reCAPTCHA 정리 실패:', e);
+      }
+    }
+
+    // reCAPTCHA 초기화
+    recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+      'size': 'invisible',
+      'callback': (response: any) => {
+        console.log('reCAPTCHA solved');
+      },
+      'expired-callback': () => {
+        console.log('reCAPTCHA expired');
+      }
+    });
+
+    // reCAPTCHA 렌더링
+    await recaptchaVerifier.render();
+    console.log('reCAPTCHA initialized successfully');
+    
+  } catch (error) {
+    console.error('reCAPTCHA initialization error:', error);
+    throw error;
+  }
+};
 
 interface FormErrors {
   email?: string;
@@ -30,8 +84,17 @@ const SignupForm: React.FC = () => {
   const [errors, setErrors] = useState<FormErrors>({});
   const [showPassword, setShowPassword] = useState(false);
   const [showVerificationCode, setShowVerificationCode] = useState(false);
-  const [isEmailVerificationLoading, setIsEmailVerificationLoading] = useState(false);
-  const [isEmailVerificationCompleted, setIsEmailVerificationCompleted] = useState(false);
+  // 이메일 인증 관련 상태 - 문자 인증으로 대체하여 주석처리
+  // const [isEmailVerificationLoading, setIsEmailVerificationLoading] = useState(false);
+  // const [isEmailVerificationCompleted, setIsEmailVerificationCompleted] = useState(false);
+  const [showSmsAuth, setShowSmsAuth] = useState(false);
+  const [isSmsVerified, setIsSmsVerified] = useState(false);
+  const [verifiedPhoneNumber, setVerifiedPhoneNumber] = useState('');
+  const [showSmsCodeInput, setShowSmsCodeInput] = useState(false);
+  const [smsCode, setSmsCode] = useState('');
+  const [isSmsLoading, setIsSmsLoading] = useState(false);
+  const [sessionInfo, setSessionInfo] = useState('');
+  const [confirmationResult, setConfirmationResult] = useState<any>(null);
   
   // 모달 상태
   const [modal, setModal] = useState<{
@@ -46,6 +109,16 @@ const SignupForm: React.FC = () => {
     type: 'info'
   });
 
+  // SMS 인증 관련 상태
+  const [timeLeft, setTimeLeft] = useState<number>(0); // 초 단위
+  const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [canExtend, setCanExtend] = useState(false);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Twilio OTP 인증 관련 상태
+  const [useTwilioOtp, setUseTwilioOtp] = useState(false);
+  const [showOtpFallback, setShowOtpFallback] = useState(false);
+  
   const validateEmail = (email: string): string | undefined => {
     if (!email) return '이메일을 입력해주세요';
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -93,6 +166,394 @@ const SignupForm: React.FC = () => {
       return '올바른 휴대전화번호 형식을 입력해주세요 (예: 010-1234-5678)';
     }
     return undefined;
+  };
+
+  // 전화번호 형식 변환 함수 (E.164 규격으로 변환)
+  const formatPhoneNumber = (phoneNumber: string): string => {
+    const digitsOnly = phoneNumber.replace(/\D/g, '');
+
+    // 이미 +82로 입력된 경우 처리
+    if (phoneNumber.trim().startsWith('+82')) {
+      return '+82' + digitsOnly.replace(/^82/, '');
+    }
+
+    // 010-XXXX-XXXX 또는 010XXXXXXXX 형태 → +8210XXXXXXXX
+    if (digitsOnly.startsWith('010') && digitsOnly.length >= 10) {
+      return '+82' + digitsOnly.slice(1);
+    }
+
+    // 0으로 시작하는 국내 번호(예: 011, 016 등) 일반 처리 → +82 이후 맨 앞 0 제거
+    if (digitsOnly.startsWith('0')) {
+      return '+82' + digitsOnly.slice(1);
+    }
+
+    // 이미 국가코드 포함 숫자만(8210...)인 경우 → +82...
+    if (digitsOnly.startsWith('82')) {
+      return '+' + digitsOnly;
+    }
+
+    // 그 외는 그대로 반환 (서버/SDK에서 검증)
+    return phoneNumber;
+  };
+
+  const handleSmsAuthSuccess = (phoneNumber: string) => {
+    setIsSmsVerified(true);
+    setVerifiedPhoneNumber(phoneNumber);
+    setShowSmsAuth(false);
+    setFormData(prev => ({ ...prev, phoneNumber }));
+    showModal('SMS 인증 성공', '전화번호 인증이 완료되었습니다.', 'success');
+  };
+
+  const handleSmsAuthCancel = () => {
+    setShowSmsAuth(false);
+  };
+
+  // 타이머 시작 함수
+  const startTimer = (duration: number = 300) => { // 5분 = 300초
+    setTimeLeft(duration);
+    setIsTimerRunning(true);
+    setCanExtend(false);
+    
+    timerRef.current = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          // 타이머 종료
+          setIsTimerRunning(false);
+          setCanExtend(true);
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  // 타이머 정리
+  const clearTimer = () => {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    setIsTimerRunning(false);
+    setTimeLeft(0);
+  };
+
+  // 시간 형식 변환 (분:초)
+  const formatTime = (seconds: number): string => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = seconds % 60;
+    return `${minutes.toString().padStart(2, '0')}분${remainingSeconds.toString().padStart(2, '0')}초`;
+  };
+
+  // 시간연장 함수
+  const handleExtendTime = async () => {
+    if (!formData.phoneNumber.trim()) {
+      showModal('입력 오류', '전화번호를 입력해주세요.', 'error');
+      return;
+    }
+
+    setIsSmsLoading(true);
+    try {
+      console.log('=== SMS 재발송 시작 ===');
+      
+      // reCAPTCHA 초기화
+      if (!recaptchaVerifier) {
+        await initializeRecaptcha();
+      }
+
+      const phoneNumber = formatPhoneNumber(formData.phoneNumber);
+      
+      if (!recaptchaVerifier) {
+        showModal('오류', 'reCAPTCHA가 초기화되지 않았습니다.', 'error');
+        return;
+      }
+
+      // Firebase SMS 재발송
+      const newConfirmationResult = await signInWithPhoneNumber(auth, phoneNumber, recaptchaVerifier);
+      
+      console.log('Firebase SMS 재발송 성공!');
+      
+      // 새로운 세션 정보 업데이트
+      setConfirmationResult(newConfirmationResult);
+      setSessionInfo(newConfirmationResult.verificationId);
+      
+      // 타이머 재시작
+      clearTimer();
+      startTimer();
+      
+      showModal('SMS 재발송 완료', '인증 코드가 재발송되었습니다.', 'success');
+      
+    } catch (error) {
+      console.error('SMS 재발송 실패:', error);
+      showModal('재발송 실패', 'SMS 재발송에 실패했습니다. 다시 시도해주세요.', 'error');
+    } finally {
+      setIsSmsLoading(false);
+    }
+  };
+
+  // 컴포넌트 언마운트 시 타이머 정리
+  // reCAPTCHA 초기화 주석처리 - Twilio OTP만 사용
+  /*
+  // 컴포넌트 마운트 시 reCAPTCHA 초기화
+  useEffect(() => {
+    const initRecaptcha = async () => {
+      try {
+        await initializeRecaptcha();
+      } catch (error) {
+        console.error('reCAPTCHA 초기화 실패:', error);
+      }
+    };
+    
+    initRecaptcha();
+    
+    return () => {
+      clearTimer();
+      // 컴포넌트 언마운트 시 reCAPTCHA 정리
+      if (recaptchaVerifier) {
+        try {
+          recaptchaVerifier.clear();
+        } catch (e) {
+          console.log('reCAPTCHA 정리 실패:', e);
+        }
+      }
+    };
+  }, []);
+  */
+  
+  // 타이머 정리만 유지
+  useEffect(() => {
+    return () => {
+      clearTimer();
+    };
+  }, []);
+
+    const handleSmsSend = async () => {
+    if (!formData.phoneNumber.trim()) {
+      showModal('입력 오류', '전화번호를 입력해주세요.', 'error');
+      return;
+    }
+
+    // Firebase SMS 인증 주석처리 - Twilio OTP만 사용
+    /*
+    setIsSmsLoading(true);
+    try {
+      console.log('=== SMS 전송 시작 ===');
+      console.log('입력된 전화번호:', formData.phoneNumber);
+      
+      // reCAPTCHA 확인
+      if (!recaptchaVerifier) {
+        showModal('오류', 'reCAPTCHA가 초기화되지 않았습니다. 페이지를 새로고침해주세요.', 'error');
+        return;
+      }
+
+      // 전화번호 형식 변환 (+82-10-XXXX-XXXX)
+      const phoneNumber = formatPhoneNumber(formData.phoneNumber);
+      
+      console.log('변환된 전화번호:', phoneNumber);
+      console.log('Firebase Auth 객체:', auth);
+      console.log('reCAPTCHA Verifier:', recaptchaVerifier);
+      
+      console.log('Firebase SMS 인증 시작...');
+      // Firebase SMS 인증
+      const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, recaptchaVerifier);
+      
+      console.log('Firebase SMS 인증 성공!');
+      console.log('Confirmation Result:', confirmationResult);
+      
+      // 성공 시 인증 코드 입력 단계로
+      setConfirmationResult(confirmationResult);
+      setSessionInfo(confirmationResult.verificationId);
+      setShowSmsCodeInput(true);
+      setUseTwilioOtp(false); // Firebase 성공 시 Twilio 모드 해제
+      
+      // 타이머 시작
+      startTimer();
+      
+      showModal('SMS 전송 완료', '인증 코드가 전송되었습니다.', 'success');
+      
+    } catch (error: any) {
+      console.error('SMS 전송 실패:', error);
+      if (error?.code === 'auth/too-many-requests') {
+        showModal('전송 제한', '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.', 'error');
+      } else if (error?.code === 'auth/network-request-failed') {
+        // 네트워크 오류 시 Twilio OTP 폴백 제안
+        setShowOtpFallback(true);
+        showModal('네트워크 오류', 'Firebase 인증이 차단되었습니다. 대체 인증 방법을 사용해주세요.', 'error');
+      } else {
+        showModal('전송 실패', 'SMS 전송에 실패했습니다. 다시 시도해주세요.', 'error');
+      }
+      // 다음 시도를 위해 reCAPTCHA 리셋
+      try {
+        if (recaptchaVerifier) {
+          const widgetId = await recaptchaVerifier.render();
+          // @ts-ignore
+          if (window.grecaptcha) window.grecaptcha.reset(widgetId);
+        }
+      } catch (e) {
+        console.log('reCAPTCHA 리셋 실패:', e);
+      }
+    } finally {
+      setIsSmsLoading(false);
+    }
+    */
+
+    // Twilio OTP 인증으로 바로 전환
+    await handleTwilioOtpRequest();
+  };
+
+  // Twilio OTP 인증 요청
+  const handleTwilioOtpRequest = async () => {
+    if (!formData.phoneNumber.trim()) {
+      showModal('입력 오류', '전화번호를 입력해주세요.', 'error');
+      return;
+    }
+
+    setIsSmsLoading(true);
+    try {
+      console.log('=== Twilio OTP 요청 시작 ===');
+      const phoneNumber = formatPhoneNumber(formData.phoneNumber);
+      console.log('변환된 전화번호:', phoneNumber);
+
+      const response = await fetch(`${API_ENDPOINTS.COMMUNICATION_SERVER_URL}/sms/request-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ phone: phoneNumber }),
+      });
+
+      const contentType = response.headers.get('content-type') || '';
+      if (!response.ok) {
+        const text = await response.text().catch(() => '');
+        throw new Error(`OTP 요청 실패 (${response.status}) ${text.slice(0, 200)}`);
+      }
+
+      const result = contentType.includes('application/json')
+        ? await response.json()
+        : { success: false, message: '서버가 JSON 이외의 응답을 반환했습니다.' };
+
+      if (result.success) {
+        setUseTwilioOtp(true);
+        setShowSmsCodeInput(true);
+        setShowOtpFallback(false);
+        startTimer();
+        showModal('OTP 전송 완료', '인증 코드가 발송되었습니다.', 'success');
+      } else {
+        showModal('전송 실패', result.message || '인증 코드 발송에 실패했습니다.', 'error');
+      }
+    } catch (error: any) {
+      console.error('Twilio OTP 요청 실패:', error);
+      showModal('전송 실패', error?.message || '인증 코드 발송 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setIsSmsLoading(false);
+    }
+  };
+
+  // Twilio OTP 인증 확인
+  const handleTwilioOtpVerify = async () => {
+    if (!smsCode.trim()) {
+      showModal('입력 오류', '인증 코드를 입력해주세요.', 'error');
+      return;
+    }
+
+    setIsSmsLoading(true);
+    try {
+      console.log('=== Twilio OTP 확인 시작 ===');
+      const phoneNumber = formatPhoneNumber(formData.phoneNumber);
+      console.log('전화번호:', phoneNumber);
+      console.log('입력된 코드:', smsCode);
+
+      const response = await fetch(`${API_ENDPOINTS.COMMUNICATION_SERVER_URL}/sms/verify-otp`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          phone: phoneNumber, 
+          code: smsCode 
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setIsSmsVerified(true);
+        setVerifiedPhoneNumber(formData.phoneNumber);
+        setShowSmsCodeInput(false);
+        setSmsCode('');
+        setUseTwilioOtp(false);
+        clearTimer();
+        showModal('인증 성공', '전화번호 인증이 완료되었습니다.', 'success');
+      } else {
+        showModal('인증 실패', result.message || '인증 코드가 올바르지 않습니다.', 'error');
+      }
+    } catch (error) {
+      console.error('Twilio OTP 확인 실패:', error);
+      showModal('인증 실패', '인증 코드 확인 중 오류가 발생했습니다.', 'error');
+    } finally {
+      setIsSmsLoading(false);
+    }
+  };
+
+  const handleSmsVerify = async () => {
+    if (!smsCode.trim()) {
+      showModal('입력 오류', '인증 코드를 입력해주세요.', 'error');
+      return;
+    }
+
+    // Firebase SMS 인증 주석처리 - Twilio OTP만 사용
+    /*
+    // Twilio OTP 모드인 경우
+    if (useTwilioOtp) {
+      await handleTwilioOtpVerify();
+      return;
+    }
+
+    // Firebase 인증 모드
+    if (!confirmationResult) {
+      showModal('인증 오류', 'SMS 인증 세션이 만료되었습니다. 다시 시도해주세요.', 'error');
+      return;
+    }
+
+    setIsSmsLoading(true);
+    try {
+      console.log('=== Firebase SMS 인증 시작 ===');
+      console.log('입력된 인증 코드:', smsCode);
+      console.log('Confirmation Result:', confirmationResult);
+      
+      // Firebase 인증 코드 확인
+      const result = await confirmationResult.confirm(smsCode);
+      
+      console.log('Firebase 인증 성공!');
+      console.log('인증 결과:', result);
+      
+      if (result.user) {
+        // 인증 성공
+        setIsSmsVerified(true);
+        setVerifiedPhoneNumber(formData.phoneNumber);
+        setShowSmsCodeInput(false);
+        setSmsCode('');
+        setConfirmationResult(null); // 인증 완료 후 정리
+        
+        // 타이머 정리
+        clearTimer();
+        
+        showModal('SMS 인증 성공', '전화번호 인증이 완료되었습니다.', 'success');
+      } else {
+        showModal('인증 실패', '인증에 실패했습니다.', 'error');
+      }
+    } catch (error) {
+      console.error('Firebase SMS 인증 실패:', error);
+      showModal('인증 실패', '인증 코드가 올바르지 않습니다. 다시 확인해주세요.', 'error');
+    } finally {
+      setIsSmsLoading(false);
+    }
+    */
+
+    // Twilio OTP 인증으로 바로 전환
+    await handleTwilioOtpVerify();
   };
 
   const validateForm = (): FormErrors => {
@@ -174,6 +635,8 @@ const SignupForm: React.FC = () => {
     }));
   };
 
+  // 이메일 인증 요청 함수 - 문자 인증으로 대체하여 주석처리
+  /*
   const handleEmailVerificationRequest = async () => {
     const emailError = validateEmail(formData.email);
     if (emailError) {
@@ -207,7 +670,10 @@ const SignupForm: React.FC = () => {
       setIsEmailVerificationLoading(false);
     }
   };
+  */
 
+  // 이메일 인증 코드 검증 함수 - 문자 인증으로 대체하여 주석처리
+  /*
   const handleVerificationCodeSubmit = async () => {
     if (!formData.verificationCode.trim()) {
       showModal('입력 오류', '인증번호를 입력해주세요.', 'error');
@@ -242,6 +708,7 @@ const SignupForm: React.FC = () => {
       showModal('인증 실패', '인증에 실패했습니다. 다시 시도해주세요.', 'error');
     }
   };
+  */
 
   const handleSignup = async () => {
     const formErrors = validateForm();
@@ -286,6 +753,8 @@ const SignupForm: React.FC = () => {
     }
   };
 
+  // 이메일 인증 버튼 텍스트 함수 - 문자 인증으로 대체하여 주석처리
+  /*
   const getEmailVerificationButtonText = () => {
     if (isEmailVerificationCompleted) return '인증완료';
     if (isEmailVerificationLoading) return '인증요청중';
@@ -296,6 +765,7 @@ const SignupForm: React.FC = () => {
   const getEmailVerificationButtonDisabled = () => {
     return isEmailVerificationLoading || isEmailVerificationCompleted;
   };
+  */
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -344,6 +814,7 @@ const SignupForm: React.FC = () => {
                   placeholder="이메일주소 *"
                   autoComplete="email"
                 />
+                {/* 이메일 인증 버튼 - 문자 인증으로 대체하여 주석처리
                 <button
                   type="button"
                   className={`email-verification-btn ${
@@ -356,12 +827,14 @@ const SignupForm: React.FC = () => {
                 >
                   {getEmailVerificationButtonText()}
                 </button>
+                */}
               </div>
               {getFieldError('email') && (
                 <div className="error-message">{getFieldError('email')}</div>
               )}
             </div>
 
+            {/* 이메일 인증 코드 입력 - 문자 인증으로 대체하여 주석처리
             {showVerificationCode && (
               <div className="form-control">
                 <div className="input_item">
@@ -388,6 +861,7 @@ const SignupForm: React.FC = () => {
                 </div>
               </div>
             )}
+            */}
 
             <div className="form-control">
               <div className={`input_item ${getFieldError('password') ? 'error' : ''}`}>
@@ -520,19 +994,99 @@ const SignupForm: React.FC = () => {
                   onBlur={() => handleBlur('phoneNumber')}
                   className={`input_field ${getFieldError('phoneNumber') ? 'error' : ''}`}
                   placeholder="휴대전화번호 *"
+                  disabled={isSmsVerified}
                 />
+                <button
+                  type="button"
+                  className={`sms-verification-btn ${
+                    isSmsVerified ? 'completed' : ''
+                  }`}
+                  onClick={handleSmsSend}
+                  disabled={isSmsVerified || isSmsLoading}
+                >
+                  {isSmsVerified ? '인증완료' : isSmsLoading ? '전송중...' : '문자 인증'}
+                </button>
               </div>
               {getFieldError('phoneNumber') && (
                 <div className="error-message">{getFieldError('phoneNumber')}</div>
               )}
+              {isSmsVerified && (
+                <div className="success-message">✅ 전화번호 인증이 완료되었습니다.</div>
+              )}
+              
+              {/* Twilio OTP 인증 버튼 */}
+              {!isSmsVerified && (
+                <div className="otp-section">
+                  <div className="otp-notice">
+                    <span className="otp-icon">📱</span>
+                    <span className="otp-text">Twilio 문자 인증을 사용합니다.</span>
+                  </div>
+                </div>
+              )}
             </div>
+
+            {/* SMS 인증 코드 입력 */}
+            {showSmsCodeInput && !isSmsVerified && (
+              <div className="form-control">
+                <div className="input_item">
+                  <div className="input-icon">🔐</div>
+                  <input
+                    type="text"
+                    id="smsCode"
+                    name="smsCode"
+                    value={smsCode}
+                    onChange={(e) => setSmsCode(e.target.value)}
+                    className="input_field"
+                    placeholder="SMS 인증 코드 6자리"
+                    maxLength={6}
+                    disabled={isSmsLoading}
+                  />
+                  <button
+                    type="button"
+                    className="verify-sms-btn"
+                    onClick={handleSmsVerify}
+                    disabled={isSmsLoading || !smsCode.trim()}
+                  >
+                    {isSmsLoading ? '인증중...' : '인증하기'}
+                  </button>
+                </div>
+                
+                {/* 타이머 및 연장 버튼 */}
+                <div className="sms-timer-section">
+                  <div className="timer-info">
+                    <span className="timer-icon">⏰</span>
+                    <span className="timer-text">
+                      {isTimerRunning ? formatTime(timeLeft) : '시간 만료'}
+                    </span>
+                  </div>
+                  
+                  {canExtend && (
+                    <button
+                      type="button"
+                      className="extend-time-btn"
+                      onClick={handleExtendTime}
+                      disabled={isSmsLoading}
+                    >
+                      시간연장
+                    </button>
+                  )}
+                </div>
+                
+                <div className="sms-notice">
+                  인증번호를 발송했습니다. 인증 문자가 오지 않으면 시간연장을 눌러주세요.
+                </div>
+              </div>
+            )}
           </div>
 
-          <button type="submit" className="verification-button" disabled={!isEmailVerificationCompleted}>
+          <button type="submit" className="verification-button" disabled={!isSmsVerified}>
             회원가입
           </button>
         </form>
       </div>
+      
+      {/* reCAPTCHA 컨테이너 */}
+      <div id="recaptcha-container"></div>
       
       {/* 모달 컴포넌트 */}
       <Modal

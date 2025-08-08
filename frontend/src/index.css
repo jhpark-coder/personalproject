@@ -71,6 +71,26 @@ body {
   line-height: 1.6;
 }
 
+/* 공통: 페이지 컨테이너 마지막 요소 하단 여백 제거 */
+.container > :last-child,
+.dashboard-content > :last-child,
+.workout-stats-container > :last-child,
+.body-data-container > :last-child,
+.notification-center > :last-child,
+.exercise-information-container > :last-child {
+  margin-bottom: 0 !important;
+}
+
+/* 공통: 하단 안전영역 간격만 유지 */
+.container,
+.dashboard-container,
+.workout-stats-container,
+.body-data-container,
+.notification-center,
+.exercise-information-container {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
 /* 공통 컴포넌트 스타일 */
 .container {
   max-width: 480px;
@@ -232,7 +252,7 @@ body {
   left: 50%;
   transform: translateX(-50%);
   width: 100%;
-  max-width: 400px;
+  max-width: 480px;
   background-color: var(--white);
   border-top: 1px solid var(--gray-200);
   padding: var(--spacing-xs) var(--spacing-xs);
@@ -248,8 +268,10 @@ body {
   padding: var(--spacing-xs);
   color: var(--gray-500);
   text-decoration: none;
-  font-size: var(--text-xs);
+  font-size: 0.7rem;
   transition: color 0.2s;
+  min-width: 0;
+  flex: 1;
 }
 
 .nav-item.active {
@@ -257,8 +279,26 @@ body {
 }
 
 .nav-icon {
-  font-size: var(--text-base);
-  margin-bottom: var(--spacing-xs);
+  font-size: 1.2rem;
+  margin-bottom: 2px;
+  position: relative;
+}
+
+.notification-badge {
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  background-color: #ff4757;
+  color: white;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6rem;
+  font-weight: bold;
+  min-width: 16px;
 }
 
 /* 실외 사용을 위한 개선사항 */
@@ -278,6 +318,21 @@ body {
   
   .header-title {
     font-size: var(--text-lg);
+  }
+  
+  .navigation-bar {
+    max-width: 100%;
+    padding: 4px 2px;
+  }
+  
+  .nav-item {
+    font-size: 0.65rem;
+    padding: 4px 2px;
+  }
+  
+  .nav-icon {
+    font-size: 1.1rem;
+    margin-bottom: 1px;
   }
 }
 

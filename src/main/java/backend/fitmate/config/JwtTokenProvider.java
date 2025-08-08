@@ -39,13 +39,14 @@ public class JwtTokenProvider {
         return Keys.hmacShaKeyFor(secretKey.getBytes());
     }
 
-    public String createToken(Long userId, String email, String name, String provider, String oauthId, String picture) {
+    public String createToken(Long userId, String email, String name, String provider, String oauthId, String picture, String role) {
         Claims claims = Jwts.claims().setSubject(String.valueOf(userId));
         claims.put("email", email);
         claims.put("name", name);
         claims.put("provider", provider);
         claims.put("oauthId", oauthId);
         claims.put("picture", picture);
+        claims.put("role", role);
         Date now = new Date();
         return Jwts.builder()
                 .setClaims(claims)
@@ -105,6 +106,11 @@ public class JwtTokenProvider {
     public String getPictureFromToken(String token) {
         Claims claims = getClaimsFromToken(token);
         return claims.get("picture", String.class);
+    }
+
+    public String getRoleFromToken(String token) {
+        Claims claims = getClaimsFromToken(token);
+        return claims.get("role", String.class);
     }
 
     /**

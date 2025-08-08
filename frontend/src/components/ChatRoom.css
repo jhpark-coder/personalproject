@@ -5,7 +5,8 @@
   background: white;
   min-width: 0;
   width: 100%;
-  min-width: 40rem;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .chat-messages {
@@ -122,44 +123,66 @@
   font-size: 0.9rem;
 }
 
-.message {
+/* 메시지 정렬을 위한 추가 스타일 */
+.messages-container .date-group {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.messages-container .date-group .message {
   margin-bottom: 1rem;
   display: flex;
   align-items: flex-start;
+  width: 100%;
+  clear: both;
 }
 
-.message.user {
-  justify-content: flex-end;
-}
-
-.message.admin {
+.messages-container .date-group .message.user {
   justify-content: flex-start;
+  align-self: flex-start;
 }
 
-.message-content {
-  max-width: fit-content;
+.messages-container .date-group .message.admin {
+  justify-content: flex-end;
+  align-self: flex-end;
+}
+
+.messages-container .date-group .message.user .message-content {
+  margin-right: auto;
+  margin-left: 0;
+}
+
+.messages-container .date-group .message.admin .message-content {
+  margin-left: auto;
+  margin-right: 0;
+}
+
+.messages-container .date-group .message .message-content {
+  max-width: 70%;
   min-width: 3rem;
   padding: 0.625rem 0.875rem;
   border-radius: 1rem;
   position: relative;
   box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.1);
+  word-wrap: break-word;
 }
 
 .message.admin .message-content {
   margin-right: 0;
 }
 
-.message.user .message-content {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: white;
-  border-bottom-right-radius: 0.375rem;
-}
-
-.message.admin .message-content {
+.messages-container .date-group .message.user .message-content {
   background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
   color: #333;
   border-bottom-left-radius: 0.375rem;
   border: 0.0625rem solid #dee2e6;
+}
+
+.messages-container .date-group .message.admin .message-content {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-bottom-right-radius: 0.375rem;
 }
 
 .message-text {
@@ -175,13 +198,49 @@
   font-weight: 500;
 }
 
-.message.user .message-time {
+.messages-container .date-group .message.user .message-time {
   text-align: right;
+  color: #6c757d;
+}
+
+.messages-container .date-group .message.admin .message-time {
   color: rgba(255, 255, 255, 0.9);
 }
 
-.message.admin .message-time {
+/* 날짜 구분선 */
+.date-group {
+  margin-bottom: 1rem;
+}
+
+.date-separator {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 1.5rem 0 1rem 0;
+  position: relative;
+}
+
+.date-separator::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background-color: #e9ecef;
+  z-index: 1;
+}
+
+.date-label {
+  background-color: #f8f9fa;
   color: #6c757d;
+  font-size: 0.75rem;
+  font-weight: 500;
+  padding: 0.25rem 0.75rem;
+  border-radius: 1rem;
+  border: 1px solid #e9ecef;
+  z-index: 2;
+  position: relative;
 }
 
 /* 반응형 디자인 */

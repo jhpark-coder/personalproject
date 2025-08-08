@@ -41,18 +41,28 @@ export class ChatService {
         console.log('🔍 채팅 내역 조회 시작:', userId);
         
         try {
+            // userId로 직접 검색하거나 "사용자_${userId}" 형태로 검색
             const history = await this.chatMessageModel
                 .find({
                     $or: [
                         { sender: userId },
-                        { recipient: userId }
+                        { sender: `사용자_${userId}` },
+                        { recipient: userId },
+                        { recipient: `사용자_${userId}` }
                     ]
                 })
                 .sort({ timestamp: 1 })
                 .exec();
             
             console.log('✅ MongoDB에서 조회된 채팅 내역:', history);
-            return history.map(doc => doc.toObject() as ChatMessageDto);
+            
+            // 각 메시지에 isAdmin 필드 추가
+            return history.map(doc => {
+                const message = doc.toObject() as ChatMessageDto;
+                // sender가 "관리자"로 시작하면 관리자 메시지로 판단
+                const isAdmin = message.sender && message.sender.startsWith('관리자');
+                return { ...message, isAdmin };
+            });
         } catch (error) {
             console.error('❌ MongoDB 조회 중 오류 발생:', error);
             this.logger.error(`채팅 내역 조회 실패 - 사용자: ${userId}`, error);
@@ -76,7 +86,9 @@ export class ChatService {
             await this.chatMessageModel.deleteMany({
                 $or: [
                     { sender: userId },
-                    { recipient: userId }
+                    { sender: `사용자_${userId}` },
+                    { recipient: userId },
+                    { recipient: `사용자_${userId}` }
                 ]
             });
             console.log(`✅ 사용자 ${userId}의 채팅 내역 삭제 완료`);
@@ -154,7 +166,9 @@ export class ChatService {
                 .findOne({
                     $or: [
                         { sender: userId },
-                        { recipient: userId }
+                        { sender: `사용자_${userId}` },
+                        { recipient: userId },
+                        { recipient: `사용자_${userId}` }
                     ]
                 })
                 .sort({ timestamp: -1 })
