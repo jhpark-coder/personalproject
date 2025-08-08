@@ -22,6 +22,14 @@ export default registerAs('development', () => ({
     enabled: false, // 개발에서는 SMS 비활성화
   },
 
+  // Twilio 설정 (개발용)
+  twilio: {
+    accountSid: process.env.TWILIO_ACCOUNT_SID,
+    authToken: process.env.TWILIO_AUTH_TOKEN,
+    phoneNumber: process.env.TWILIO_PHONE_NUMBER,
+    enabled: !!process.env.TWILIO_ACCOUNT_SID && !!process.env.TWILIO_AUTH_TOKEN,
+  },
+
   // 로깅 설정 (개발용)
   logging: {
     level: process.env.LOG_LEVEL || 'debug',

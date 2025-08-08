@@ -3,6 +3,36 @@ import { io, Socket } from 'socket.io-client';
 import { CHAT_SERVER_URL } from '../config/api';
 import './ChatPage.css';
 
+// JWT 토큰에서 role과 userId를 추출하는 함수
+const getRoleFromToken = (): string => {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) return 'ROLE_USER';
+    
+    // JWT 토큰 디코딩 (base64)
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.role || 'ROLE_USER';
+  } catch (error) {
+    console.error('토큰에서 role 추출 실패:', error);
+    return 'ROLE_USER';
+  }
+};
+
+// JWT 토큰에서 userId를 추출하는 함수
+const getUserIdFromToken = (): number => {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) return 1;
+    
+    // JWT 토큰 디코딩 (base64)
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.userId || 1;
+  } catch (error) {
+    console.error('토큰에서 userId 추출 실패:', error);
+    return 1;
+  }
+};
+
 interface Message {
   id?: string;
   sender: string;
@@ -13,7 +43,6 @@ interface Message {
 }
 
 interface ChatPageProps {
-  userId: number;
   onClose: () => void;
   isModal?: boolean; // 모달에서 열렸는지 여부
 }
@@ -23,7 +52,7 @@ interface AdminStatus {
   lastSeen?: Date;
 }
 
-const ChatPage: React.FC<ChatPageProps> = ({ userId, onClose, isModal = true }) => {
+const ChatPage: React.FC<ChatPageProps> = ({ onClose, isModal = true }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [socket, setSocket] = useState<Socket | null>(null);
@@ -32,17 +61,30 @@ const ChatPage: React.FC<ChatPageProps> = ({ userId, onClose, isModal = true }) 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // JWT 토큰에서 role과 userId 추출
+    const userRole = getRoleFromToken();
+    const userId = getUserIdFromToken();
+    
     // WebSocket 연결
     const newSocket = io(CHAT_SERVER_URL, {
       auth: {
         userId: userId,
-        roles: ['USER']
+        roles: [userRole]
       }
     });
 
     newSocket.on('connect', () => {
       setIsConnected(true);
       console.log('채팅 서버에 연결되었습니다.');
+      
+      // 사용자 역할 확인
+      const userId = getUserIdFromToken();
+      const userRole = getRoleFromToken();
+      
+      // 관리자가 아닌 경우에만 일반 사용자로 채팅방에 입장
+      if (userRole !== 'ROLE_ADMIN') {
+        newSocket.emit('joinChat', { sender: `사용자_${userId}` });
+      }
       
       // 채팅 히스토리 요청
       newSocket.emit('getHistory', { userId: userId.toString() });
@@ -81,30 +123,23 @@ const ChatPage: React.FC<ChatPageProps> = ({ userId, onClose, isModal = true }) 
 
     // 연결 시 관리자 상태 확인 요청
     newSocket.emit('checkAdminStatus');
-    
-    // 채팅 참가 이벤트 발생
-    newSocket.emit('joinChat', {
-      sender: `사용자_${userId}`,
-      type: 'JOIN'
-    });
 
     setSocket(newSocket);
 
     return () => {
       newSocket.close();
     };
-  }, [userId]);
+  }, []);
 
+  // 메시지가 추가될 때마다 스크롤을 맨 아래로
   useEffect(() => {
-    // 새 메시지가 올 때만 스크롤을 맨 아래로 (초기 로드 시에는 제외)
-    if (messages.length > 0) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   const sendMessage = () => {
     if (!inputMessage.trim() || !socket) return;
 
+    const userId = getUserIdFromToken();
     const messageData = {
       sender: `사용자_${userId}`,
       content: inputMessage,
@@ -173,7 +208,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ userId, onClose, isModal = true }) 
       <div className="chat-messages">
         {messages.length === 0 && (
           <div className="date-separator">
-            {formatDate(new Date())}
+            <span className="date-label">{formatDate(new Date())}</span>
           </div>
         )}
         
@@ -190,7 +225,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ userId, onClose, isModal = true }) 
             <React.Fragment key={message.id || index}>
               {showDate && (
                 <div className="date-separator">
-                  {formatDate(message.timestamp)}
+                  <span className="date-label">{formatDate(message.timestamp)}</span>
                 </div>
               )}
               <div className={`message ${message.isAdmin ? 'admin' : 'user'}`}>

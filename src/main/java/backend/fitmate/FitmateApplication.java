@@ -7,6 +7,7 @@ import org.springframework.cache.annotation.EnableCaching;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.EnableAspectJAutoProxy;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
+import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.web.client.RestTemplate;
 
 @SpringBootApplication
@@ -14,6 +15,7 @@ import org.springframework.web.client.RestTemplate;
 @EnableJpaAuditing
 @ConfigurationPropertiesScan
 @EnableAspectJAutoProxy
+@EnableScheduling
 public class FitmateApplication {
 
 	public static void main(String[] args) {

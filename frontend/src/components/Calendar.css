@@ -518,3 +518,242 @@
     font-size: 0.6rem;
   }
 } 
+
+.calendar-disconnected-banner {
+  background-color: #f0f8ff;
+  border: 1px solid #cce5ff;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 16px;
+  text-align: center;
+}
+
+.calendar-disconnected-banner h3 {
+  margin-top: 0;
+  color: #004085;
+}
+
+.calendar-disconnected-banner p {
+  margin-bottom: 16px;
+  color: #004085;
+}
+
+.calendar-disconnected-banner .connect-btn {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background-color 0.3s;
+}
+
+.calendar-disconnected-banner .connect-btn:hover {
+  background-color: #0056b3;
+} 
+
+.event-item.holiday-event h5,
+.event-item.holiday-event h4 {
+  color: #d9534f; /* 공휴일 텍스트 색상 */
+}
+
+.calendar-day.has-events .day-number::after {
+  content: '';
+  display: block;
+  width: 5px;
+  height: 5px;
+  background-color: #007bff;
+  border-radius: 50%;
+  margin: 2px auto 0;
+}
+
+/* 공휴일이 있는 날의 표시 */
+.calendar-day.has-holiday .day-number {
+  color: #d9534f;
+  font-weight: bold;
+}
+
+.weekday.sunday,
+.calendar-day.sunday .day-number {
+  color: #d9534f;
+}
+
+.weekday.saturday,
+.calendar-day.saturday .day-number {
+  color: #007bff;
+} 
+
+/* 주간 히트맵 스타일 */
+.weekly-heatmap {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-lg);
+  margin-bottom: var(--spacing-lg);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(10px);
+}
+
+.heatmap-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-md);
+}
+
+.heatmap-header h4 {
+  margin: 0;
+  color: var(--gray-900);
+  font-size: var(--text-lg);
+  font-weight: 600;
+}
+
+.workout-count {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 4px 12px;
+  border-radius: var(--radius-lg);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.heatmap-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: var(--spacing-sm);
+}
+
+.heatmap-day {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--spacing-sm);
+  border-radius: var(--radius-md);
+  background: rgba(0, 0, 0, 0.02);
+  transition: all 0.2s ease;
+}
+
+.heatmap-day.has-workout {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  transform: scale(1.05);
+}
+
+.heatmap-day.today {
+  border: 2px solid var(--primary-blue);
+}
+
+.day-label {
+  font-size: var(--text-xs);
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.day-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.heatmap-day.has-workout .day-indicator {
+  background: rgba(255, 255, 255, 0.8);
+}
+
+/* 운동 표시자 스타일 */
+.calendar-day.has-workout {
+  position: relative;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+}
+
+.workout-indicator {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  font-size: 10px;
+  color: var(--primary-blue);
+}
+
+/* 운동 기록 섹션 */
+.workout-section {
+  margin-bottom: var(--spacing-lg);
+}
+
+.workout-section h5 {
+  color: var(--gray-900);
+  font-size: var(--text-base);
+  font-weight: 600;
+  margin-bottom: var(--spacing-sm);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+}
+
+.workout-item {
+  background: rgba(102, 126, 234, 0.05);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+  margin-bottom: var(--spacing-sm);
+  border-left: 4px solid var(--primary-blue);
+}
+
+.workout-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-xs);
+}
+
+.workout-header h6 {
+  margin: 0;
+  color: var(--gray-900);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.duration {
+  background: var(--primary-blue);
+  color: white;
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+
+.workout-details {
+  display: flex;
+  gap: var(--spacing-sm);
+  flex-wrap: wrap;
+  margin-bottom: var(--spacing-xs);
+}
+
+.workout-details span {
+  background: rgba(102, 126, 234, 0.1);
+  color: var(--gray-700);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  font-weight: 500;
+}
+
+.workout-notes {
+  margin: 0;
+  color: var(--gray-600);
+  font-size: var(--text-xs);
+  font-style: italic;
+}
+
+/* 이벤트 섹션 */
+.events-section {
+  margin-bottom: var(--spacing-lg);
+}
+
+.events-section h5 {
+  color: var(--gray-900);
+  font-size: var(--text-base);
+  font-weight: 600;
+  margin-bottom: var(--spacing-sm);
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+} 

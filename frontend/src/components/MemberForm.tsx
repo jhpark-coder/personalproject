@@ -2,10 +2,12 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import Modal from './Modal';
 import { API_ENDPOINTS } from '../config/api';
+import { useUser } from '../context/UserContext';
 import './MemberForm.css';
 
 const MemberForm: React.FC = () => {
   const navigate = useNavigate();
+  const { setUserFromLogin } = useUser();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [emailFocused, setEmailFocused] = useState(false);
@@ -105,12 +107,25 @@ const MemberForm: React.FC = () => {
           localStorage.setItem('user', JSON.stringify(data.user));
         }
         
+        // UserContext에 사용자 정보 설정
+        if (data.user) {
+          setUserFromLogin(data.user, data.token);
+        }
+        
+        // 테스트 사용자인 경우 온보딩 완료 상태 설정
+        if (email === 'test@fitmate.com') {
+          localStorage.setItem('onboardingCompleted', 'true');
+          console.log('✅ 테스트 사용자 로그인 성공, 온보딩 완료 상태 설정');
+        }
+        
         showModal('로그인 성공', '로그인이 완료되었습니다!', 'success');
         
-        // 1.5초 후 대시보드로 이동
+        // 테스트 사용자는 즉시 홈으로 이동, 다른 사용자는 1.5초 후 이동
+        const delay = email === 'test@fitmate.com' ? 0 : 1500;
         setTimeout(() => {
-          navigate('/dashboard');
-        }, 1500);
+          console.log('🚀 홈으로 이동:', email);
+          navigate('/');
+        }, delay);
       } else {
         showModal('로그인 실패', data.message || '이메일 또는 비밀번호가 올바르지 않습니다.', 'error');
       }

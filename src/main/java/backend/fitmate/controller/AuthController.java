@@ -24,7 +24,6 @@ import backend.fitmate.User.entity.User;
 import backend.fitmate.User.service.UserService;
 import backend.fitmate.config.JwtTokenProvider;
 import backend.fitmate.config.RateLimit;
-import backend.fitmate.service.EmailVerificationService;
 import jakarta.servlet.http.HttpServletRequest;
 
 
@@ -33,8 +32,8 @@ import jakarta.servlet.http.HttpServletRequest;
 @CrossOrigin(origins = "${app.frontend.url}", allowCredentials = "true")
 public class AuthController {
 
-    @Autowired
-    private EmailVerificationService emailVerificationService;
+    // @Autowired
+    // private EmailVerificationService emailVerificationService;
     
     @Autowired
     private UserService userService;
@@ -43,6 +42,8 @@ public class AuthController {
     
     @Autowired
     private JwtTokenProvider jwtTokenProvider;
+    @Autowired
+    private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
 
     @PostMapping("/login")
     @RateLimit(bucketName = "loginBucket", keyType = RateLimit.KeyType.IP)
@@ -86,12 +87,12 @@ public class AuthController {
             }
             
             // 비밀번호 검증 로직 구현 필요
-            // if (!passwordEncoder.matches(password, user.getPassword())) {
-            //     Map<String, Object> response = new HashMap<>();
-            //     response.put("success", false);
-            //     response.put("message", "비밀번호가 일치하지 않습니다.");
-            //     return ResponseEntity.badRequest().body(response);
-            // }
+            if (!passwordEncoder.matches(password, user.getPassword())) {
+                Map<String, Object> response = new HashMap<>();
+                response.put("success", false);
+                response.put("message", "비밀번호가 일치하지 않습니다.");
+                return ResponseEntity.badRequest().body(response);
+            }
             
             // JWT 토큰 생성 (일반 로그인은 provider를 "local"로 설정)
             String token = jwtTokenProvider.createToken(
@@ -100,7 +101,8 @@ public class AuthController {
                 user.getName(),
                 user.getOauthProvider(),
                 user.getOauthId(),
-                user.getProfileImage()
+                user.getProfileImage(),
+                user.getRole()
             );
             
             Map<String, Object> response = new HashMap<>();
@@ -115,6 +117,16 @@ public class AuthController {
             userData.put("name", user.getName());
             userData.put("nickname", user.getNickname() != null ? user.getNickname() : "");
             userData.put("emailVerified", user.isEmailVerified());
+            userData.put("provider", user.getOauthProvider() != null ? user.getOauthProvider() : "local");
+            userData.put("picture", user.getProfileImage());
+            
+            // 기본 정보 필드들 추가
+            userData.put("height", user.getHeight());
+            userData.put("weight", user.getWeight());
+            userData.put("age", user.getAge());
+            userData.put("gender", user.getGender());
+            userData.put("phoneNumber", user.getPhoneNumber());
+            userData.put("birthDate", user.getBirthDate());
             
             response.put("user", userData);
             
@@ -208,6 +220,8 @@ public class AuthController {
         }
     }
 
+    // 이메일 인증 기능을 문자 인증으로 대체하여 주석처리
+    /*
     @PostMapping("/send-verification-email")
     @RateLimit(bucketName = "emailVerificationBucket", keyType = RateLimit.KeyType.IP)
     public ResponseEntity<?> sendVerificationEmail(@RequestBody Map<String, String> request) {
@@ -242,7 +256,10 @@ public class AuthController {
         
         return ResponseEntity.ok(response);
     }
+    */
 
+    // 이메일 인증 코드 검증 기능 주석처리
+    /*
     @PostMapping("/verify-email-code")
     @RateLimit(bucketName = "emailVerificationBucket", keyType = RateLimit.KeyType.IP)
     public ResponseEntity<?> verifyEmailCode(@RequestBody Map<String, String> request) {
@@ -273,7 +290,10 @@ public class AuthController {
             return ResponseEntity.badRequest().body(response);
         }
     }
+    */
 
+    // 이메일 인증 코드 재발송 기능 주석처리
+    /*
     @PostMapping("/resend-verification-email")
     @RateLimit(bucketName = "emailVerificationBucket", keyType = RateLimit.KeyType.IP)
     public ResponseEntity<?> resendVerificationEmail(@RequestBody Map<String, String> request) {
@@ -299,6 +319,7 @@ public class AuthController {
         
         return ResponseEntity.ok(response);
     }
+    */
 
     @GetMapping("/check-email")
     public ResponseEntity<?> checkEmail(@RequestParam String email) {
@@ -335,6 +356,8 @@ public class AuthController {
     public ResponseEntity<?> getUserProfile() {
         try {
             System.err.println("🔍 Profile API - 요청 도달");
+            System.err.println("🔍 Profile API - 요청 시간: " + java.time.LocalDateTime.now());
+            
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
             System.err.println("🔍 Profile API - Authentication: " + authentication);
             System.err.println("🔍 Profile API - isAuthenticated: " + (authentication != null ? authentication.isAuthenticated() : "null"));
@@ -353,11 +376,16 @@ public class AuthController {
                 // HttpServletRequest를 통해 Authorization 헤더에서 JWT 토큰 가져오기
                 HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
                 String bearerToken = request.getHeader("Authorization");
+                System.err.println("🔍 Profile API - Authorization 헤더: " + (bearerToken != null ? "존재" : "없음"));
+                
                 if (StringUtils.hasText(bearerToken) && bearerToken.startsWith("Bearer ")) {
                     token = bearerToken.substring(7);
+                    System.err.println("🔍 Profile API - JWT 토큰 추출 성공 (길이: " + token.length() + ")");
+                } else {
+                    System.err.println("🔍 Profile API - JWT 토큰 추출 실패");
                 }
             } catch (Exception e) {
-                System.out.println("JWT 토큰 추출 실패: " + e.getMessage());
+                System.err.println("🔍 Profile API - JWT 토큰 추출 중 예외: " + e.getMessage());
             }
             
             User user = null;
@@ -489,8 +517,16 @@ public class AuthController {
             System.out.println("=== 최종 사용자 정보 ===");
             System.out.println("User ID: " + user.getId());
             System.out.println("Email: " + user.getEmail());
+            System.out.println("Name: " + user.getName());
             System.out.println("Provider: " + finalProvider);
             System.out.println("OAuth ID: " + user.getOauthId());
+            System.out.println("Height: " + user.getHeight());
+            System.out.println("Weight: " + user.getWeight());
+            System.out.println("Age: " + user.getAge());
+            System.out.println("Gender: " + user.getGender());
+            System.out.println("Phone Number: " + user.getPhoneNumber());
+            System.out.println("Birth Date: " + user.getBirthDate());
+            System.out.println("Picture: " + profileImage);
             
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
@@ -613,80 +649,7 @@ public class AuthController {
         }
     }
 
-    @PutMapping("/update-body-info")
-    @RateLimit(bucketName = "profileUpdateBucket", keyType = RateLimit.KeyType.USER_ID)
-    public ResponseEntity<?> updateBodyInfo(@RequestBody Map<String, String> bodyInfoRequest) {
-        try {
-            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-            if (authentication == null || !authentication.isAuthenticated()) {
-                Map<String, Object> response = new HashMap<>();
-                response.put("success", false);
-                response.put("message", "인증되지 않은 사용자입니다.");
-                return ResponseEntity.status(401).body(response);
-            }
-
-            // 사용자 찾기
-            User user = null;
-            String authName = authentication.getName();
-
-            // OAuth2 사용자의 경우 "provider:oauthId" 형태일 수 있음
-            if (authName.contains(":")) {
-                String[] parts = authName.split(":");
-                if (parts.length == 2) {
-                    String authProvider = parts[0];
-                    String authOAuthId = parts[1];
-                    
-                    user = userService.findByOAuth2ProviderAndOAuth2Id(authProvider, authOAuthId)
-                            .orElse(null);
-                }
-            } else {
-                // 숫자인 경우 user ID로 시도
-                try {
-                    Long userId = Long.parseLong(authName);
-                    user = userService.findById(userId).orElse(null);
-                } catch (NumberFormatException e) {
-                    System.out.println("Authentication name이 숫자가 아님");
-                }
-            }
-
-            if (user == null) {
-                Map<String, Object> response = new HashMap<>();
-                response.put("success", false);
-                response.put("message", "사용자를 찾을 수 없습니다.");
-                return ResponseEntity.status(404).body(response);
-            }
-
-            // 상세 신체정보 업데이트 (선택사항이므로 빈 값도 허용)
-            String bodyFatPercentage = bodyInfoRequest.get("bodyFatPercentage");
-            String muscleMass = bodyInfoRequest.get("muscleMass");
-            String basalMetabolicRate = bodyInfoRequest.get("basalMetabolicRate");
-            String bodyWaterPercentage = bodyInfoRequest.get("bodyWaterPercentage");
-            String boneMass = bodyInfoRequest.get("boneMass");
-            String visceralFatLevel = bodyInfoRequest.get("visceralFatLevel");
-
-            if (bodyFatPercentage != null) user.setBodyFatPercentage(bodyFatPercentage);
-            if (muscleMass != null) user.setMuscleMass(muscleMass);
-            if (basalMetabolicRate != null) user.setBasalMetabolicRate(basalMetabolicRate);
-            if (bodyWaterPercentage != null) user.setBodyWaterPercentage(bodyWaterPercentage);
-            if (boneMass != null) user.setBoneMass(boneMass);
-            if (visceralFatLevel != null) user.setVisceralFatLevel(visceralFatLevel);
-
-            // 사용자 정보 저장
-            userService.save(user);
-
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("message", "신체정보가 업데이트되었습니다.");
-            return ResponseEntity.ok(response);
-
-        } catch (Exception e) {
-            System.err.println("신체정보 업데이트 중 오류: " + e.getMessage());
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", false);
-            response.put("message", "신체정보 업데이트에 실패했습니다.");
-            return ResponseEntity.status(500).body(response);
-        }
-    }
+    // 인바디 상세 정보 업데이트 엔드포인트 제거 (더 이상 사용하지 않음)
 
 
 } 

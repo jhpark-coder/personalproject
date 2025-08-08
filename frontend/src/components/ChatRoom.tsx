@@ -13,10 +13,10 @@ interface ChatRoomProps {
   currentUser: string | null;
   messages: Message[];
   onSendMessage: (content: string) => void;
-  onBackToUserList: () => void;
+  onBack: () => void;
 }
 
-const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, messages, onSendMessage, onBackToUserList }) => {
+const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, messages, onSendMessage, onBack }) => {
   const [inputValue, setInputValue] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -51,6 +51,41 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, messages, onSendMessag
     });
   };
 
+  const formatDate = (timestamp: string) => {
+    if (!timestamp) return '';
+    const date = new Date(timestamp);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    
+    if (date.toDateString() === today.toDateString()) {
+      return '오늘';
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return '어제';
+    } else {
+      return date.toLocaleDateString('ko-KR', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        weekday: 'long'
+      });
+    }
+  };
+
+  const groupMessagesByDate = (messages: Message[]) => {
+    const groups: { [key: string]: Message[] } = {};
+    
+    messages.forEach(message => {
+      const date = formatDate(message.timestamp);
+      if (!groups[date]) {
+        groups[date] = [];
+      }
+      groups[date].push(message);
+    });
+    
+    return groups;
+  };
+
   return (
     <div className="chat-area">
       {/* 채팅 메시지 */}
@@ -65,7 +100,7 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, messages, onSendMessag
             <div className="chat-header-info">
               <button
                 className="back-button"
-                onClick={onBackToUserList}
+                onClick={onBack}
                 title="사용자 목록으로 돌아가기"
               >
                 <i className="fas fa-arrow-left"></i>
@@ -82,19 +117,28 @@ const ChatRoom: React.FC<ChatRoomProps> = ({ currentUser, messages, onSendMessag
                   <p>아직 메시지가 없습니다. 대화를 시작해보세요!</p>
                 </div>
               ) : (
-                messages.map((message, index) => (
-                  <div
-                    key={index}
-                    className={`message ${message.sender === '관리자' ? 'user' : 'admin'}`}
-                  >
-                    <div className="message-content">
-                      <div className="message-text">{message.content}</div>
-                      <div className="message-time">
-                        {formatTime(message.timestamp)}
+                <>
+                  {Object.entries(groupMessagesByDate(messages)).map(([date, dateMessages]) => (
+                    <div key={date} className="date-group">
+                      <div className="date-separator">
+                        <span className="date-label">{date}</span>
                       </div>
+                      {dateMessages.map((message, index) => (
+                        <div
+                          key={`${date}-${index}-${message.timestamp}`}
+                          className={`message ${message.sender !== '관리자' ? 'user' : 'admin'}`}
+                        >
+                          <div className="message-content">
+                            <div className="message-text">{message.content}</div>
+                            <div className="message-time">
+                              {formatTime(message.timestamp)}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  </div>
-                ))
+                  ))}
+                </>
               )}
               <div ref={messagesEndRef} />
             </div>

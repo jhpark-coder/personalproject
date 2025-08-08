@@ -1,5 +1,60 @@
+version: '3.8'
+
 services:
-  # MySQL 데이터베이스
+  nginx:
+    build:
+      context: .
+      dockerfile: nginx/Dockerfile
+    container_name: fitmate_nginx
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+      - communication-server
+    networks:
+      - fitmate-network
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: fitmate_backend
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/personalproject?useSSL=false&serverTimezone=UTC&characterEncoding=UTF-8
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      - OAUTH_REDIRECT_URI=http://localhost/login/oauth2/code/google
+      - KAKAO_REDIRECT_URI=http://localhost/login/oauth2/code/kakao
+      - NAVER_REDIRECT_URI=http://localhost/login/oauth2/code/naver
+      - JWT_SECRET=c2VjcmV0S2V5Zm9yZGV2ZWxvcG1lbnQxMjM0NTY3ODkwYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXo=
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - fitmate-network
+
+  communication-server:
+    build:
+      context: ./communication-server
+      dockerfile: Dockerfile
+    container_name: fitmate_communication_server
+    environment:
+      - NODE_ENV=development
+      - MONGODB_URI=mongodb://mongo:27017/communication-server-dev
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - TWILIO_ACCOUNT_SID=ACd69318104dae68ea5c6be4ad74c65d6c
+      - TWILIO_AUTH_TOKEN=ee14e7e70b2c10711bd1885485db2e13
+      - TWILIO_PHONE_NUMBER=+12513104213
+    ports:
+      - "3000:3000"
+    depends_on:
+      - mongo
+      - redis
+    networks:
+      - fitmate-network
+
   mysql:
     image: mysql:8.0
     container_name: fitmate-mysql
@@ -16,14 +71,9 @@ services:
     networks:
       - fitmate-network
 
-  # MongoDB (notification-server용)
   mongo:
     image: mongo:7
     container_name: fitmate-mongo
-    environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: adminpassword
-      MONGO_INITDB_DATABASE: communication-server
     ports:
       - "27017:27017"
     volumes:
@@ -31,7 +81,6 @@ services:
     networks:
       - fitmate-network
 
-  # Redis 캐시
   redis:
     image: redis:7-alpine
     container_name: fitmate-redis
@@ -42,25 +91,6 @@ services:
     networks:
       - fitmate-network
 
-  # Spring Boot 백엔드
-  backend:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: fitmate-backend
-    ports:
-      - "8080:8080"
-    environment:
-      SPRING_PROFILES_ACTIVE: dev
-      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/personalproject?useSSL=false&serverTimezone=UTC&characterEncoding=UTF-8&useSchema=personalproject
-      SPRING_DATA_REDIS_HOST: redis
-      SPRING_DATA_REDIS_PORT: 6379
-    depends_on:
-      - mysql
-      - redis
-    networks:
-      - fitmate-network
-
 volumes:
   mysql_data:
   mongo_data:
@@ -68,4 +98,4 @@ volumes:
 
 networks:
   fitmate-network:
-    driver: bridge 
+    driver: bridge
