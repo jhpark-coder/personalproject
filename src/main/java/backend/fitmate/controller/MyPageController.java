@@ -156,31 +156,31 @@ public class MyPageController {
             
             switch (period) {
                 case "daily":
-                    // 일별: 최근 7일 자동 계산
-                    trendsData.put("weightTrend", bodyRecordService.getRecentWeightTrend(userId));
-                    trendsData.put("bodyFatTrend", bodyRecordService.getRecentBodyFatTrend(userId));
-                    trendsData.put("muscleMassTrend", bodyRecordService.getRecentMuscleMassTrend(userId));
+                    // 일별: 계산된 범위(기본 최근 5일)
+                    trendsData.put("weightTrend", bodyRecordService.getWeightTrend(userId, calculatedStartDate, calculatedEndDate));
+                    trendsData.put("bodyFatTrend", bodyRecordService.getBodyFatTrend(userId, calculatedStartDate, calculatedEndDate));
+                    trendsData.put("muscleMassTrend", bodyRecordService.getMuscleMassTrend(userId, calculatedStartDate, calculatedEndDate));
                     break;
                     
                 case "weekly":
-                    // 주별: 최근 4주 자동 계산
-                    trendsData.put("weightTrend", bodyRecordService.getRecentWeightTrendWeekly(userId));
-                    trendsData.put("bodyFatTrend", bodyRecordService.getRecentBodyFatTrendWeekly(userId));
-                    trendsData.put("muscleMassTrend", bodyRecordService.getRecentMuscleMassTrendWeekly(userId));
+                    // 주별: 계산된 범위(기본 최근 4주)
+                    trendsData.put("weightTrend", bodyRecordService.getWeightTrendWeekly(userId, calculatedStartDate, calculatedEndDate));
+                    trendsData.put("bodyFatTrend", bodyRecordService.getBodyFatTrendWeekly(userId, calculatedStartDate, calculatedEndDate));
+                    trendsData.put("muscleMassTrend", bodyRecordService.getMuscleMassTrendWeekly(userId, calculatedStartDate, calculatedEndDate));
                     break;
                     
                 case "monthly":
-                    // 월별: 최근 3개월 자동 계산
-                    trendsData.put("weightTrend", bodyRecordService.getRecentWeightTrendMonthly(userId));
-                    trendsData.put("bodyFatTrend", bodyRecordService.getRecentBodyFatTrendMonthly(userId));
-                    trendsData.put("muscleMassTrend", bodyRecordService.getRecentMuscleMassTrendMonthly(userId));
+                    // 월별: 계산된 범위(기본 최근 3개월)
+                    trendsData.put("weightTrend", bodyRecordService.getWeightTrendMonthly(userId, calculatedStartDate, calculatedEndDate));
+                    trendsData.put("bodyFatTrend", bodyRecordService.getBodyFatTrendMonthly(userId, calculatedStartDate, calculatedEndDate));
+                    trendsData.put("muscleMassTrend", bodyRecordService.getMuscleMassTrendMonthly(userId, calculatedStartDate, calculatedEndDate));
                     break;
                     
                 default:
-                    // 기본값: 일별 (최근 7일 자동 계산)
-                    trendsData.put("weightTrend", bodyRecordService.getRecentWeightTrend(userId));
-                    trendsData.put("bodyFatTrend", bodyRecordService.getRecentBodyFatTrend(userId));
-                    trendsData.put("muscleMassTrend", bodyRecordService.getRecentMuscleMassTrend(userId));
+                    // 기본값: 일별 (계산된 범위 적용)
+                    trendsData.put("weightTrend", bodyRecordService.getWeightTrend(userId, calculatedStartDate, calculatedEndDate));
+                    trendsData.put("bodyFatTrend", bodyRecordService.getBodyFatTrend(userId, calculatedStartDate, calculatedEndDate));
+                    trendsData.put("muscleMassTrend", bodyRecordService.getMuscleMassTrend(userId, calculatedStartDate, calculatedEndDate));
             }
             
             System.out.println("=== 응답 데이터 ===");
