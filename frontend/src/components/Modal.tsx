@@ -1,15 +1,22 @@
 import React from 'react';
 import './Modal.css';
 
+interface ModalAction {
+  label: string;
+  onClick: () => void;
+}
+
 interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   title: string;
   message: string;
   type?: 'success' | 'error' | 'info';
+  isHtml?: boolean;
+  actions?: ModalAction[];
 }
 
-const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, message, type = 'info' }) => {
+const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, message, type = 'info', isHtml = false, actions = [] }) => {
   if (!isOpen) return null;
 
   return (
@@ -22,9 +29,18 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, message, type = '
           </button>
         </div>
         <div className="modal-body">
-          <p className="modal-message">{message}</p>
+          {isHtml ? (
+            <div className="modal-message" dangerouslySetInnerHTML={{ __html: message }} />
+          ) : (
+            <p className="modal-message">{message}</p>
+          )}
         </div>
         <div className="modal-footer">
+          {actions.map((a, idx) => (
+            <button key={idx} className="modal-button" onClick={a.onClick}>
+              {a.label}
+            </button>
+          ))}
           <button className="modal-button" onClick={onClose}>
             확인
           </button>

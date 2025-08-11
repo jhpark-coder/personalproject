@@ -5,6 +5,9 @@ import { API_ENDPOINTS } from '../../config/api';
 import NavigationBar from '../NavigationBar';
 import './BodyData.css';
 
+// 소수점 1자리 반올림 유틸
+const round1 = (v: number) => Math.round(v * 10) / 10;
+
 interface BodyRecord {
   id: number;
   measureDate: string;
@@ -379,7 +382,7 @@ const BodyData: React.FC = () => {
       
       return {
         date: formattedDate,
-        value: parseFloat(item[1])
+        value: round1(parseFloat(item[1]))
       };
     });
   };
@@ -500,7 +503,7 @@ const BodyData: React.FC = () => {
             ←
           </button>
           <div className="header-title">신체 데이터</div>
-          <button className="add-button">추가</button>
+          <button className="add-button" onClick={() => navigate('/body-records/new')}>추가</button>
         </div>
       </div>
 
@@ -549,8 +552,8 @@ const BodyData: React.FC = () => {
               <LineChart data={formatChartData(filteredMuscleTrend, 'muscleMass', activeTabs.muscle)}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" />
-                <YAxis domain={[muscleMinMax.min - 0.5, muscleMinMax.max + 0.5]} />
-                <Tooltip />
+                <YAxis tickFormatter={(v) => Number(v).toFixed(1)} domain={[round1(muscleMinMax.min - 0.5), round1(muscleMinMax.max + 0.5)]} />
+                <Tooltip formatter={(v: any) => Number(v).toFixed(1)} />
                 <Line type="monotone" dataKey="value" stroke="#007AFF" strokeWidth={2} />
               </LineChart>
             </ResponsiveContainer>
@@ -601,8 +604,8 @@ const BodyData: React.FC = () => {
               <LineChart data={formatChartData(filteredBodyFatTrend, 'bodyFat', activeTabs.bodyFat)}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" />
-                <YAxis domain={[bodyFatMinMax.min - 0.5, bodyFatMinMax.max + 0.5]} />
-                <Tooltip />
+                <YAxis tickFormatter={(v) => Number(v).toFixed(1)} domain={[round1(bodyFatMinMax.min - 0.5), round1(bodyFatMinMax.max + 0.5)]} />
+                <Tooltip formatter={(v: any) => Number(v).toFixed(1)} />
                 <Line type="monotone" dataKey="value" stroke="#FF3B30" strokeWidth={2} />
               </LineChart>
             </ResponsiveContainer>
@@ -653,8 +656,8 @@ const BodyData: React.FC = () => {
               <LineChart data={formatChartData(filteredWeightTrend, 'weight', activeTabs.weight)}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" />
-                <YAxis domain={[weightMinMax.min - 0.5, weightMinMax.max + 0.5]} />
-                <Tooltip />
+                <YAxis tickFormatter={(v) => Number(v).toFixed(1)} domain={[round1(weightMinMax.min - 0.5), round1(weightMinMax.max + 0.5)]} />
+                <Tooltip formatter={(v: any) => Number(v).toFixed(1)} />
                 <Line type="monotone" dataKey="value" stroke="#34C759" strokeWidth={2} />
               </LineChart>
             </ResponsiveContainer>

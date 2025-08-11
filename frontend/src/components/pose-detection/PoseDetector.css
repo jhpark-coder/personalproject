@@ -58,8 +58,9 @@
   border-radius: 15px;
   overflow: hidden;
   box-shadow: 0 8px 32px rgba(0,0,0,0.1);
-  width: 800px; /* 더 크게 조정 */
-  height: 600px; /* 더 크게 조정 */
+  width: 100%;
+  max-width: 800px;
+  aspect-ratio: 3 / 4; /* 모바일 세로 비율에 가깝게 */
   margin: 0 auto;
 }
 
@@ -260,4 +261,48 @@
 
 .pose-detector.error .feedback {
   background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+} 
+
+.debug-toggle {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 2000;
+  padding: 8px 12px;
+  background: #333;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+}
+
+.debug-panel {
+  position: fixed;
+  right: 12px;
+  bottom: 52px;
+  width: min(90vw, 420px);
+  max-height: 50vh;
+  background: rgba(255,255,255,0.98);
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.2);
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+}
+
+.debug-header {
+  padding: 8px 12px;
+  background: #222;
+  color: #fff;
+  font-weight: 600;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.debug-body {
+  padding: 10px;
+  margin: 0;
+  overflow: auto;
+  font-size: 12px;
+  white-space: pre-wrap;
 } 

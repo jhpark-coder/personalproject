@@ -194,10 +194,6 @@ const Profile: React.FC = () => {
             <span>나의 기록실</span>
             <span>🏆</span>
           </button>
-          <button onClick={() => navigate('/body-records/new')} className="action-button analytics-button">
-            <span>신체 기록 추가</span>
-            <span>➕</span>
-          </button>
           <button onClick={handleLogout} className="logout-button">
             로그아웃
           </button>
