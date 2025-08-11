@@ -168,7 +168,7 @@ const NotificationCenter: React.FC = () => {
     if (!user?.id) return;
 
     try {
-      const socket = io(API_ENDPOINTS.COMMUNICATION_SERVER_URL || 'http://localhost:3000', {
+      const socket = io(API_ENDPOINTS.COMMUNICATION_SERVER_URL || '', {
         transports: ['websocket', 'polling'],
         autoConnect: true,
         reconnection: true,

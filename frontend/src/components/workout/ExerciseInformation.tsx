@@ -6,6 +6,8 @@ import NavigationBar from '../NavigationBar';
 import ChatButton from '../ChatButton';
 import { calculateCaloriesPerMinute } from '../../utils/calorieCalculator';
 import './ExerciseInformation.css';
+import Modal from '../Modal';
+import { searchExerciseByName, getExerciseById, getKoInstructions, saveKoInstructions } from '../../services/exerciseDb';
 
 interface Exercise {
   id: number;
@@ -41,7 +43,13 @@ const ExerciseInformation: React.FC = () => {
   const [selectedMuscle, setSelectedMuscle] = useState<string>('');
   const [bodyParts, setBodyParts] = useState<string[]>([]);
   const [selectedBodyPart, setSelectedBodyPart] = useState<string>('');
-  
+
+  // 상세 모달 상태
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailTitle, setDetailTitle] = useState('');
+  const [detailContent, setDetailContent] = useState('');
+  const [detailActions, setDetailActions] = useState<{ label: string; onClick: () => void }[]>([]);
+
   // 무한스크롤 관련 상태
   const [currentPage, setCurrentPage] = useState(0);
   const [hasNext, setHasNext] = useState(true);
@@ -71,6 +79,24 @@ const ExerciseInformation: React.FC = () => {
   // 백엔드에서 받은 카테고리를 그대로 사용 (이미 한글로 저장되어 있음)
   const translateBodyPartToKorean = (bodyPart: string): string => {
     return bodyPart || '';
+  };
+
+  // 장비 한글 변환
+  const translateEquipmentToKorean = (eq: string): string => {
+    const map: Record<string, string> = {
+      'barbell': '바벨',
+      'dumbbell': '덤벨',
+      'kettlebell': '케틀벨',
+      'machine': '머신',
+      'cable': '케이블',
+      'band': '밴드',
+      'body weight': '맨몸',
+      'smith machine': '스미스 머신',
+      'bench': '벤치',
+      'rope': '로프',
+    };
+    const key = (eq || '').toLowerCase();
+    return map[key] || eq;
   };
 
   // 무한스크롤 스크롤 감지 함수
@@ -174,92 +200,58 @@ const ExerciseInformation: React.FC = () => {
       'Gastrocnemius': '가자미근',
       'Tibialis anterior': '전경골근',
       'Peroneals': '비골근',
-      
-      // 세부 근육
-      'Brachialis': '상완근',
-      'Brachioradialis': '상완요골근',
-      'Coracobrachialis': '오훼상완근',
-      'Supraspinatus': '극상근',
-      'Infraspinatus': '극하근',
-      'Teres major': '대원근',
-      'Teres minor': '소원근',
-      'Subscapularis': '견갑하근',
-      'Levator scapulae': '견갑거근',
-      'Sternocleidomastoid': '흉쇄유돌근',
-      'Splenius': '판상근',
-      'Erector spinae': '척추기립근',
-      'Multifidus': '다열근',
-      'Rotatores': '회전근',
-      'Intercostals': '늑간근',
-      'Diaphragm': '횡격막',
-      'Iliopsoas': '장요근',
-      'Sartorius': '봉공근',
-      'Gracilis': '박근',
-      'Adductors': '내전근',
-      'Abductors': '외전근',
-      'Tensor fasciae latae': '대퇴근막장근',
+
+      // 세부 근육 (발췌)
+      'Rectus femoris': '대퇴직근',
       'Vastus lateralis': '대퇴외측광근',
       'Vastus medialis': '대퇴내측광근',
       'Vastus intermedius': '대퇴중간광근',
-      'Rectus femoris': '대퇴직근',
       'Biceps femoris': '대퇴이두근',
       'Semitendinosus': '반건양근',
       'Semimembranosus': '반막양근',
-      'Popliteus': '슬와근',
-      'Plantaris': '족저근',
-      'Tibialis posterior': '후경골근',
-      'Flexor digitorum longus': '장지굴근',
-      'Flexor hallucis longus': '장무지굴근',
-      'Extensor digitorum longus': '장지신근',
-      'Extensor hallucis longus': '장무지신근',
-      
-      // 추가 근육들
-      'Quadriceps femoris': '대퇴사두근',
-      'Quad': '대퇴사두근',
-      'Quads': '대퇴사두근',
-      'External obliques': '외복사근',
-      'Internal obliques': '내복사근',
-      'Oblique': '복사근',
-      'Obliquus externus abdominis': '외복사근',
-      'Obliquus internus abdominis': '내복사근',
-      'Anterior deltoid': '전삼각근',
-      'Lateral deltoid': '외삼각근',
-      'Posterior deltoid': '후삼각근',
-      'Anterior': '전면',
-      'Posterior': '후면',
-      'Lateral': '외측',
-      'Medial': '내측',
-      'Superior': '상부',
-      'Inferior': '하부',
-      
-      // 일반적인 용어
-      'Arms': '팔',
-      'Shoulders': '어깨',
-      'Chest': '가슴',
-      'Back': '등',
-      'Core': '코어',
-      'Abs': '복근',
-      'Legs': '다리',
-      'Thighs': '허벅지',
-      'Calves': '종아리',
-      'Neck': '목',
-      'Hips': '엉덩이',
-      'Glutes': '둔부',
-      
-      // 카테고리별
-      'Upper body': '상체',
-      'Lower body': '하체',
-      'Full body': '전신',
-      'Upper arms': '상완',
-      'Lower arms': '전완',
-      'Upper legs': '대퇴',
-      'Lower legs': '하퇴'
+
+      // ExerciseDB 일반 소문자 표기 매핑
+      'glutes': '둔근',
+      'quadriceps': '대퇴사두근',
+      'quads': '대퇴사두근',
+      'quad': '대퇴사두근',
+      'hamstrings': '햄스트링',
+      'calves': '종아리근',
+      'deltoids': '삼각근',
+      'delts': '삼각근',
+      'shoulders': '어깨',
+      'biceps': '이두근',
+      'triceps': '삼두근',
+      'lats': '광배근',
+      'traps': '승모근',
+      'pectorals': '대흉근',
+      'upper chest': '상부 대흉근',
+      'chest': '가슴근육',
+      'abs': '복근',
+      'core': '코어',
+      'forearms': '전완근',
+      'lower back': '하부 등',
+      'hip flexors': '고관절 굴곡근',
+      'adductors': '내전근',
+      'abductors': '외전근',
+      'cardiovascular system': '심혈관계',
+      'obliques': '복사근',
+      'rectus abdominis': '복직근',
+      'transverse abdominis': '횡복근',
     };
     
     return muscleTranslations[muscle] || muscle;
   };
 
-  // 근육 역번역은 더 이상 필요하지 않으므로 제거
+  // 지침 텍스트에서 선행 번호/단계 표기를 제거
+  const sanitizeInstruction = (text: string): string => {
+    let t = (text || '').trim();
+    t = t.replace(/^\s*\d+\s*[\.)]\s*/i, ''); // 1. 또는 1)
+    t = t.replace(/^\s*\d+\s*(?:단계|번)\s*[:\.)-]?\s*/i, ''); // 1단계:, 1 단계 - 등
+    t = t.replace(/^\s*(?:step)\s*\d+\s*[:\.)-]?\s*/i, ''); // step 1:
+    t = t.replace(/^\s*(?:단계)\s*\d+\s*[:\.)-]?\s*/i, ''); // 단계 1:
+    return t.trim();
+  };
 
   useEffect(() => {
     loadExercises();
@@ -267,7 +259,6 @@ const ExerciseInformation: React.FC = () => {
     loadCategories();
   }, []);
 
-  // 검색어 입력은 자동 검색하지 않음. 부위 선택 변경 시에만 자동 필터링.
   useEffect(() => {
     if (selectedBodyPart === '' && searchTerm.trim() === '') {
       loadExercises();
@@ -443,9 +434,89 @@ const ExerciseInformation: React.FC = () => {
     }
   };
 
-  const handleExerciseClick = (exercise: Exercise) => {
-    // 운동 상세 정보 페이지로 이동 (향후 구현)
-    console.log('선택된 운동:', exercise);
+  const handleExerciseClick = async (exercise: Exercise) => {
+    // 우리 DB의 운동명으로 ExerciseDB(Open Source)에서 검색 → 첫 결과 상세 모달(한글 변환)
+    setDetailTitle(exercise.name);
+    setDetailContent('로딩 중...');
+    setDetailActions([]);
+    setDetailOpen(true);
+    try {
+      const found = await searchExerciseByName(exercise.name);
+      if (!found) { setDetailContent('외부 데이터가 없습니다.'); return; }
+      const detail = await getExerciseById(found.exerciseId);
+      if (!detail) { setDetailContent('상세 데이터를 불러오지 못했습니다.'); return; }
+
+      const musclesKo = (detail.targetMuscles || []).map(translateMuscleToKorean);
+      const secKo = (detail.secondaryMuscles || []).map(translateMuscleToKorean);
+      const eqKo = (detail.equipments || []).map(translateEquipmentToKorean);
+
+      // 한글 지침 캐시 우선
+      const ko = await getKoInstructions(detail.exerciseId);
+      const sourceSteps = (ko && ko.length) ? ko : (detail.instructions || []);
+      const cleanedSteps = (sourceSteps || []).map(sanitizeInstruction).filter(Boolean);
+      const instrHtml = cleanedSteps.length
+        ? `<ol class="instruction-list">${cleanedSteps.map(s => `<li>${s}</li>`).join('')}</ol>`
+        : '';
+
+      // 코치 코멘트가 단계형(1. 또는 - 로 시작하는 줄)처럼 보이면 지침과 중복되므로 숨김
+      const rawDesc = (exercise.description || '').trim();
+      const looksLikeSteps = /(^|\n)\s*(\d+\.|-)\s+/m.test(rawDesc);
+      const descHtml = rawDesc && !looksLikeSteps
+        ? `<div class="section"><div class="section-title">코치의 코멘트</div><p class="ex-desc">${rawDesc.replace(/\n/g, '<br/>')}</p></div>`
+        : '';
+
+      const metaHtml = (musclesKo.length || secKo.length || eqKo.length) ? [
+        '<div class="ex-meta">',
+        musclesKo.length ? `<div class="ex-meta-row"><span class="label">타깃 근육</span><div class="chips">${musclesKo.map(m => `<span class="chip chip--muscle">${m}</span>`).join('')}</div></div>` : '',
+        secKo.length ? `<div class="ex-meta-row"><span class="label">보조 근육</span><div class="chips">${secKo.map(m => `<span class="chip">${m}</span>`).join('')}</div></div>` : '',
+        eqKo.length ? `<div class="ex-meta-row"><span class="label">장비</span><div class="chips">${eqKo.map(e => `<span class="chip chip--equip">${e}</span>`).join('')}</div></div>` : '',
+        '</div>'
+      ].join('') : '';
+
+      const tabPrefix = (detail.exerciseId || 'exercise').replace(/[^a-zA-Z0-9_-]/g, '');
+      const tabGuideId = `${tabPrefix}-tab-guide`;
+      const tabInfoId = `${tabPrefix}-tab-info`;
+
+      const tabsHtml = [
+        '<div class="ex-tabs">',
+        `<input type="radio" id="${tabGuideId}" name="${tabPrefix}-tabset" checked />`,
+        `<input type="radio" id="${tabInfoId}" name="${tabPrefix}-tabset" />`,
+        '<div class="tab-labels">',
+        `<label class="tab" for="${tabGuideId}">운동 가이드</label>`,
+        `<label class="tab" for="${tabInfoId}">정보</label>`,
+        '</div>',
+        '<div class="panels">',
+        `<section class="panel panel-guide">${instrHtml || '<p class="ex-desc">지침 정보가 없습니다.</p>'}</section>`,
+        `<section class="panel panel-info">${metaHtml}${descHtml}</section>`,
+        '</div>',
+        '</div>'
+      ].join('');
+
+      const html = [
+        detail.gifUrl ? `<img class="ex-image" src="${detail.gifUrl}" alt="${detail.name}" />` : '',
+        '<div class="ex-detail">',
+        tabsHtml,
+        '</div>'
+      ].join('');
+      setDetailContent(html);
+
+      // 캐시가 없을 때 저장 버튼 노출(관리자/운영용)
+      if (!ko || ko.length === 0) {
+        setDetailActions([{
+          label: '이 지침 한국어 저장',
+          onClick: async () => {
+            const src = (detail.instructions || []).join('\n');
+            const input = prompt('줄바꿈으로 구분된 한국어 지침을 입력하세요', src);
+            if (!input) return;
+            const lines = input.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
+            await saveKoInstructions(detail.exerciseId, lines);
+            alert('저장 스텁 호출 완료. 서버 저장 연동 시 실제로 반영됩니다.');
+          }
+        }]);
+      }
+    } catch (e) {
+      setDetailContent('외부 연동 중 오류가 발생했습니다.');
+    }
   };
 
   const getCategoryIcon = (category: string) => {
@@ -667,9 +738,8 @@ const ExerciseInformation: React.FC = () => {
         )}
       </div>
       
+      <Modal isOpen={detailOpen} onClose={() => setDetailOpen(false)} title={detailTitle} message={detailContent} isHtml actions={detailActions} />
       <NavigationBar />
-      
-      {/* 챗봇 버튼 */}
       <ChatButton />
     </div>
   );

@@ -3,6 +3,8 @@
   margin: 0 auto;
   padding: 20px;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  min-height: calc(100vh - 56px);
+  padding-bottom: calc(env(safe-area-inset-bottom) + 48px);
 }
 
 .settings-header {

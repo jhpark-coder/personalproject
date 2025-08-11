@@ -1,6 +1,7 @@
 package backend.fitmate.config;
 
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
@@ -145,11 +146,17 @@ public class DataLoader {
             } else {
                 System.out.println("✅ 테스트 데이터가 이미 존재합니다. (운동 기록: " + workoutCount + "개, 신체 기록: " + bodyRecordCount + "개)");
             }
+
+            // 항상 최근 5일 신체 데이터는 보정해서 채운다
+            ensureRecentBodyRecords(existingUser);
+            // 운동 기록은 생성 로직에서 일별 생성되므로 별도 보정 불필요
         } else {
             System.out.println("👤 테스트 사용자가 없습니다. 생성합니다...");
             User testUser = createTestUser();
             createWorkoutRecords(testUser);
             createBodyRecords(testUser);
+            // 생성 직후에도 최근 5일은 반드시 채워준다
+            ensureRecentBodyRecords(testUser);
             System.out.println("✅ 테스트 사용자 및 데이터 생성 완료! ID: " + testUser.getId());
         }
         
@@ -261,9 +268,11 @@ public class DataLoader {
         double initialMuscleMass = 55.0;
         
         LocalDate currentDate = startDate;
+        LocalDate mandatoryStart = endDate.minusDays(4); // 최근 5일은 무조건 생성
         while (!currentDate.isAfter(endDate)) {
-            // 일주일에 2-3번 측정
-            if (random.nextInt(7) < 3) {
+            boolean mustCreate = !currentDate.isBefore(mandatoryStart);
+            // 과거 구간은 주 2~3회, 최근 5일은 무조건 생성
+            if (mustCreate || random.nextInt(7) < 3) {
                 BodyRecord record = new BodyRecord();
                 record.setUser(user);
                 record.setMeasureDate(currentDate);
@@ -289,6 +298,51 @@ public class DataLoader {
             }
             
             currentDate = currentDate.plusDays(1);
+        }
+    }
+
+    /**
+     * 최근 5일 신체 기록이 비어 있으면 채웁니다(중복 생성 방지).
+     */
+    private void ensureRecentBodyRecords(User user) {
+        LocalDate endDate = LocalDate.now();
+        LocalDate mandatoryStart = endDate.minusDays(4); // 최근 5일
+        LocalDate startDateForProgress = endDate.minusDays(90);
+
+        LocalDate date = mandatoryStart;
+        while (!date.isAfter(endDate)) {
+            boolean exists = bodyRecordService.getUserBodyRecordByDate(user.getId(), date).isPresent();
+            if (!exists) {
+                BodyRecord record = new BodyRecord();
+                record.setUser(user);
+                record.setMeasureDate(date);
+
+                double daysFromStart = ChronoUnit.DAYS.between(startDateForProgress, date);
+                double progressFactor = Math.max(0.0, Math.min(1.0, daysFromStart / 90.0));
+
+                double baseWeight = 72.0;
+                try {
+                    if (user.getWeight() != null) {
+                        baseWeight = Double.parseDouble(user.getWeight());
+                    }
+                } catch (NumberFormatException ignored) {}
+
+                double weight = baseWeight - (progressFactor * 2.0) + (random.nextDouble() - 0.5) * 0.5;
+                record.setWeight(roundTo1Decimal(weight));
+
+                double baseBodyFat = 18.0;
+                double bodyFat = baseBodyFat - (progressFactor * 1.5) + (random.nextDouble() - 0.5) * 0.3;
+                record.setBodyFatPercentage(roundTo1Decimal(bodyFat));
+
+                double baseMuscle = 55.0;
+                double muscleMass = baseMuscle + (progressFactor * 1.0) + (random.nextDouble() - 0.5) * 0.2;
+                record.setMuscleMass(roundTo1Decimal(muscleMass));
+
+                record.setNotes("최근 5일 보정 자동 생성");
+                bodyRecordService.saveBodyRecord(user.getId(), record);
+                System.out.println("🧩 최근 5일 보정: " + date + " 데이터 생성 완료");
+            }
+            date = date.plusDays(1);
         }
     }
 
