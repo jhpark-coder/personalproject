@@ -61,7 +61,8 @@ const ChatDashboard: React.FC = () => {
 
   useEffect(() => {
     // Socket.IO 연결 (관리자 권한으로)
-    const newSocket = io(CHAT_SERVER_URL, {
+    const url = (CHAT_SERVER_URL && CHAT_SERVER_URL.trim().length > 0) ? CHAT_SERVER_URL : undefined;
+    const newSocket = io(url as any, {
       transports: ['websocket', 'polling'],
       auth: {
         userId: 1, // 관리자 ID
@@ -513,7 +514,7 @@ const ChatDashboard: React.FC = () => {
                     
                     {unreadCounts.get(user.username) > 0 && (
                       <div className="unread-badge">
-                        {unreadCounts.get(user.username)}
+                        {unreadCounts.get(user.username) ?? 0}
                       </div>
                     )}
                   </div>

@@ -65,8 +65,9 @@ const ChatPage: React.FC<ChatPageProps> = ({ onClose, isModal = true }) => {
     const userRole = getRoleFromToken();
     const userId = getUserIdFromToken();
     
-    // WebSocket 연결
-    const newSocket = io(CHAT_SERVER_URL, {
+    // WebSocket 연결: 환경변수 URL이 있으면 사용, 없으면 동일 오리진(/socket.io) 사용
+    const url = (CHAT_SERVER_URL && CHAT_SERVER_URL.trim().length > 0) ? CHAT_SERVER_URL : undefined;
+    const newSocket = io(url as any, {
       auth: {
         userId: userId,
         roles: [userRole]

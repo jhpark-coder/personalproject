@@ -231,6 +231,34 @@ cd frontend && npm run build
 cd .. && docker compose up -d --build
 ```
 
+## ⚡ 빠른 시작
+
+```bash
+# 1) 의존성 설치
+cd frontend && npm install
+cd .. && ./mvnw -q -DskipTests package
+cd communication-server && npm install
+
+# 2) 개발 모드(개별)
+cd ../frontend && npm run dev
+cd ../communication-server && npm run start:dev
+# Spring Boot는 IDE에서 실행하거나 별도 터미널에서 실행하세요.
+```
+
+### 📱 모바일 접속(배포 없이, 터널)
+개발 PC에서 다음을 실행해 생성된 퍼블릭 URL로 스마트폰에서 접속하세요.
+
+```bash
+# 프런트엔드 개발 서버가 5173에서 실행 중이어야 합니다.
+cd frontend
+npx localtunnel --port 5173 --subdomain fitmate-dev
+# 예) https://fitmate-dev.loca.lt
+```
+
+- 다른 터널도 사용 가능: ngrok(`.ngrok-free.app`), Cloudflare Tunnel(`.trycloudflare.com`)
+- `frontend/vite.config.ts`의 `server.allowedHosts`는 위 도메인을 허용하도록 구성되어 있습니다.
+- 스마트폰에서 `https://localhost`는 동작하지 않습니다. 반드시 터널 URL을 사용하세요.
+
 ## 📈 향후 개발 계획
 
 ### 단기 계획 (1-2개월)

@@ -5,6 +5,7 @@ import { useUser } from '../context/UserContext';
 import ChatButton from './ChatButton';
 import NavigationBar from './NavigationBar';
 import './Dashboard.css';
+import TodayChecklist from './TodayChecklist';
 
 // JWT 토큰에서 role을 추출하는 함수
 const getRoleFromToken = (): string => {
@@ -265,6 +266,9 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* 오늘의 체크리스트 카드 (간결) */}
+        <TodayChecklist onStart={() => navigate('/motion')} />
 
         {/* 추천 루틴 팝업 */}
         {showRecommendation && recommendationData && (

@@ -1,23 +1,38 @@
 // API 설정
 const isDevelopment = import.meta.env.DEV;
 
-const DEFAULT_BACKEND_URL = isDevelopment ? 'http://localhost:8080' : '';
-// 통신 서버는 환경변수 미설정 시 항상 localhost:3000으로 폴백
-const DEFAULT_CHAT_SERVER_URL = 'http://localhost:3000';
+// 런타임 프로토콜 감지(브라우저 전용)
+const isBrowser = typeof window !== 'undefined';
+const isHttps = isBrowser && window.location.protocol === 'https:';
 
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || DEFAULT_BACKEND_URL;
-export const CHAT_SERVER_URL = import.meta.env.VITE_CHAT_SERVER_URL || DEFAULT_CHAT_SERVER_URL;
+// 통신 서버 기본 URL 결정
+// - HTTPS 페이지(터널 등)에서는 혼합 콘텐츠 방지를 위해 기본적으로 상대 경로 사용
+// - 환경변수(VITE_CHAT_SERVER_URL)가 명시되면 이를 우선 사용
+const DEFAULT_CHAT_SERVER_URL = isDevelopment && !isHttps ? 'http://localhost:3000' : '';
 
-// 개발 환경에서는 HTTP 허용, 프로덕션에서는 HTTPS 사용
-const backendUrl = isDevelopment ? API_BASE_URL : API_BASE_URL.replace('http://', 'https://');
+// 명시적으로 설정된 베이스 URL이 있으면 사용, 없으면 상대 경로 사용
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').trim();
+
+// 개발/프로덕션 모두 기본은 상대 경로 사용 (Nginx 리버스 프록시 활용)
+const backendUrl = API_BASE_URL || '';
+
+// 하위 호환: 기존 코드에서 직접 참조하는 경우를 위해 유지
+// HTTPS 환경에서는 기본적으로 상대 경로를 사용하도록 함
+const configuredChatServerUrl = (import.meta.env.VITE_CHAT_SERVER_URL || DEFAULT_CHAT_SERVER_URL).trim();
+export const CHAT_SERVER_URL = configuredChatServerUrl;
+
+// 알림 REST 전용 베이스
+// - HTTPS 환경에서는 상대 경로 사용 -> Vite/Nginx 프록시가 통신 서버로 라우팅
+// - 그 외에는 환경변수 또는 로컬 기본값 사용
+const NOTIF_BASE_URL = isHttps ? '' : configuredChatServerUrl || '';
 
 // API 엔드포인트
 export const API_ENDPOINTS = {
   // 백엔드 URL
   BACKEND_URL: backendUrl,
   
-  // 통신 서버 URL
-  COMMUNICATION_SERVER_URL: CHAT_SERVER_URL,
+  // 통신 서버 URL (소켓 등)
+  COMMUNICATION_SERVER_URL: configuredChatServerUrl,
   
   // 인증 관련
   LOGIN: `${backendUrl}/api/auth/login`,
@@ -41,11 +56,11 @@ export const API_ENDPOINTS = {
   UPDATE_BASIC_INFO: `${backendUrl}/api/auth/update-basic-info`,
 
   
-  // 알림 관련
-  NOTIFICATIONS: `${CHAT_SERVER_URL}/api/notifications`,
-  CREATE_NOTIFICATION: `${CHAT_SERVER_URL}/api/notifications/create`,
-  ADMIN_NOTIFICATION: `${CHAT_SERVER_URL}/api/notifications/admin/create`,
-  BROADCAST_NOTIFICATION: `${CHAT_SERVER_URL}/api/notifications/broadcast`,
+  // 알림 관련 (HTTPS에서는 상대 경로로 호출)
+  NOTIFICATIONS: `${NOTIF_BASE_URL}/api/notifications`,
+  CREATE_NOTIFICATION: `${NOTIF_BASE_URL}/api/notifications/create`,
+  ADMIN_NOTIFICATION: `${NOTIF_BASE_URL}/api/notifications/admin/create`,
+  BROADCAST_NOTIFICATION: `${NOTIF_BASE_URL}/api/notifications/broadcast`,
   
   // 새로운 API 엔드포인트들
   // 운동 프로그램 관련

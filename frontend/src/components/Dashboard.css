@@ -30,14 +30,14 @@
 
 /* 기존 스타일들... */
  .dashboard-container {
-   min-height: 100vh;
+   min-height: calc(100vh - 56px); /* 네비바(고정) 높이만큼 빼서 가림 방지 */
    background-color: var(--gray-50);
-   padding-bottom: env(safe-area-inset-bottom);
+   padding-bottom: calc(env(safe-area-inset-bottom) + 48px); /* 간격을 더 타이트하게 */
    width: 100%;
  }
 
 .dashboard-content {
-  padding: var(--spacing-md) var(--spacing-md) 0;
+  padding: var(--spacing-md) var(--spacing-md) 0.5rem;
   width: 100%;
   max-width: 100%;
 }
@@ -55,7 +55,7 @@
 
 /* 대시보드 콘텐츠의 마지막 요소는 여백 제거 */
 .dashboard-content > :last-child {
-  margin-bottom: 0 !important;
+  margin-bottom: 0.25rem !important; /* 두번째 카드와 네비바 사이 살짝 공간만 */
 }
 
 /* 헤더 스타일 */
@@ -103,7 +103,7 @@
 
 /* 목표 카드 */
 .goal-card {
-  margin-bottom: var(--spacing-lg);
+  margin-bottom: calc(var(--spacing-lg) + 6px); /* 첫 카드와 두번째 카드 간격 조금 벌림 */
   width: 100%;
 }
 
@@ -263,6 +263,50 @@
   gap: var(--spacing-sm);
   width: 100%;
   padding: 0;
+}
+
+/* 오늘의 체크리스트 카드 */
+.today-card {
+  margin-top: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+  padding: 12px; /* 기본 카드보다 컴팩트 */
+}
+
+.today-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.today-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--gray-50);
+  border-radius: var(--radius-md);
+  padding: 8px 10px;
+  border: 1px solid var(--gray-200);
+  cursor: pointer;
+}
+
+.today-item.done {
+  opacity: 0.7;
+}
+
+.today-icon { font-size: 1.1rem; margin-right: 8px; }
+.today-text { flex: 1; }
+.today-title { font-weight: 600; color: var(--gray-900); font-size: 0.95rem; }
+.today-sub { font-size: 0.75rem; color: var(--gray-600); }
+
+.today-all-done {
+  margin-top: 6px;
+  text-align: center;
+  color: var(--secondary-green);
+  font-weight: 600;
+  font-size: 0.9rem;
 }
 
 .chart-placeholder {
