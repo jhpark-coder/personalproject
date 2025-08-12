@@ -19,20 +19,23 @@ interface ModalProps {
 const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, message, type = 'info', isHtml = false, actions = [] }) => {
   if (!isOpen) return null;
 
+  const titleId = 'modal-title';
+  const messageId = 'modal-message';
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={messageId} onClick={onClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className={`modal-header ${type}`}>
-          <h3 className="modal-title">{title}</h3>
-          <button className="modal-close" onClick={onClose}>
+          <h3 id={titleId} className="modal-title">{title}</h3>
+          <button className="modal-close" onClick={onClose} aria-label="닫기">
             ✕
           </button>
         </div>
         <div className="modal-body">
           {isHtml ? (
-            <div className="modal-message" dangerouslySetInnerHTML={{ __html: message }} />
+            <div id={messageId} className="modal-message" dangerouslySetInnerHTML={{ __html: message }} />
           ) : (
-            <p className="modal-message">{message}</p>
+            <p id={messageId} className="modal-message">{message}</p>
           )}
         </div>
         <div className="modal-footer">

@@ -84,7 +84,7 @@ public interface WorkoutRecordRepository extends JpaRepository<WorkoutRecord, Lo
      * 사용자의 주별 운동 통계 (최근 5주)
      */
     @Query(value = "SELECT YEARWEEK(wr.workout_date, 1) as week, " +
-           "SUM(wr.duration) as totalDuration, " +
+           "SUM(COALESCE(wr.duration, 0)) as totalDuration, " +
            "COUNT(wr.id) as workoutCount " +
            "FROM workout_records wr " +
            "WHERE wr.user_id = :userId " +
@@ -98,10 +98,10 @@ public interface WorkoutRecordRepository extends JpaRepository<WorkoutRecord, Lo
      * 사용자의 이번 주 vs 저번 주 운동 시간과 칼로리 비교
      */
     @Query(value = "SELECT " +
-           "SUM(CASE WHEN YEARWEEK(wr.workout_date, 1) = YEARWEEK(CURDATE(), 1) THEN wr.duration ELSE 0 END) as thisWeekDuration, " +
-           "SUM(CASE WHEN YEARWEEK(wr.workout_date, 1) = YEARWEEK(DATE_SUB(CURDATE(), INTERVAL 1 WEEK), 1) THEN wr.duration ELSE 0 END) as lastWeekDuration, " +
-           "SUM(CASE WHEN YEARWEEK(wr.workout_date, 1) = YEARWEEK(CURDATE(), 1) THEN wr.calories ELSE 0 END) as thisWeekCalories, " +
-           "SUM(CASE WHEN YEARWEEK(wr.workout_date, 1) = YEARWEEK(DATE_SUB(CURDATE(), INTERVAL 1 WEEK), 1) THEN wr.calories ELSE 0 END) as lastWeekCalories " +
+           "SUM(CASE WHEN YEARWEEK(wr.workout_date, 1) = YEARWEEK(CURDATE(), 1) THEN COALESCE(wr.duration, 0) ELSE 0 END) as thisWeekDuration, " +
+           "SUM(CASE WHEN YEARWEEK(wr.workout_date, 1) = YEARWEEK(DATE_SUB(CURDATE(), INTERVAL 1 WEEK), 1) THEN COALESCE(wr.duration, 0) ELSE 0 END) as lastWeekDuration, " +
+           "SUM(CASE WHEN YEARWEEK(wr.workout_date, 1) = YEARWEEK(CURDATE(), 1) THEN COALESCE(wr.calories, 0) ELSE 0 END) as thisWeekCalories, " +
+           "SUM(CASE WHEN YEARWEEK(wr.workout_date, 1) = YEARWEEK(DATE_SUB(CURDATE(), INTERVAL 1 WEEK), 1) THEN COALESCE(wr.calories, 0) ELSE 0 END) as lastWeekCalories " +
            "FROM workout_records wr " +
            "WHERE wr.user_id = :userId " +
            "AND wr.workout_date >= DATE_SUB(CURDATE(), INTERVAL 2 WEEK)", nativeQuery = true)

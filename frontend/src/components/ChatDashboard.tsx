@@ -444,7 +444,7 @@ const ChatDashboard: React.FC = () => {
   return (
     <div className="chat-dashboard">
       {/* 헤더 */}
-      <div className="dashboard-header">
+      <div className="dashboard-header content-wrapper">
         <div className="header-left">
           <div className="chat-icon">💬</div>
           <div className="header-text">
@@ -465,7 +465,7 @@ const ChatDashboard: React.FC = () => {
       </div>
 
       {/* 메인 콘텐츠 */}
-      <div className="dashboard-content">
+      <div className="dashboard-content content-wrapper">
         {!currentUser ? (
           // 채팅 목록 화면 (카카오톡 스타일)
           <div className="chat-list-view">
@@ -512,7 +512,7 @@ const ChatDashboard: React.FC = () => {
                       )}
                     </div>
                     
-                    {unreadCounts.get(user.username) > 0 && (
+                    {(unreadCounts.get(user.username) ?? 0) > 0 && (
                       <div className="unread-badge">
                         {unreadCounts.get(user.username) ?? 0}
                       </div>

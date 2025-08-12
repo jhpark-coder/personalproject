@@ -43,6 +43,8 @@ const ExerciseInformation: React.FC = () => {
   const [selectedMuscle, setSelectedMuscle] = useState<string>('');
   const [bodyParts, setBodyParts] = useState<string[]>([]);
   const [selectedBodyPart, setSelectedBodyPart] = useState<string>('');
+  const [searchMode, setSearchMode] = useState<'name' | 'muscle' | 'name+muscle' | 'intensity'>('name');
+  const [intensity, setIntensity] = useState<string>('');
 
   // 상세 모달 상태
   const [detailOpen, setDetailOpen] = useState(false);
@@ -268,7 +270,7 @@ const ExerciseInformation: React.FC = () => {
   }, [selectedBodyPart]);
 
   const handleSearch = () => {
-    if (searchTerm.trim() === '' && selectedBodyPart === '') {
+    if (searchTerm.trim() === '' && selectedBodyPart === '' && selectedMuscle === '' && intensity === '') {
       loadExercises();
     } else {
       searchExercises();
@@ -384,16 +386,17 @@ const ExerciseInformation: React.FC = () => {
       
       // 검색 파라미터 구성
       const params = new URLSearchParams();
-      if (searchTerm.trim()) {
-        params.append('keyword', searchTerm);
+      if (searchMode === 'name' && searchTerm.trim()) params.append('keyword', searchTerm);
+      if (searchMode === 'muscle' && selectedMuscle) params.append('muscle', selectedMuscle);
+      if (searchMode === 'name+muscle') {
+        if (searchTerm.trim()) params.append('keyword', searchTerm);
+        if (selectedMuscle) params.append('muscle', selectedMuscle);
       }
-      if (selectedBodyPart) {
-        params.append('category', selectedBodyPart);
-      }
+      if (searchMode === 'intensity' && intensity) params.append('intensity', intensity);
+      if (selectedBodyPart) params.append('category', selectedBodyPart);
       params.append('page', '0');
       params.append('size', '10');
       
-      // MET 값이 있는 운동들만 조회
       const url = `${API_ENDPOINTS.EXERCISES}?${params.toString()}`;
       const response = await fetch(url, { headers });
       
@@ -435,45 +438,60 @@ const ExerciseInformation: React.FC = () => {
   };
 
   const handleExerciseClick = async (exercise: Exercise) => {
-    // 우리 DB의 운동명으로 ExerciseDB(Open Source)에서 검색 → 첫 결과 상세 모달(한글 변환)
+    // 로컬 DB에서 운동 상세 정보를 가져와서 모달로 표시
     setDetailTitle(exercise.name);
     setDetailContent('로딩 중...');
     setDetailActions([]);
     setDetailOpen(true);
+    
     try {
-      const found = await searchExerciseByName(exercise.name);
-      if (!found) { setDetailContent('외부 데이터가 없습니다.'); return; }
-      const detail = await getExerciseById(found.exerciseId);
-      if (!detail) { setDetailContent('상세 데이터를 불러오지 못했습니다.'); return; }
+      // JWT 토큰 가져오기
+      const token = localStorage.getItem('token');
+      const headers: HeadersInit = {
+        'Content-Type': 'application/json'
+      };
+      
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+      
+      // 로컬 API에서 상세 정보 가져오기
+      const response = await fetch(`${API_ENDPOINTS.EXERCISES}/${exercise.id}`, { headers });
+      if (!response.ok) {
+        throw new Error('운동 상세 정보를 불러오는데 실패했습니다.');
+      }
+      
+      const detail = await response.json();
+      
+      // 근육 정보 한글 변환
+      const musclesKo = (detail.muscles || []).map(translateMuscleToKorean);
+      const secKo = (detail.musclesSecondary || []).map(translateMuscleToKorean);
+      const eqKo = (detail.equipment || []).map(translateEquipmentToKorean);
 
-      const musclesKo = (detail.targetMuscles || []).map(translateMuscleToKorean);
-      const secKo = (detail.secondaryMuscles || []).map(translateMuscleToKorean);
-      const eqKo = (detail.equipments || []).map(translateEquipmentToKorean);
-
-      // 한글 지침 캐시 우선
-      const ko = await getKoInstructions(detail.exerciseId);
-      const sourceSteps = (ko && ko.length) ? ko : (detail.instructions || []);
-      const cleanedSteps = (sourceSteps || []).map(sanitizeInstruction).filter(Boolean);
+      // CSV에서 가져온 한국어 지침 사용
+      const instructionsKo = detail.instructionsKo || [];
+      const cleanedSteps = instructionsKo.map(sanitizeInstruction).filter(Boolean);
       const instrHtml = cleanedSteps.length
-        ? `<ol class="instruction-list">${cleanedSteps.map(s => `<li>${s}</li>`).join('')}</ol>`
+        ? `<ol class="instruction-list">${cleanedSteps.map((s: string) => `<li>${s}</li>`).join('')}</ol>`
+        : '<p class="ex-desc">운동 지침 정보가 없습니다.</p>';
+
+      // 코치 코멘트는 description에서 [운동 방법] 이전 부분만 사용
+      const rawDesc = (detail.description || '').trim();
+      const descOnly = rawDesc.split('\n\n[운동 방법]')[0]; // [운동 방법] 이전 부분만 사용
+      const descHtml = descOnly
+        ? `<div class="section"><div class="section-title">코치의 코멘트</div><p class="ex-desc">${descOnly.replace(/\n/g, '<br/>')}</p></div>`
         : '';
 
-      // 코치 코멘트가 단계형(1. 또는 - 로 시작하는 줄)처럼 보이면 지침과 중복되므로 숨김
-      const rawDesc = (exercise.description || '').trim();
-      const looksLikeSteps = /(^|\n)\s*(\d+\.|-)\s+/m.test(rawDesc);
-      const descHtml = rawDesc && !looksLikeSteps
-        ? `<div class="section"><div class="section-title">코치의 코멘트</div><p class="ex-desc">${rawDesc.replace(/\n/g, '<br/>')}</p></div>`
-        : '';
-
-      const metaHtml = (musclesKo.length || secKo.length || eqKo.length) ? [
+      const metaHtml = (musclesKo.length || secKo.length || eqKo.length || detail.mets) ? [
         '<div class="ex-meta">',
-        musclesKo.length ? `<div class="ex-meta-row"><span class="label">타깃 근육</span><div class="chips">${musclesKo.map(m => `<span class="chip chip--muscle">${m}</span>`).join('')}</div></div>` : '',
-        secKo.length ? `<div class="ex-meta-row"><span class="label">보조 근육</span><div class="chips">${secKo.map(m => `<span class="chip">${m}</span>`).join('')}</div></div>` : '',
-        eqKo.length ? `<div class="ex-meta-row"><span class="label">장비</span><div class="chips">${eqKo.map(e => `<span class="chip chip--equip">${e}</span>`).join('')}</div></div>` : '',
+        musclesKo.length ? `<div class="ex-meta-row"><span class="label">주요 근육</span><div class="chips">${musclesKo.map((m: string) => `<span class="chip chip--muscle">${m}</span>`).join('')}</div></div>` : '',
+        secKo.length ? `<div class="ex-meta-row"><span class="label">보조 근육</span><div class="chips">${secKo.map((m: string) => `<span class="chip">${m}</span>`).join('')}</div></div>` : '',
+        eqKo.length ? `<div class="ex-meta-row"><span class="label">장비</span><div class="chips">${eqKo.map((e: string) => `<span class="chip chip--equip">${e}</span>`).join('')}</div></div>` : '',
+        detail.mets ? `<div class="ex-meta-row"><span class="label">운동 강도</span><div class="chips"><span class="chip chip--mets">MET: ${detail.mets}</span><span class="chip chip--intensity">${detail.intensity === 'LOW' ? '낮음' : detail.intensity === 'MEDIUM' ? '보통' : '높음'}</span></div></div>` : '',
         '</div>'
       ].join('') : '';
 
-      const tabPrefix = (detail.exerciseId || 'exercise').replace(/[^a-zA-Z0-9_-]/g, '');
+      const tabPrefix = `exercise-${exercise.id}`;
       const tabGuideId = `${tabPrefix}-tab-guide`;
       const tabInfoId = `${tabPrefix}-tab-info`;
 
@@ -486,36 +504,38 @@ const ExerciseInformation: React.FC = () => {
         `<label class="tab" for="${tabInfoId}">정보</label>`,
         '</div>',
         '<div class="panels">',
-        `<section class="panel panel-guide">${instrHtml || '<p class="ex-desc">지침 정보가 없습니다.</p>'}</section>`,
+        `<section class="panel panel-guide">${instrHtml}</section>`,
         `<section class="panel panel-info">${metaHtml}${descHtml}</section>`,
         '</div>',
         '</div>'
       ].join('');
 
+      // ExerciseDB에서 GIF 이미지 시도해보기 (선택사항)
+      let gifHtml = '';
+      try {
+        const found = await searchExerciseByName(exercise.name);
+        if (found) {
+          const externalDetail = await getExerciseById(found.exerciseId);
+          if (externalDetail && externalDetail.gifUrl) {
+            gifHtml = `<img class="ex-image" src="${externalDetail.gifUrl}" alt="${exercise.name}" />`;
+          }
+        }
+      } catch (e) {
+        // GIF 로드 실패해도 계속 진행
+        console.log('GIF 이미지 로드 실패 (무시됨):', e);
+      }
+
       const html = [
-        detail.gifUrl ? `<img class="ex-image" src="${detail.gifUrl}" alt="${detail.name}" />` : '',
+        gifHtml,
         '<div class="ex-detail">',
         tabsHtml,
         '</div>'
       ].join('');
       setDetailContent(html);
-
-      // 캐시가 없을 때 저장 버튼 노출(관리자/운영용)
-      if (!ko || ko.length === 0) {
-        setDetailActions([{
-          label: '이 지침 한국어 저장',
-          onClick: async () => {
-            const src = (detail.instructions || []).join('\n');
-            const input = prompt('줄바꿈으로 구분된 한국어 지침을 입력하세요', src);
-            if (!input) return;
-            const lines = input.split(/\r?\n/).map(s => s.trim()).filter(Boolean);
-            await saveKoInstructions(detail.exerciseId, lines);
-            alert('저장 스텁 호출 완료. 서버 저장 연동 시 실제로 반영됩니다.');
-          }
-        }]);
-      }
+      
     } catch (e) {
-      setDetailContent('외부 연동 중 오류가 발생했습니다.');
+      console.error('운동 상세 정보 로드 실패:', e);
+      setDetailContent('운동 상세 정보를 불러오는 중 오류가 발생했습니다.');
     }
   };
 
@@ -539,7 +559,13 @@ const ExerciseInformation: React.FC = () => {
   return (
     <div className="exercise-information-container">
       <div className="header">
-        <h1>운동 정보</h1>
+        <div className="header-content">
+          <div></div>
+          <div className="header-title">운동 정보</div>
+          <div></div>
+        </div>
+      </div>
+      <div className="header-subtitle">
         <p>칼로리 계산이 가능한 운동들의 상세 정보를 확인하세요</p>
       </div>
 
@@ -549,8 +575,8 @@ const ExerciseInformation: React.FC = () => {
             type="text"
             placeholder="운동 이름을 검색하세요..."
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') handleSearch(); }}
+            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+            onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter') handleSearch(); }}
             className="search-input"
           />
           <button className="search-button" onClick={handleSearch}>
@@ -558,42 +584,55 @@ const ExerciseInformation: React.FC = () => {
           </button>
         </div>
         
-        {/* 부위별 필터 */}
         <div className="filter-section">
-          <div className="filter-container">
-            <button 
-              className="scroll-button scroll-left"
-              onClick={() => scrollFilter('left')}
-              disabled={bodyParts.length === 0}
-            >
-              ‹
-            </button>
-            
-            <div className="filter-buttons-container" ref={filterContainerRef}>
-              <button
-                className={`filter-button ${selectedBodyPart === '' ? 'active' : ''}`}
-                onClick={() => setSelectedBodyPart('')}
-              >
-                전체 부위
-              </button>
-              {bodyParts.map((bodyPart) => (
-                <button
-                  key={bodyPart}
-                  className={`filter-button ${selectedBodyPart === bodyPart ? 'active' : ''}`}
-                  onClick={() => setSelectedBodyPart(bodyPart)}
-                >
-                  {bodyPart}
-                </button>
-              ))}
+          {/* 첫 번째 줄: 검색 모드 및 필터 옵션 */}
+          <div className="search-filters">
+            <div className="filter-item">
+              <label>검색 모드</label>
+              <select value={searchMode} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSearchMode(e.target.value as any)}>
+                <option value="name">이름</option>
+                <option value="muscle">근육(주/보조)</option>
+                <option value="name+muscle">이름+근육</option>
+                <option value="intensity">강도</option>
+              </select>
             </div>
             
-            <button 
-              className="scroll-button scroll-right"
-              onClick={() => scrollFilter('right')}
-              disabled={bodyParts.length === 0}
-            >
-              ›
-            </button>
+            {(searchMode === 'muscle' || searchMode === 'name+muscle') && (
+              <div className="filter-item">
+                <label>근육 선택</label>
+                <select value={selectedMuscle} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedMuscle(e.target.value)}>
+                  <option value="">전체</option>
+                  {muscles.map((m: string) => (<option key={m} value={m}>{m}</option>))}
+                </select>
+              </div>
+            )}
+            
+            {searchMode === 'intensity' && (
+              <div className="filter-item">
+                <label>강도</label>
+                <select value={intensity} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setIntensity(e.target.value)}>
+                  <option value="">전체</option>
+                  <option value="HIGH">높음</option>
+                  <option value="MEDIUM">보통</option>
+                  <option value="LOW">낮음</option>
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* 두 번째 줄: 부위 태그 */}
+          <div className="body-parts-section">
+            <label>부위</label>
+            <div className="filter-container" ref={filterContainerRef as React.MutableRefObject<HTMLDivElement | null>}>
+              <button className="scroll-button left" onClick={() => scrollFilter('left')}>◀</button>
+              <div className="filter-buttons-container">
+                <button className={`filter-button ${selectedBodyPart === '' ? 'active' : ''}`} onClick={() => setSelectedBodyPart('')}>전체</button>
+                {bodyParts.map((bp: string) => (
+                  <button key={bp} className={`filter-button ${selectedBodyPart === bp ? 'active' : ''}`} onClick={() => setSelectedBodyPart(bp)}>{bp}</button>
+                ))}
+              </div>
+              <button className="scroll-button right" onClick={() => scrollFilter('right')}>▶</button>
+            </div>
           </div>
         </div>
       </div>

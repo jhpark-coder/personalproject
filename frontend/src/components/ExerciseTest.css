@@ -2,7 +2,7 @@
   max-width: 800px;
   margin: 0 auto;
   padding: 20px;
-  font-family: Arial, sans-serif;
+  font-family: inherit;
 }
 
 .exercise-test-container h2 {
@@ -26,7 +26,7 @@
 }
 
 .test-button {
-  background: #007bff;
+  background: var(--accent-coral);
   color: white;
   border: none;
   padding: 10px 20px;
@@ -38,7 +38,7 @@
 }
 
 .test-button:hover:not(:disabled) {
-  background: #0056b3;
+  background: var(--accent-coral-dark);
 }
 
 .test-button:disabled {
@@ -111,7 +111,7 @@
 .results-section h3 {
   color: #495057;
   margin-bottom: 15px;
-  border-bottom: 2px solid #007bff;
+  border-bottom: 2px solid var(--brand-primary);
   padding-bottom: 10px;
 }
 
@@ -135,7 +135,7 @@
 }
 
 .exercise-item strong {
-  color: #007bff;
+  color: var(--brand-primary);
   font-size: 16px;
   display: block;
   margin-bottom: 8px;
@@ -157,6 +157,10 @@
   color: #28a745;
   font-weight: bold;
 }
+
+.button-primary { background: var(--accent-energy); }
+.tab-active { border-bottom: 2px solid var(--accent-energy); }
+.link-primary { color: var(--accent-energy); }
 
 @media (max-width: 768px) {
   .exercise-test-container {

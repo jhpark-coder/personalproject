@@ -2,8 +2,8 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 100vh;
-  background-color: #f5f5f5;
+  min-height: 100dvh;
+  background-color: var(--gray-50);
   padding: 20px;
 }
 
@@ -73,30 +73,16 @@
   /* margin-bottom: 30px; 제거 */
 }
 
-.input_item:focus-within {
-  border-color: #4CAF50;
-  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.2);
+/* 컨테이너 배경/높이 정리 */
+.signup-form-container {
+  min-height: 100dvh;
+  background-color: var(--gray-50);
 }
 
-.input_item.error {
-  border-color: #f44336;
-  box-shadow: 0 0 0 2px rgba(244, 67, 54, 0.2);
-}
-
-.input_item.error:focus-within {
-  border-color: #f44336;
-  box-shadow: 0 0 0 2px rgba(244, 67, 54, 0.2);
-}
-
-.input-icon {
-  padding: 0 15px;
-  font-size: 18px;
-  color: #666;
-  display: flex;
-  align-items: center;
-  height: 50px;
-  transition: color 0.3s ease;
-}
+/* 포커스/성공/에러 색상 정리 */
+.input_item:focus-within { border-color: var(--primary-blue); box-shadow: 0 0 0 2px rgba(0, 122, 255, 0.2); }
+.input_item.error { border-color: var(--danger-red); box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.2); }
+.input_item.error:focus-within { border-color: var(--danger-red); box-shadow: 0 0 0 2px rgba(220, 53, 69, 0.2); }
 
 .input_item.error .input-icon {
   color: #f44336;
@@ -110,7 +96,7 @@
   font-size: 14px;
   background: transparent;
   color: #222;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+  font-family: inherit;
 }
 
 .input_field::placeholder {
@@ -127,7 +113,7 @@
 }
 
 .email-verification-btn {
-  background: #4CAF50;
+  background: var(--success-green);
   color: white;
   border: none;
   padding: 8px 16px;
@@ -155,17 +141,17 @@
 }
 
 .email-verification-btn.completed {
-  background: #4CAF50;
+  background: var(--success-green);
   cursor: not-allowed;
 }
 
 .email-verification-btn.sent {
-  background: #2196F3;
+  background: var(--primary-blue);
   cursor: not-allowed;
 }
 
 .verify-code-btn {
-  background: #4CAF50;
+  background: var(--success-green);
   color: white;
   border: none;
   padding: 8px 16px;
@@ -272,7 +258,7 @@
 
 .sms-verification-btn {
   padding: 8px 16px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background-color: var(--brand-primary);
   color: white;
   border: none;
   border-radius: 6px;
@@ -286,7 +272,7 @@
 
 .sms-verification-btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 2px 8px rgba(51, 65, 85, 0.25);
 }
 
 .sms-verification-btn:disabled {
@@ -309,7 +295,7 @@
 
 .verify-sms-btn {
   padding: 8px 16px;
-  background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+  background: #45a049;
   color: white;
   border: none;
   border-radius: 6px;
@@ -323,7 +309,7 @@
 
 .verify-sms-btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 2px 8px rgba(76, 175, 80, 0.3);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .verify-sms-btn:disabled {
@@ -364,7 +350,7 @@
 /* 시간연장 버튼 스타일 */
 .extend-time-btn {
   padding: 6px 12px;
-  background-color: #007bff;
+  background-color: var(--primary-blue);
   color: white;
   border: none;
   border-radius: 4px;
@@ -376,7 +362,7 @@
 }
 
 .extend-time-btn:hover:not(:disabled) {
-  background-color: #0056b3;
+  background-color: var(--primary-blue-dark);
   transform: translateY(-1px);
 }
 
@@ -423,7 +409,7 @@
 .verification-button {
   width: 100%;
   padding: 16px;
-  background-color: #4CAF50;
+  background-color: var(--success-green);
   color: white;
   border: none;
   border-radius: 8px;

@@ -10,7 +10,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
   async onModuleInit() {
     const redisConfig = this.configService.get('redis');
-    
+
     this.redis = new Redis({
       host: redisConfig.host,
       port: redisConfig.port,
@@ -66,10 +66,12 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   // 레이트 리밋 체크
-  async checkRateLimit(phone: string): Promise<{ allowed: boolean; remainingTime?: number }> {
+  async checkRateLimit(
+    phone: string,
+  ): Promise<{ allowed: boolean; remainingTime?: number }> {
     const otpConfig = this.configService.get('redis.otp');
     const rateLimitKey = `${otpConfig.rateLimitPrefix}${phone}`;
-    
+
     const attempts = await this.redis.get(rateLimitKey);
     if (!attempts) {
       return { allowed: true };
@@ -85,10 +87,13 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   // 레이트 리밋 증가
-  async incrementRateLimit(phone: string, windowMs: number = 60000): Promise<void> {
+  async incrementRateLimit(
+    phone: string,
+    windowMs: number = 60000,
+  ): Promise<void> {
     const otpConfig = this.configService.get('redis.otp');
     const rateLimitKey = `${otpConfig.rateLimitPrefix}${phone}`;
-    
+
     const multi = this.redis.multi();
     multi.incr(rateLimitKey);
     multi.expire(rateLimitKey, Math.ceil(windowMs / 1000));
@@ -99,7 +104,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   async cleanupExpiredKeys(): Promise<number> {
     const otpConfig = this.configService.get('redis.otp');
     const pattern = `${otpConfig.prefix}*`;
-    
+
     const keys = await this.redis.keys(pattern);
     if (keys.length === 0) return 0;
 
@@ -117,4 +122,4 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
     return expiredKeys.length;
   }
-} 
+}

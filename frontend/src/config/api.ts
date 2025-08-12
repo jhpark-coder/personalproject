@@ -8,7 +8,7 @@ const isHttps = isBrowser && window.location.protocol === 'https:';
 // 통신 서버 기본 URL 결정
 // - HTTPS 페이지(터널 등)에서는 혼합 콘텐츠 방지를 위해 기본적으로 상대 경로 사용
 // - 환경변수(VITE_CHAT_SERVER_URL)가 명시되면 이를 우선 사용
-const DEFAULT_CHAT_SERVER_URL = isDevelopment && !isHttps ? 'http://localhost:3000' : '';
+const DEFAULT_CHAT_SERVER_URL = isDevelopment && !isHttps ? 'http://localhost:4000' : '';
 
 // 명시적으로 설정된 베이스 URL이 있으면 사용, 없으면 상대 경로 사용
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').trim();

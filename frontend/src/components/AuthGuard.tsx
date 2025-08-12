@@ -53,8 +53,25 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ children, requireAuth = true }) =
         const userRole = getRoleFromToken();
         const isAdmin = userRole === 'ROLE_ADMIN';
         const isOnboardingPage = location.pathname.startsWith('/onboarding');
-        const onboardingCompleted = localStorage.getItem('onboardingCompleted') === 'true';
-        
+        const localOnboardingCompleted = localStorage.getItem('onboardingCompleted') === 'true';
+
+        // 사용자 프로필 완성도 기반 온보딩 완료 판단 (필수 항목이 모두 채워져 있으면 완료로 간주)
+        const profileComplete = Boolean(
+          user?.height && user?.weight && user?.age && user?.gender
+        );
+
+        // 프로필이 이미 완성되었는데 로컬 플래그가 없다면 보정
+        if (profileComplete && !localOnboardingCompleted) {
+          try {
+            localStorage.setItem('onboardingCompleted', 'true');
+            const provider = localStorage.getItem('currentProvider');
+            if (provider) {
+              localStorage.setItem(`onboardingCompleted_${provider}`, 'true');
+            }
+            console.log('🛠 온보딩 플래그 보정: 프로필 완성으로 완료 처리');
+          } catch {}
+        }
+
         // 관리자가 온보딩 페이지에 접근하려고 하면 메인 페이지로 리다이렉트
         if (isAdmin && isOnboardingPage) {
           console.log('👨‍💼 관리자 온보딩 페이지 접근 차단, 메인 페이지로 이동');
@@ -62,8 +79,14 @@ const AuthGuard: React.FC<AuthGuardProps> = ({ children, requireAuth = true }) =
           return;
         }
         
-        // 일반 사용자가 온보딩을 완료하지 않았고 온보딩 페이지가 아닌 경우
-        if (!isAdmin && !onboardingCompleted && !isOnboardingPage && location.pathname !== '/') {
+        // 일반 사용자가 온보딩을 완료하지 않았고(로컬 플래그/프로필 모두 미완료) 온보딩 페이지가 아닌 경우
+        if (
+          !isAdmin &&
+          !localOnboardingCompleted &&
+          !profileComplete &&
+          !isOnboardingPage &&
+          location.pathname !== '/'
+        ) {
           console.log('📝 온보딩 미완료, 온보딩 페이지로 이동');
           navigate('/onboarding/experience');
           return;

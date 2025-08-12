@@ -5,6 +5,7 @@ import { useUser } from '../context/UserContext';
 import NavigationBar from './NavigationBar';
 import ChatButton from './ChatButton';
 import './Calendar.css';
+import { useToast } from './ToastProvider';
 
 interface CalendarEvent {
   id: string;
@@ -39,6 +40,7 @@ const Calendar: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useUser();
+  const { showToast } = useToast();
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [holidays, setHolidays] = useState<CalendarEvent[]>([]);
   const [workouts, setWorkouts] = useState<WorkoutRecord[]>([]);
@@ -54,6 +56,25 @@ const Calendar: React.FC = () => {
     endDateTime: '',
     attendeeEmails: [] as string[]
   });
+  
+  // RFC3339 형식(+타임존 오프셋)으로 변환
+  const toRfc3339WithOffset = (localDateTime: string): string => {
+    if (!localDateTime) return '';
+    const date = new Date(localDateTime);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const y = date.getFullYear();
+    const m = pad(date.getMonth() + 1);
+    const d = pad(date.getDate());
+    const hh = pad(date.getHours());
+    const mm = pad(date.getMinutes());
+    const ss = pad(date.getSeconds());
+    const offsetMin = -date.getTimezoneOffset(); // 동경 기준 +값
+    const sign = offsetMin >= 0 ? '+' : '-';
+    const abs = Math.abs(offsetMin);
+    const oh = pad(Math.floor(abs / 60));
+    const om = pad(abs % 60);
+    return `${y}-${m}-${d}T${hh}:${mm}:${ss}${sign}${oh}:${om}`;
+  };
   
   // 달력 UI를 위한 상태들
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -162,7 +183,7 @@ const Calendar: React.FC = () => {
       const date = new Date(startOfWeek);
       date.setDate(startOfWeek.getDate() + i);
       
-      const dateStr = date.toISOString().split('T')[0];
+      const dateStr = formatLocalYmd(date);
       const hasWorkout = workouts.some(workout => 
         workout.workoutDate === dateStr
       );
@@ -180,6 +201,7 @@ const Calendar: React.FC = () => {
       );
     }
     
+    // 이번 주 총 운동일수 (기존 표시 값)
     const workoutDays = workouts.filter(workout => {
       const workoutDate = new Date(workout.workoutDate);
       const weekStart = new Date(startOfWeek);
@@ -187,12 +209,26 @@ const Calendar: React.FC = () => {
       weekEnd.setDate(weekStart.getDate() + 6);
       return workoutDate >= weekStart && workoutDate <= weekEnd;
     }).length;
+
+    // 연속 운동일수 계산 (오늘부터 거꾸로 연속해서 운동한 일수)
+    const daysWithWorkout = new Set(workouts.map(w => w.workoutDate));
+    let currentStreak = 0;
+    const cursor = new Date();
+    while (true) {
+      const ds = cursor.toISOString().split('T')[0];
+      if (daysWithWorkout.has(ds)) {
+        currentStreak++;
+        cursor.setDate(cursor.getDate() - 1);
+      } else {
+        break;
+      }
+    }
     
     return (
       <div className="weekly-heatmap">
         <div className="heatmap-header">
           <h4>이번 주 운동 현황</h4>
-          <span className="workout-count">{workoutDays}일 운동 완료!</span>
+          <span className="workout-count">연속 {currentStreak}일 운동!</span>
         </div>
         <div className="heatmap-grid">
           {heatmapDays}
@@ -204,7 +240,7 @@ const Calendar: React.FC = () => {
   // 선택된 날짜의 운동 기록
   const getWorkoutsForDate = (date: Date) => {
     if (!Array.isArray(workouts)) return [];
-    const dateStr = date.toISOString().split('T')[0];
+    const dateStr = formatLocalYmd(date);
     return workouts.filter(workout => workout.workoutDate === dateStr);
   };
 
@@ -259,31 +295,62 @@ const Calendar: React.FC = () => {
       
       if (response.ok) {
         const data = await response.json();
-        console.log('받은 캘린더 이벤트 데이터:', data);
-        
         setEvents(data);
       } else {
         setError('이벤트를 불러오는데 실패했습니다.');
       }
     } catch (error) {
-      console.error('캘린더 이벤트 로드 오류:', error);
       setError('네트워크 오류가 발생했습니다.');
     } finally {
       setLoading(false);
     }
   };
 
+  // 오늘(로컬 00:00) 기준으로 과거 일정을 제외한 "다가오는" 일정 필터링
+  const getUpcomingEvents = (): CalendarEvent[] => {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const withAll = [...events, ...holidays];
+    const filtered = withAll.filter((event) => {
+      const start = new Date(event.startDate);
+      const end = event.endDate ? new Date(event.endDate) : undefined;
+
+      if (isNaN(start.getTime())) return false;
+
+      if (event.isAllDay) {
+        // 전일 이벤트는 종료일이 있으면 종료일 23:59:59까지 유효로 간주
+        const endRef = end && !isNaN(end.getTime()) ? new Date(end) : new Date(start);
+        endRef.setHours(23, 59, 59, 999);
+        return endRef.getTime() >= startOfToday.getTime();
+      }
+
+      // 시간 이벤트는 시작 시간이 오늘 00:00 이후인 경우만 표시
+      return start.getTime() >= startOfToday.getTime();
+    });
+
+    return filtered.sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+  };
+
   const handleCreateEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       const token = localStorage.getItem('token');
+      const payload = {
+        summary: newEvent.title,
+        description: newEvent.description,
+        location: newEvent.location,
+        startDateTime: toRfc3339WithOffset(newEvent.startDateTime),
+        endDateTime: toRfc3339WithOffset(newEvent.endDateTime),
+        attendeeEmails: newEvent.attendeeEmails,
+      };
       const response = await fetch(API_ENDPOINTS.CALENDAR_EVENTS, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(newEvent)
+        body: JSON.stringify(payload)
       });
 
       if (response.ok) {
@@ -298,24 +365,32 @@ const Calendar: React.FC = () => {
           endDateTime: '',
           attendeeEmails: []
         });
+        showToast('일정이 추가되었습니다.', 'success');
       } else {
         setError('이벤트 생성에 실패했습니다.');
+        showToast('이벤트 생성에 실패했습니다.', 'error');
       }
     } catch (error) {
       setError('네트워크 오류가 발생했습니다.');
+      showToast('네트워크 오류가 발생했습니다.', 'error');
     }
   };
 
   const handleCreateWorkoutEvent = async (workoutData: any) => {
     try {
       const token = localStorage.getItem('token');
+      const payload = {
+        ...workoutData,
+        startTime: toRfc3339WithOffset(workoutData.startTime),
+        endTime: toRfc3339WithOffset(workoutData.endTime),
+      };
       const response = await fetch(API_ENDPOINTS.CALENDAR_WORKOUT, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(workoutData)
+        body: JSON.stringify(payload)
       });
 
       if (response.ok) {
@@ -330,85 +405,44 @@ const Calendar: React.FC = () => {
   };
 
   const formatDateTime = (dateTimeString: string) => {
-    console.log('formatDateTime 호출됨:', dateTimeString);
-    
     if (!dateTimeString) {
-      console.log('dateTimeString이 null 또는 undefined');
       return '날짜 정보 없음';
     }
-    
     try {
       const date = new Date(dateTimeString);
-      
-      // Invalid Date 체크
       if (isNaN(date.getTime())) {
-        console.log('Invalid Date 감지:', dateTimeString);
         return '날짜 형식 오류';
       }
-      
-      const formatted = date.toLocaleString('ko-KR', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit'
+      return date.toLocaleString('ko-KR', {
+        year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
       });
-      
-      console.log('포맷된 날짜:', formatted);
-      return formatted;
     } catch (error) {
-      console.error('날짜 파싱 오류:', error, '원본:', dateTimeString);
       return '날짜 파싱 오류';
     }
   };
 
   // 전일 이벤트와 시간 이벤트를 구분하여 처리하는 함수
   const formatEventDateTime = (event: any) => {
-    console.log('formatEventDateTime 호출됨:', event);
-    
-    // 새로운 백엔드 형식에 맞게 수정
     if (!event.startDate) {
       return '날짜 정보 없음';
     }
-    
     const startDate = new Date(event.startDate);
     const endDate = event.endDate ? new Date(event.endDate) : null;
-    
     if (isNaN(startDate.getTime())) {
       return '날짜 형식 오류';
     }
-    
-    const startFormatted = startDate.toLocaleDateString('ko-KR', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit'
-    });
-    
-    // 하루 종일 이벤트인 경우
+    const startFormatted = startDate.toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' });
     if (event.isAllDay) {
       if (endDate && !isNaN(endDate.getTime()) && endDate.getTime() !== startDate.getTime()) {
-        const endFormatted = endDate.toLocaleDateString('ko-KR', {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit'
-        });
+        const endFormatted = endDate.toLocaleDateString('ko-KR', { year: 'numeric', month: '2-digit', day: '2-digit' });
         return `${startFormatted} ~ ${endFormatted} (하루 종일)`;
       } else {
         return `${startFormatted} (하루 종일)`;
       }
     }
-    
-    // 시간 이벤트인 경우 (isAllDay가 false인 경우)
-    const startTime = startDate.toLocaleTimeString('ko-KR', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-    
+    const startTime = startDate.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
     if (endDate && !isNaN(endDate.getTime()) && endDate.getTime() !== startDate.getTime()) {
-      const endTime = endDate.toLocaleTimeString('ko-KR', {
-        hour: '2-digit',
-        minute: '2-digit'
-      });
+      const endTime = endDate.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
       return `${startFormatted} ${startTime} ~ ${endTime}`;
     } else {
       return `${startFormatted} ${startTime}`;
@@ -416,6 +450,13 @@ const Calendar: React.FC = () => {
   };
 
   // 달력 렌더링을 위한 유틸리티 함수들
+  const formatLocalYmd = (d: Date): string => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
     const month = date.getMonth();
@@ -484,8 +525,10 @@ const Calendar: React.FC = () => {
           className={dayClasses}
           onClick={() => setSelectedDate(date)}
         >
-          <span className="day-number">{day}</span>
-          {hasWorkout && <div className="workout-indicator">💪</div>}
+          <div className="calendar-day-inner">
+            <div className="day-number">{day}</div>
+            {hasWorkout && <div className="workout-indicator">💪</div>}
+          </div>
         </div>
       );
     }
@@ -501,6 +544,7 @@ const Calendar: React.FC = () => {
       const token = localStorage.getItem('token');
       if (!token) {
         setError('로그인이 필요합니다. 다시 로그인해주세요.');
+        showToast('로그인이 필요합니다.', 'error');
         return;
       }
 
@@ -538,6 +582,7 @@ const Calendar: React.FC = () => {
       
       if (data.success && data.authUrl) {
         console.log('Google OAuth2 URL로 리다이렉트:', data.authUrl);
+        showToast('Google 인증 페이지로 이동합니다.', 'info');
         // 백엔드에서 제공한 전체 URL로 리다이렉트
         window.location.href = data.authUrl;
       } else {
@@ -547,6 +592,7 @@ const Calendar: React.FC = () => {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('캘린더 연동 실패:', errorMessage);
       setError(`캘린더 연동 실패: ${errorMessage}`);
+      showToast(`캘린더 연동 실패: ${errorMessage}`, 'error');
     } finally {
       setLoading(false);
     }
@@ -555,31 +601,31 @@ const Calendar: React.FC = () => {
   return (
     <div className="calendar-container">
       <div className="calendar-header">
-        <button onClick={() => navigate(-1)} className="back-button">
-          ←
-        </button>
-        <h1>캘린더</h1>
-        <div className="calendar-controls">
-          <div className="view-toggle">
-            <button 
-              className={`view-btn ${viewMode === 'calendar' ? 'active' : ''}`}
-              onClick={() => setViewMode('calendar')}
+        <div className="calendar-header-content">
+          <button onClick={() => navigate(-1)} className="back-button">←</button>
+          <h1>캘린더</h1>
+          <div className="calendar-controls">
+            <div className="view-toggle">
+              <button 
+                className={`view-btn ${viewMode === 'calendar' ? 'active' : ''}`}
+                onClick={() => setViewMode('calendar')}
+              >📅 달력</button>
+              <button 
+                className={`view-btn ${viewMode === 'list' ? 'active' : ''}`}
+                onClick={() => setViewMode('list')}
+              >📋 목록</button>
+            </div>
+            <button onClick={() => setShowCreateForm(!showCreateForm)} className="add-event-btn">+ 일정 추가</button>
+            <button
+              onClick={loadEvents}
+              disabled={loading}
+              className="sync-btn"
+              aria-label="Google 캘린더와 동기화"
+              title="Google 캘린더와 동기화"
             >
-              📅 달력
-            </button>
-            <button 
-              className={`view-btn ${viewMode === 'list' ? 'active' : ''}`}
-              onClick={() => setViewMode('list')}
-            >
-              📋 목록
+              {loading ? '동기화 중...' : '동기화'}
             </button>
           </div>
-          <button 
-            onClick={() => setShowCreateForm(!showCreateForm)} 
-            className="add-event-btn"
-          >
-            + 일정 추가
-          </button>
         </div>
       </div>
 
@@ -590,16 +636,12 @@ const Calendar: React.FC = () => {
         <div className="calendar-disconnected-banner">
           <h3>Google Calendar 연동</h3>
           <p>운동 일정을 Google Calendar와 동기화하여 편하게 관리하세요.</p>
-          <button onClick={handleConnectGoogleCalendar} className="connect-btn">
-            Google Calendar 연동하기
-          </button>
+          <button onClick={handleConnectGoogleCalendar} className="connect-btn">Google Calendar 연동하기</button>
         </div>
       )}
 
       {error && (
-        <div className="error-message">
-          {error}
-        </div>
+        <div className="error-message">{error}</div>
       )}
 
       {showCreateForm && (
@@ -673,7 +715,12 @@ const Calendar: React.FC = () => {
 
       <div className="calendar-content">
         {loading ? (
-          <div className="loading">일정을 불러오는 중...</div>
+          <div style={{ padding: 16 }}>
+            <div className="skeleton skeleton-bar" style={{ width: '40%', marginBottom: 12 }}></div>
+            <div className="skeleton skeleton-card" style={{ height: 220, marginBottom: 12 }}></div>
+            <div className="skeleton skeleton-bar" style={{ width: '60%', marginBottom: 8 }}></div>
+            <div className="skeleton skeleton-bar" style={{ width: '50%' }}></div>
+          </div>
         ) : viewMode === 'calendar' ? (
           <div className="calendar-view">
             <div className="calendar-navigation">
@@ -773,7 +820,7 @@ const Calendar: React.FC = () => {
         ) : (
           <div className="events-list">
             <h3>다가오는 일정</h3>
-            {events.length === 0 && holidays.length === 0 ? (
+            {getUpcomingEvents().length === 0 ? (
               <div className="no-events">
                 <p>등록된 일정이 없습니다.</p>
                 <button onClick={() => setShowCreateForm(true)} className="add-first-event-btn">
@@ -781,7 +828,7 @@ const Calendar: React.FC = () => {
                 </button>
               </div>
             ) : (
-              [...events, ...holidays].sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime()).map((event) => (
+              getUpcomingEvents().map((event) => (
                 <div key={event.id} className={`event-item ${event.type === 'holiday' ? 'holiday-event' : ''}`}>
                   <div className="event-header">
                     <h4>{event.title}</h4>
@@ -810,8 +857,6 @@ const Calendar: React.FC = () => {
         )}
       </div>
       <NavigationBar />
-      
-      {/* 챗봇 버튼 */}
       <ChatButton />
     </div>
   );

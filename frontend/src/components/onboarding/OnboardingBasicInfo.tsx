@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { API_ENDPOINTS } from '../../config/api';
 import './OnboardingBasicInfo.css';
+import Modal from '../Modal';
 
 interface BasicInfo {
   height: string;
@@ -35,6 +36,15 @@ const OnboardingBasicInfo: React.FC = () => {
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [canExtend, setCanExtend] = useState(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // 모달 상태
+  const [modal, setModal] = useState<{ isOpen: boolean; title: string; message: string; type: 'success' | 'error' | 'info' }>(
+    { isOpen: false, title: '', message: '', type: 'info' }
+  );
+  const showModal = (title: string, message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setModal({ isOpen: true, title, message, type });
+  };
+  const closeModal = () => setModal(prev => ({ ...prev, isOpen: false }));
 
   // 생년월일로부터 나이 계산하는 함수
   const calculateAgeFromBirthDate = (birthDate: string): string => {
@@ -160,13 +170,13 @@ const OnboardingBasicInfo: React.FC = () => {
         // 타이머 시작
         startTimer();
         
-        alert('SMS 인증 코드가 발송되었습니다.');
+        showModal('SMS 인증', 'SMS 인증 코드가 발송되었습니다.', 'success');
       } else {
-        alert(data.message || 'SMS 발송에 실패했습니다.');
+        showModal('SMS 인증', data.message || 'SMS 발송에 실패했습니다.', 'error');
       }
     } catch (error) {
       console.error('SMS 발송 실패:', error);
-      alert('SMS 발송에 실패했습니다. 다시 시도해주세요.');
+      showModal('SMS 인증', 'SMS 발송에 실패했습니다. 다시 시도해주세요.', 'error');
     } finally {
       setIsSmsLoading(false);
     }
@@ -204,13 +214,13 @@ const OnboardingBasicInfo: React.FC = () => {
         // 타이머 정리
         clearTimer();
         
-        alert('전화번호 인증이 완료되었습니다!');
+        showModal('SMS 인증', '전화번호 인증이 완료되었습니다!', 'success');
       } else {
-        alert(data.message || '인증 코드가 올바르지 않습니다.');
+        showModal('SMS 인증', data.message || '인증 코드가 올바르지 않습니다.', 'error');
       }
     } catch (error) {
       console.error('SMS 인증 실패:', error);
-      alert('인증에 실패했습니다. 다시 시도해주세요.');
+      showModal('SMS 인증', '인증에 실패했습니다. 다시 시도해주세요.', 'error');
     } finally {
       setIsSmsLoading(false);
     }
@@ -243,13 +253,13 @@ const OnboardingBasicInfo: React.FC = () => {
         clearTimer();
         startTimer();
         
-        alert('SMS 인증 코드가 재발송되었습니다.');
+        showModal('SMS 인증', 'SMS 인증 코드가 재발송되었습니다.', 'success');
       } else {
-        alert(data.message || 'SMS 재발송에 실패했습니다.');
+        showModal('SMS 인증', data.message || 'SMS 재발송에 실패했습니다.', 'error');
       }
     } catch (error) {
       console.error('SMS 재발송 실패:', error);
-      alert('SMS 재발송에 실패했습니다. 다시 시도해주세요.');
+      showModal('SMS 인증', 'SMS 재발송에 실패했습니다. 다시 시도해주세요.', 'error');
     } finally {
       setIsSmsLoading(false);
     }
@@ -500,7 +510,7 @@ const OnboardingBasicInfo: React.FC = () => {
                 disabled={isSmsVerified || isSmsLoading || !formData.phoneNumber}
                 style={{
                   padding: '10px 15px',
-                  backgroundColor: isSmsVerified ? '#28a745' : '#007bff',
+                  backgroundColor: isSmsVerified ? '#28a745' : 'var(--primary-blue)',
                   color: 'white',
                   border: 'none',
                   borderRadius: '5px',
@@ -538,7 +548,7 @@ const OnboardingBasicInfo: React.FC = () => {
                   disabled={isSmsLoading || !smsCode.trim()}
                   style={{
                     padding: '10px 15px',
-                    backgroundColor: '#007bff',
+                    backgroundColor: 'var(--primary-blue)',
                     color: 'white',
                     border: 'none',
                     borderRadius: '5px',
@@ -576,7 +586,7 @@ const OnboardingBasicInfo: React.FC = () => {
                     disabled={isSmsLoading}
                     style={{
                       padding: '6px 12px',
-                      backgroundColor: '#007bff',
+                      backgroundColor: 'var(--primary-blue)',
                       color: 'white',
                       border: 'none',
                       borderRadius: '4px',
@@ -616,6 +626,15 @@ const OnboardingBasicInfo: React.FC = () => {
           다음
         </button>
       </div>
+
+      {/* 모달 */}
+      <Modal
+        isOpen={modal.isOpen}
+        onClose={closeModal}
+        title={modal.title}
+        message={modal.message}
+        type={modal.type}
+      />
     </div>
   );
 };

@@ -3,11 +3,13 @@ import { registerAs } from '@nestjs/config';
 export default registerAs('development', () => ({
   // 개발 환경 설정
   environment: 'development',
-  
+
   // MongoDB 설정 (개발용)
   database: {
     mongodb: {
-      uri: process.env.MONGODB_URI || 'mongodb://localhost:27017/communication-server-dev',
+      uri:
+        process.env.MONGODB_URI ||
+        'mongodb://localhost:27017/communication-server-dev',
       database: process.env.MONGODB_DATABASE || 'communication-server-dev',
       host: process.env.MONGODB_HOST || 'localhost',
       port: process.env.MONGODB_PORT || '27017',
@@ -27,7 +29,8 @@ export default registerAs('development', () => ({
     accountSid: process.env.TWILIO_ACCOUNT_SID,
     authToken: process.env.TWILIO_AUTH_TOKEN,
     phoneNumber: process.env.TWILIO_PHONE_NUMBER,
-    enabled: !!process.env.TWILIO_ACCOUNT_SID && !!process.env.TWILIO_AUTH_TOKEN,
+    enabled:
+      !!process.env.TWILIO_ACCOUNT_SID && !!process.env.TWILIO_AUTH_TOKEN,
   },
 
   // 로깅 설정 (개발용)
@@ -43,4 +46,4 @@ export default registerAs('development', () => ({
     debugMode: true,
     mockSms: true, // SMS 모킹
   },
-})); 
+}));

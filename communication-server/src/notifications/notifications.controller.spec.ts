@@ -34,8 +34,10 @@ describe('NotificationsController', () => {
     }).compile();
 
     controller = module.get<NotificationsController>(NotificationsController);
-    communicationGateway = module.get<CommunicationGateway>(CommunicationGateway);
-    notificationsService = module.get<NotificationsService>(NotificationsService);
+    communicationGateway =
+      module.get<CommunicationGateway>(CommunicationGateway);
+    notificationsService =
+      module.get<NotificationsService>(NotificationsService);
   });
 
   it('should be defined', () => {
@@ -60,15 +62,24 @@ describe('NotificationsController', () => {
         createdAt: new Date(),
       };
 
-      jest.spyOn(notificationsService, 'createNotification').mockResolvedValue(savedNotification as any);
-      jest.spyOn(communicationGateway, 'sendNotificationToUser').mockImplementation();
+      jest
+        .spyOn(notificationsService, 'createNotification')
+        .mockResolvedValue(savedNotification as any);
+      jest
+        .spyOn(communicationGateway, 'sendNotificationToUser')
+        .mockImplementation();
 
       // when
       const result = await controller.createNotification(createNotificationDto);
 
       // then
-      expect(notificationsService.createNotification).toHaveBeenCalledWith(createNotificationDto);
-      expect(communicationGateway.sendNotificationToUser).toHaveBeenCalledWith('2', savedNotification);
+      expect(notificationsService.createNotification).toHaveBeenCalledWith(
+        createNotificationDto,
+      );
+      expect(communicationGateway.sendNotificationToUser).toHaveBeenCalledWith(
+        '2',
+        savedNotification,
+      );
       expect(result.success).toBe(true);
     });
   });
@@ -82,13 +93,17 @@ describe('NotificationsController', () => {
         { _id: '2', message: 'Test 2', isRead: true },
       ];
 
-      jest.spyOn(notificationsService, 'getUserNotifications').mockResolvedValue(mockNotifications as any);
+      jest
+        .spyOn(notificationsService, 'getUserNotifications')
+        .mockResolvedValue(mockNotifications as any);
 
       // when
       const result = await controller.getUserNotifications(userId);
 
       // then
-      expect(notificationsService.getUserNotifications).toHaveBeenCalledWith(userId);
+      expect(notificationsService.getUserNotifications).toHaveBeenCalledWith(
+        userId,
+      );
       expect(result.notifications).toEqual(mockNotifications);
     });
   });
@@ -103,7 +118,9 @@ describe('NotificationsController', () => {
       const result = await controller.markAsRead(notificationId);
 
       // then
-      expect(notificationsService.markAsRead).toHaveBeenCalledWith(notificationId);
+      expect(notificationsService.markAsRead).toHaveBeenCalledWith(
+        notificationId,
+      );
       expect(result.success).toBe(true);
     });
   });
@@ -113,7 +130,9 @@ describe('NotificationsController', () => {
       // given
       const userId = 1;
       const unreadCount = 5;
-      jest.spyOn(notificationsService, 'getUnreadCount').mockResolvedValue(unreadCount);
+      jest
+        .spyOn(notificationsService, 'getUnreadCount')
+        .mockResolvedValue(unreadCount);
 
       // when
       const result = await controller.getUnreadCount(userId);

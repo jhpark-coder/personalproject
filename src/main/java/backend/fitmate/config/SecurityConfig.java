@@ -57,7 +57,8 @@ public class SecurityConfig {
                     "/api/auth/check-email",
                     "/api/auth/verify-phone",
                     "/api/exercises/**",
-                    "/api/exercise-information/**"
+                    "/api/exercise-information/**",
+                    "/test/**"
                 ).permitAll()
                 // OAuth2 관련 경로
                 .requestMatchers("/oauth2/**", "/login/oauth2/**", "/error").permitAll()
@@ -225,7 +226,28 @@ public class SecurityConfig {
                         user.getOauthProvider(), user.getOauthId(), user.getProfileImage(), user.getRole());
                 System.err.println("🚀 JWT 토큰 생성 완료: " + (token != null ? "성공" : "실패"));
 
-                String targetUrl = UriComponentsBuilder.fromUriString("https://localhost:5173/#/auth/callback")
+                String frontendBase = System.getProperty("app.frontend.url");
+                if (frontendBase == null || frontendBase.isBlank()) {
+                    frontendBase = System.getenv().getOrDefault("APP_FRONTEND_URL", "http://localhost:5173");
+                }
+
+                // 프록시 뒤에서 동작 시 외부 기준의 프로토콜/호스트를 우선 사용
+                try {
+                    String forwardedProto = request.getHeader("X-Forwarded-Proto");
+                    String forwardedHost = request.getHeader("X-Forwarded-Host");
+                    // Nginx가 X-Forwarded-Host를 보내지 않는 경우 Host 헤더를 사용
+                    if (forwardedHost == null || forwardedHost.isBlank()) {
+                        forwardedHost = request.getHeader("Host");
+                    }
+                    if (forwardedHost != null && !forwardedHost.isBlank()) {
+                        String scheme = (forwardedProto != null && !forwardedProto.isBlank()) ? forwardedProto : request.getScheme();
+                        String base = scheme + "://" + forwardedHost;
+                        // HashRouter 경로 포함
+                        frontendBase = base.replaceAll("/$", "");
+                    }
+                } catch (Exception ignored) {}
+ 
+                String targetUrl = UriComponentsBuilder.fromUriString(frontendBase + "/#/auth/callback")
                         .queryParam("success", "true")
                         .queryParam("token", token)
                         .queryParam("provider", user.getOauthProvider())
@@ -253,16 +275,31 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
+        // 프로덕션과 개발 환경별 허용 도메인 구분
         configuration.setAllowedOriginPatterns(Arrays.asList(
+            // Development environments
             "http://localhost:5173",
-            "https://localhost:5173",
+            "https://localhost:5173", 
             "http://192.168.50.28:5173",
+            // Production domain (environment variable로 관리 권장)
+            "https://www.fitmate.com",
+            // Development tunnel services (개발용만)
             "https://*.loca.lt",
-            "https://*.ngrok.io"
+            "https://*.ngrok.io",
+            "https://*.trycloudflare.com"
         ));
+        // HTTP 메서드 제한 (필요한 것만)
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-        configuration.setAllowedHeaders(Arrays.asList("*"));
+        // 헤더 제한 (보안 강화)
+        configuration.setAllowedHeaders(Arrays.asList(
+            "Authorization", "Content-Type", "X-Requested-With", "Accept", "Origin"
+        ));
+        // 노출할 헤더 제한
+        configuration.setExposedHeaders(Arrays.asList("Authorization"));
         configuration.setAllowCredentials(true);
+        // Pre-flight 요청 캐시 시간 설정 (성능 향상)
+        configuration.setMaxAge(3600L);
+        
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
         return source;
