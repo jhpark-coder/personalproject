@@ -1,27 +1,24 @@
-FROM openjdk:21-jdk-slim
-
+# 1. 의존성/빌더 단계 - Maven 이미지 사용 (Wrapper 불필요)
+FROM maven:3.9.8-eclipse-temurin-21 AS builder
 WORKDIR /app
 
-# Maven wrapper와 pom.xml 복사
-COPY mvnw .
-COPY .mvn .mvn
+# 의존성 캐시 최적화: pom.xml만 먼저 복사 후 오프라인 의존성 준비
 COPY pom.xml .
+RUN mvn -B -DskipTests dependency:go-offline
 
-# Maven 의존성 다운로드
-RUN chmod +x ./mvnw
-RUN ./mvnw dependency:go-offline -B
-
-# 소스 코드 복사
+# 소스 코드 복사 후 빌드 (테스트 스킵)
 COPY src ./src
+RUN mvn -B -DskipTests clean package
 
-# 애플리케이션 빌드
-RUN ./mvnw clean package -DskipTests
+# 2. 실행 단계 - 경량 JDK 런타임 사용
+FROM openjdk:21-jdk-slim
+WORKDIR /app
+
+# JVM 최적화 설정
+ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+UseG1GC"
 
 # 실행 가능한 JAR 파일만 복사
-FROM openjdk:21-jdk-slim
-WORKDIR /app
-COPY --from=0 /app/target/*.jar app.jar
+COPY --from=builder /app/target/*.jar /app/app.jar
 
 EXPOSE 8080
-
-ENTRYPOINT ["java", "-jar", "app.jar"] 
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"] 

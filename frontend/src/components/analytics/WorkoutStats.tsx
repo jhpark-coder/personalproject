@@ -97,19 +97,17 @@ const WorkoutStats: React.FC = () => {
     
     // 연속 운동일 계산
     let consecutiveDays = 0;
-    const sortedWorkouts = [...workouts].sort((a, b) => new Date(b.workoutDate).getTime() - new Date(a.workoutDate).getTime());
-    const today = new Date();
-    let currentDate = new Date(today);
-    
-    for (let i = 0; i < 30; i++) {
-      const dateStr = currentDate.toISOString().split('T')[0];
-      const hasWorkout = sortedWorkouts.some(w => w.workoutDate === dateStr);
-      if (hasWorkout) {
+    const formatLocalYmd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+    const workoutSet = new Set(workouts.map((w: any) => w.workoutDate));
+    const cursor = new Date();
+    for (let i = 0; i < 60; i++) {
+      const ymd = formatLocalYmd(cursor);
+      if (workoutSet.has(ymd)) {
         consecutiveDays++;
+        cursor.setDate(cursor.getDate() - 1);
       } else {
         break;
       }
-      currentDate.setDate(currentDate.getDate() - 1);
     }
     
     return { totalWorkouts, avgDuration, totalCalories, consecutiveDays };
@@ -145,9 +143,7 @@ const WorkoutStats: React.FC = () => {
       <div className="workout-stats-container">
         <div className="header">
           <div className="header-content">
-            <button className="back-button" onClick={() => navigate(-1)}>
-              ←
-            </button>
+            <button className="back-button" onClick={() => navigate(-1)} aria-label="뒤로 가기">←</button>
             <div className="header-title">운동 통계</div>
             <div></div>
           </div>
@@ -192,9 +188,7 @@ const WorkoutStats: React.FC = () => {
     <div className="workout-stats-container">
       <div className="header">
         <div className="header-content">
-          <button className="back-button" onClick={() => navigate(-1)}>
-            ←
-          </button>
+          <button className="back-button" onClick={() => navigate(-1)} aria-label="뒤로 가기">←</button>
           <div className="header-title">운동 통계</div>
           <div></div>
         </div>

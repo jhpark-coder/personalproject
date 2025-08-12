@@ -5,7 +5,10 @@ import { ChatService } from '../chat/chat.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationsController } from '../notifications/notifications.controller';
 import { ChatMessage, ChatMessageSchema } from '../schemas/chat-message.schema';
-import { Notification, NotificationSchema } from '../schemas/notification.schema';
+import {
+  Notification,
+  NotificationSchema,
+} from '../schemas/notification.schema';
 
 @Module({
   imports: [
@@ -15,11 +18,7 @@ import { Notification, NotificationSchema } from '../schemas/notification.schema
     ]),
   ],
   controllers: [NotificationsController],
-  providers: [
-    CommunicationGateway,
-    ChatService,
-    NotificationsService,
-  ],
+  providers: [CommunicationGateway, ChatService, NotificationsService],
   exports: [CommunicationGateway, ChatService, NotificationsService],
 })
 export class CommunicationModule {}

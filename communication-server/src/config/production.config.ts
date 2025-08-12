@@ -3,11 +3,12 @@ import { registerAs } from '@nestjs/config';
 export default registerAs('production', () => ({
   // 배포 환경 설정
   environment: 'production',
-  
+
   // MongoDB 설정 (배포용)
   database: {
     mongodb: {
-      uri: process.env.MONGODB_URI || 'mongodb://mongo:27017/communication-server',
+      uri:
+        process.env.MONGODB_URI || 'mongodb://mongo:27017/communication-server',
       database: process.env.MONGODB_DATABASE || 'communication-server',
       host: process.env.MONGODB_HOST || 'mongo',
       port: process.env.MONGODB_PORT || '27017',
@@ -40,4 +41,4 @@ export default registerAs('production', () => ({
       max: parseInt(process.env.RATE_LIMIT_MAX || '100'), // 최대 요청 수
     },
   },
-})); 
+}));

@@ -4,6 +4,7 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { API_ENDPOINTS } from '../../config/api';
 import NavigationBar from '../NavigationBar';
 import './BodyData.css';
+import { useToast } from '../ToastProvider';
 
 // 소수점 1자리 반올림 유틸
 const round1 = (v: number) => Math.round(v * 10) / 10;
@@ -37,6 +38,7 @@ const BodyData: React.FC = () => {
   const [trendsData, setTrendsData] = useState<TrendsData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   // 사용자 ID 가져오기 (JWT 토큰에서 추출)
   const getUserId = () => {
@@ -310,17 +312,18 @@ const BodyData: React.FC = () => {
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('서버 응답 에러:', errorText);
-        throw new Error(`데이터를 불러올 수 없습니다. (${response.status}: ${response.statusText})`);
+        throw new Error(`데이터를 불러올 수 없습니다. (${response.status}) ${errorText?.slice(0,120)}`);
       }
 
       const data = await response.json();
       console.log('=== 응답 데이터 ===');
       console.log('data:', data);
       setTrendsData(data);
+      showToast('신체 데이터 업데이트 완료', 'success');
     } catch (error) {
       console.error('신체 데이터 로드 실패:', error);
       setError(error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.');
+      showToast('데이터 로드에 실패했습니다.', 'error');
     } finally {
       setLoading(false);
     }
@@ -428,16 +431,15 @@ const BodyData: React.FC = () => {
       <div className="body-data-container">
         <div className="header">
           <div className="header-content">
-            <button className="back-button" onClick={() => navigate(-1)}>
-              ←
-            </button>
+            <button className="back-button" onClick={() => navigate(-1)} aria-label="뒤로 가기">←</button>
             <div className="header-title">신체 데이터</div>
             <div></div>
           </div>
         </div>
-        <div className="loading-container">
-          <div className="loading-spinner"></div>
-          <p>데이터를 불러오는 중...</p>
+        <div style={{ padding: 16 }}>
+          <div className="skeleton skeleton-bar" style={{ width: '40%', marginBottom: 12 }}></div>
+          <div className="skeleton skeleton-card" style={{ height: 180, marginBottom: 12 }}></div>
+          <div className="skeleton skeleton-card" style={{ height: 180 }}></div>
         </div>
         <NavigationBar />
       </div>
@@ -496,14 +498,12 @@ const BodyData: React.FC = () => {
   };
 
   return (
-    <div className="body-data-container">
+    <div className="body-data-container content-wrapper">
       <div className="header">
         <div className="header-content">
-          <button className="back-button" onClick={() => navigate(-1)}>
-            ←
-          </button>
+          <button className="back-button" onClick={() => navigate(-1)} aria-label="뒤로 가기">←</button>
           <div className="header-title">신체 데이터</div>
-          <button className="add-button" onClick={() => navigate('/body-records/new')}>추가</button>
+          <button className="add-button" onClick={() => navigate('/body-records/new')} aria-label="신체 기록 추가">추가</button>
         </div>
       </div>
 
@@ -554,7 +554,7 @@ const BodyData: React.FC = () => {
                 <XAxis dataKey="date" />
                 <YAxis tickFormatter={(v) => Number(v).toFixed(1)} domain={[round1(muscleMinMax.min - 0.5), round1(muscleMinMax.max + 0.5)]} />
                 <Tooltip formatter={(v: any) => Number(v).toFixed(1)} />
-                <Line type="monotone" dataKey="value" stroke="#007AFF" strokeWidth={2} />
+                <Line type="monotone" dataKey="value" stroke="var(--primary-blue)" strokeWidth={2} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -606,7 +606,7 @@ const BodyData: React.FC = () => {
                 <XAxis dataKey="date" />
                 <YAxis tickFormatter={(v) => Number(v).toFixed(1)} domain={[round1(bodyFatMinMax.min - 0.5), round1(bodyFatMinMax.max + 0.5)]} />
                 <Tooltip formatter={(v: any) => Number(v).toFixed(1)} />
-                <Line type="monotone" dataKey="value" stroke="#FF3B30" strokeWidth={2} />
+                <Line type="monotone" dataKey="value" stroke="var(--secondary-red)" strokeWidth={2} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -658,7 +658,7 @@ const BodyData: React.FC = () => {
                 <XAxis dataKey="date" />
                 <YAxis tickFormatter={(v) => Number(v).toFixed(1)} domain={[round1(weightMinMax.min - 0.5), round1(weightMinMax.max + 0.5)]} />
                 <Tooltip formatter={(v: any) => Number(v).toFixed(1)} />
-                <Line type="monotone" dataKey="value" stroke="#34C759" strokeWidth={2} />
+                <Line type="monotone" dataKey="value" stroke="var(--secondary-green)" strokeWidth={2} />
               </LineChart>
             </ResponsiveContainer>
           </div>

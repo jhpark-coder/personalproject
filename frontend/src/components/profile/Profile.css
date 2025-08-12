@@ -2,59 +2,66 @@
 .profile-container {
   min-height: calc(100vh - 56px);
   padding-bottom: calc(env(safe-area-inset-bottom) + 48px);
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background-color: var(--gray-50);
   color: var(--gray-900);
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: inherit;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
-/* 새로운 헤더 스타일 */
-.profile-header {
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(10px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-  padding: var(--spacing-lg) var(--spacing-md);
+/* 모든 카드 요소들이 전체 폭을 활용하도록 설정 */
+.profile-container * {
+  box-sizing: border-box;
+}
+
+/* Records Room 헤더 스타일 */
+.records-room .header {
+  background: var(--brand-primary);
+  backdrop-filter: none;
+  padding: 1rem;
   position: sticky;
   top: 0;
   z-index: 100;
+  width: 100%;
+}
+
+.records-room .header-content {
   display: flex;
   align-items: center;
-  gap: var(--spacing-md);
-  box-shadow: 0 2px 20px rgba(0, 0, 0, 0.1);
+  justify-content: space-between;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
 }
 
-.profile-header h1 {
-  font-size: var(--text-xl);
-  font-weight: 700;
-  color: var(--gray-900);
-  margin: 0;
-  flex: 1;
-  text-align: center;
-  writing-mode: horizontal-tb;
-}
-
-.profile-header .back-button {
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.3);
-  font-size: 1rem;
-  color: var(--gray-700);
+.records-room .back-button {
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  color: white;
+  font-size: 1.5rem;
+  padding: 0.5rem;
+  border-radius: 50%;
   cursor: pointer;
-  padding: var(--spacing-sm) var(--spacing-md);
-  border-radius: var(--radius-lg);
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-xs);
-  backdrop-filter: blur(10px);
-  writing-mode: horizontal-tb;
-  white-space: nowrap;
+  transition: background 0.3s;
 }
 
-.profile-header .back-button:hover {
-  background: rgba(255, 255, 255, 0.95);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+.records-room .back-button:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.records-room .header-title {
+  color: white;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+/* PC에서 백버튼 숨기기 */
+@media (min-width: 769px) {
+  .records-room .back-button {
+    visibility: hidden;
+  }
 }
 
 /* 로딩 스타일 */
@@ -118,6 +125,27 @@
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
 }
 
+/* PC 이외의 모든 화면에서 전체 폭 사용 */
+@media (max-width: 1023px) {
+  .profile-container {
+    width: 100vw;
+    max-width: 100vw;
+    align-items: stretch;
+    margin: 0;
+    padding-left: 0;
+    padding-right: 0;
+  }
+}
+
+/* PC 화면에서만 최대폭 제한 */
+@media (min-width: 1024px) {
+  .profile-container {
+    width: 100%;
+    max-width: none;
+    align-items: center;
+  }
+}
+
 /* 프로필 섹션 스타일 */
 .profile-section {
   display: flex;
@@ -131,6 +159,7 @@
   border: 1px solid rgba(255, 255, 255, 0.2);
   backdrop-filter: blur(10px);
   transition: transform 0.3s ease;
+  width: 100%;
 }
 
 .profile-section:hover {
@@ -142,7 +171,7 @@
   width: 100px;
   height: 100px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background-color: var(--brand-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -150,7 +179,7 @@
   color: white;
   font-weight: 700;
   flex-shrink: 0;
-  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 8px 25px rgba(51, 65, 85, 0.25);
   border: 4px solid rgba(255, 255, 255, 0.8);
 }
 
@@ -222,6 +251,7 @@
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.2);
   backdrop-filter: blur(10px);
+  width: 100%;
 }
 
 .detail-item {
@@ -278,10 +308,11 @@
   flex-direction: column;
   gap: var(--spacing-sm);
   margin-bottom: 0.5rem;
+  width: 100%;
 }
 
 .analytics-button {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background-color: var(--accent-coral);
   color: white;
   border: none;
   padding: var(--spacing-lg);
@@ -291,7 +322,7 @@
   cursor: pointer;
   transition: all 0.3s ease;
   width: 100%;
-  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+  box-shadow: var(--shadow-md);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -347,46 +378,177 @@
   transform: translateY(-1px);
 }
 
-/* 기존 스타일들 유지 */
+/* Profile 헤더 스타일 */
 .profile-container .header {
-  background: var(--white);
-  border-bottom: 1px solid var(--gray-200);
-  padding: var(--spacing-md);
+  background: var(--brand-primary);
+  backdrop-filter: none;
+  padding: 1rem;
   position: sticky;
   top: 0;
   z-index: 100;
+  width: 100%;
 }
 
 .profile-container .header-content {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  max-width: 480px;
+  max-width: 1200px;
   margin: 0 auto;
+  width: 100%;
 }
 
 .profile-container .back-button {
-  background: none;
+  background: rgba(255, 255, 255, 0.2);
   border: none;
-  color: var(--gray-900);
+  color: white;
+  font-size: 1.5rem;
+  padding: 0.5rem;
+  border-radius: 50%;
   cursor: pointer;
-  padding: var(--spacing-sm);
-  border-radius: var(--radius-md);
-  transition: background-color 0.2s;
+  transition: background 0.3s;
 }
 
 .profile-container .back-button:hover {
-  background: var(--gray-100);
+  background: rgba(255, 255, 255, 0.3);
 }
 
 .profile-container .header-title {
-  font-size: var(--text-xl);
+  color: white;
+  font-size: 1.2rem;
   font-weight: 600;
-  color: var(--gray-900);
 }
 
+/* PC에서 백버튼 숨기기 */
+@media (min-width: 769px) {
+  .profile-container .back-button {
+    visibility: hidden;
+  }
+}
+
+.profile-content {
+  padding: var(--spacing-md) var(--spacing-md) 0.5rem;
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+/* PC에서만 보이는 추가 컨텐츠 */
+.pc-only {
+  display: none;
+}
+
+/* 대형 태블릿/랩톱에서 부분적 그리드 적용 */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .profile-content {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-md);
+    grid-template-areas:
+      "profile-section profile-section"
+      "basic-info basic-info"
+      "actions actions";
+  }
+  
+  .profile-section {
+    grid-area: profile-section;
+  }
+  
+  .basic-info {
+    grid-area: basic-info;
+  }
+  
+  .profile-actions {
+    grid-area: actions;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-sm);
+  }
+  
+  .profile-actions .analytics-button:nth-child(3),
+  .profile-actions .logout-button {
+    grid-column: 1 / -1;
+  }
+}
+
+/* PC 화면에서만 최대폭 제한 및 2열 그리드 레이아웃 */
+@media (min-width: 1024px) {
+  .profile-content {
+    max-width: var(--content-max);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-lg);
+    grid-template-areas:
+      "profile-section basic-info"
+      "workout-stats goals-info"
+      "actions actions";
+  }
+  
+  /* PC에서만 보이는 컨텐츠 표시 */
+  .pc-only {
+    display: block;
+  }
+  
+  /* 그리드 영역 지정 */
+  .profile-section {
+    grid-area: profile-section;
+  }
+  
+  .basic-info {
+    grid-area: basic-info;
+  }
+  
+  .workout-stats {
+    grid-area: workout-stats;
+  }
+  
+  .goals-info {
+    grid-area: goals-info;
+  }
+  
+  .profile-actions {
+    grid-area: actions;
+    grid-column: 1 / -1; /* 전체 폭 사용 */
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-md);
+  }
+  
+  /* PC에서 액션 버튼들을 2열로 배치 */
+  .profile-actions .analytics-button:nth-child(1),
+  .profile-actions .analytics-button:nth-child(2) {
+    margin-bottom: 0;
+  }
+  
+  .profile-actions .analytics-button:nth-child(3),
+  .profile-actions .logout-button {
+    grid-column: 1 / -1; /* 전체 폭 사용 */
+  }
+}
+
+/* 초대형 화면에서 더 넓은 레이아웃 */
+@media (min-width: 1440px) {
+  .profile-content {
+    max-width: 1200px; /* 더 넓은 최대폭 */
+  }
+  
+  .profile-actions {
+    grid-template-columns: repeat(4, 1fr); /* 4열 그리드 */
+    gap: var(--spacing-lg);
+  }
+  
+  .profile-actions .logout-button {
+    grid-column: 1 / -1; /* 로그아웃 버튼만 전체 폭 */
+  }
+  
+  .profile-actions .analytics-button {
+    grid-column: auto; /* 개별 셀 사용 */
+  }
+}
+
+/* 기존 좁은 레이아웃 제거하여 전체 폭 활용 */
 .profile-container .profile-content {
-  max-width: 480px;
+  /* max-width: 480px; - 제거하여 전체 폭 사용 */
   margin: 0 auto;
   padding: var(--spacing-lg) var(--spacing-md) calc(64px + env(safe-area-inset-bottom)) var(--spacing-md);
 }
@@ -412,6 +574,7 @@
   margin-bottom: var(--spacing-xl);
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--gray-200);
+  width: 100%;
 }
 
 .profile-info {
@@ -425,7 +588,7 @@
   width: 80px;
   height: 80px;
   border-radius: 50%;
-  background: var(--primary-blue);
+  background: var(--brand-primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -465,7 +628,7 @@
 .stat-value {
   font-size: var(--text-xl);
   font-weight: 600;
-  color: var(--primary-blue);
+  color: var(--brand-primary);
   margin-bottom: var(--spacing-sm);
 }
 
@@ -496,17 +659,17 @@
 
 .action-button:hover {
   background: var(--gray-50);
-  border-color: var(--primary-blue);
+  border-color: var(--brand-primary);
 }
 
 .action-button.primary {
-  background: var(--primary-blue);
+  background: var(--brand-primary);
   color: white;
-  border-color: var(--primary-blue);
+  border-color: var(--brand-primary);
 }
 
 .action-button.primary:hover {
-  background: #0056CC;
+  background: var(--brand-primary-strong);
 }
 
 .action-button.danger {
@@ -528,6 +691,7 @@
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.2);
   backdrop-filter: blur(10px);
+  width: 100%;
 }
 
 .stats-title {
@@ -552,50 +716,37 @@
 }
 
 .stat-card {
-  background: rgba(102, 126, 234, 0.05);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-lg);
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-md);
-  transition: all 0.3s ease;
-  border: 1px solid rgba(102, 126, 234, 0.1);
+  background: rgba(44, 62, 80, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 20px;
+  color: #fff;
+  text-align: center;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
 }
 
 .stat-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
-  background: rgba(102, 126, 234, 0.1);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22);
+  background: rgba(44, 62, 80, 0.98);
 }
 
 .stat-icon {
-  font-size: 2rem;
-  width: 50px;
-  height: 50px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 50%;
-  color: white;
-  flex-shrink: 0;
-}
-
-.stat-content {
-  flex: 1;
+  font-size: 28px;
+  margin-bottom: 10px;
 }
 
 .stat-value {
-  font-size: var(--text-xl);
-  font-weight: 700;
-  color: var(--gray-900);
-  margin-bottom: var(--spacing-xs);
+  font-size: 24px;
+  font-weight: bold;
+  margin-bottom: 5px;
 }
 
 .stat-label {
-  font-size: var(--text-sm);
-  color: var(--gray-600);
-  font-weight: 500;
+  font-size: 12px;
+  opacity: 0.9;
+  line-height: 1.3;
 }
 
 /* 기본 정보 섹션 (컴팩트) */
@@ -607,6 +758,7 @@
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.2);
   backdrop-filter: blur(10px);
+  width: 100%;
 }
 
 .info-title {
@@ -642,8 +794,8 @@
 }
 
 .info-item:hover {
-  background: rgba(102, 126, 234, 0.05);
-  border-color: rgba(102, 126, 234, 0.2);
+  background: rgba(51,65,85, 0.05);
+  border-color: rgba(51,65,85, 0.2);
 }
 
 .info-label {
@@ -662,11 +814,12 @@
 
 /* 신체 변화 섹션 */
 .body-changes {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: rgba(51,65,85,0.06);
+  border: 1px solid rgba(51,65,85,0.18);
   border-radius: 16px;
   padding: 20px;
   margin: 20px 0;
-  color: white;
+  color: var(--gray-900);
 }
 
 .changes-grid {
@@ -790,17 +943,20 @@
 }
 
 .stat-card {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: rgba(44, 62, 80, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 12px;
   padding: 20px;
-  color: white;
+  color: #fff;
   text-align: center;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
-  transition: transform 0.2s ease;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
 }
 
 .stat-card:hover {
   transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.22);
+  background: rgba(44, 62, 80, 0.98);
 }
 
 .stat-icon {
@@ -818,6 +974,78 @@
   font-size: 12px;
   opacity: 0.9;
   line-height: 1.3;
+}
+
+/* 목표 정보 섹션 스타일 */
+.goals-info {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-xl);
+  margin-bottom: var(--spacing-xl);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  width: 100%;
+}
+
+.goal-item {
+  margin-bottom: var(--spacing-md);
+}
+
+.goal-progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.progress-text {
+  font-size: var(--text-sm);
+  color: var(--gray-600);
+  font-weight: 600;
+}
+
+.progress-bar {
+  height: 8px;
+  background: rgba(102, 126, 234, 0.2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background-color: var(--brand-primary);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.progress-value {
+  font-size: var(--text-sm);
+  color: var(--gray-900);
+  font-weight: 700;
+  text-align: right;
+}
+
+/* 태블릿에서도 화면 가득 채우기 - 1열 레이아웃 유지 */
+@media (min-width: 481px) and (max-width: 1023px) {
+  .profile-container {
+    width: 100vw;
+    max-width: 100vw;
+    align-items: stretch;
+  }
+  
+  .profile-content {
+    padding: var(--spacing-md) var(--spacing-sm) 0;
+    width: 100%;
+    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+  }
+  
+  /* 태블릿에서는 PC 전용 컨텐츠 숨김 */
+  .pc-only {
+    display: none;
+  }
 }
 
 /* 반응형 디자인 */
@@ -910,6 +1138,30 @@
 }
 
 @media (max-width: 480px) {
+  .profile-container {
+    padding-bottom: env(safe-area-inset-bottom);
+    width: 100vw;
+    max-width: 100vw;
+    align-items: stretch;
+    margin: 0;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  
+  .profile-content {
+    padding: var(--spacing-sm) var(--spacing-xs) 0;
+    width: 100%;
+    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+  }
+  
+  /* 모바일에서는 PC 전용 컨텐츠 숨김 */
+  .pc-only {
+    display: none;
+  }
+
   .changes-grid {
     grid-template-columns: 1fr;
   }
@@ -1013,6 +1265,29 @@
   }
 } 
 
+/* Records Room: PC에서 프로필 그리드 해제 및 영역 겹침 방지 */
+@media (min-width: 1024px) {
+  .records-room .profile-content {
+    display: block;              /* 프로필 페이지의 2열 그리드 해제 */
+    max-width: var(--content-max);
+    margin: 0 auto;
+  }
+  .records-room .basic-info {
+    grid-area: auto !important;  /* grid-template-areas 강제 배치 무효화 */
+  }
+}
+
+/* Profile 페이지와 Records Room의 content-wrapper 제한 해제 */
+.profile-container .profile-content {
+  width: 100%;
+  max-width: 100% !important; /* content-wrapper의 --content-max 제한 덮어쓰기 */
+}
+
+.records-room .profile-content {
+  width: 100%;
+  max-width: 100% !important; /* content-wrapper의 --content-max 제한 덮어쓰기 */
+}
+
 /* Body Record Form 전용 스타일 */
 .profile-container .basic-info input,
 .profile-container .basic-info textarea {
@@ -1029,8 +1304,8 @@
 .profile-container .basic-info input:focus,
 .profile-container .basic-info textarea:focus {
   outline: none;
-  border-color: var(--primary-blue);
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 2px rgba(51,65,85, 0.12);
 }
 
 .profile-container .basic-info textarea {
@@ -1055,6 +1330,31 @@
   white-space: nowrap;
 } 
 
+/* 프로필 콘텐츠의 마지막 요소는 여백 제거 */
+.profile-content > :last-child {
+  margin-bottom: 0.25rem !important;
+}
+
 .profile-container .profile-content > :last-child {
   margin-bottom: 12px !important;
 } 
+
+/* 로딩 스켈레톤 보조 */
+.profile-loading .loading-spinner {
+  border-top-color: var(--white);
+}
+
+.logout-button {
+  background: linear-gradient(135deg, #ff6b6b 0%, #ee5a52 100%);
+}
+
+@media (prefers-color-scheme: dark) {
+  .profile-loading .loading-spinner {
+    border-top-color: var(--gray-100);
+  }
+} 
+
+/* 최근 활동 카드(어두운 배경) 가독성 강화 */
+.workout-stats .stat-card .stat-icon { color: #fff; }
+.workout-stats .stat-card .stat-value { color: #fff; }
+.workout-stats .stat-card .stat-label { color: rgba(255, 255, 255, 0.9); } 

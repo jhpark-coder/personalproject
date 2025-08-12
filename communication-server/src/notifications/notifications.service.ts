@@ -1,23 +1,29 @@
 import { Injectable } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
-import { Notification, NotificationDocument } from '../schemas/notification.schema';
+import {
+  Notification,
+  NotificationDocument,
+} from '../schemas/notification.schema';
 import { CreateNotificationDto } from './dto/create-notification.dto';
 
 @Injectable()
 export class NotificationsService {
   constructor(
-    @InjectModel(Notification.name) private notificationModel: Model<NotificationDocument>,
+    @InjectModel(Notification.name)
+    private notificationModel: Model<NotificationDocument>,
   ) {}
 
   // Spring Boot에서 보낸 알림을 MongoDB에 저장
-  async createNotification(createNotificationDto: CreateNotificationDto): Promise<Notification> {
+  async createNotification(
+    createNotificationDto: CreateNotificationDto,
+  ): Promise<Notification> {
     const notification = new this.notificationModel({
       ...createNotificationDto,
       isRead: false,
       createdAt: new Date(),
     });
-    
+
     return await notification.save();
   }
 
@@ -31,14 +37,16 @@ export class NotificationsService {
 
   // 알림 읽음 처리
   async markAsRead(notificationId: string): Promise<void> {
-    await this.notificationModel.findByIdAndUpdate(notificationId, { isRead: true });
+    await this.notificationModel.findByIdAndUpdate(notificationId, {
+      isRead: true,
+    });
   }
 
   // 읽지 않은 알림 개수 조회
   async getUnreadCount(userId: number): Promise<number> {
-    return this.notificationModel.countDocuments({ 
-      targetUserId: userId, 
-      isRead: false 
+    return this.notificationModel.countDocuments({
+      targetUserId: userId,
+      isRead: false,
     });
   }
-} 
+}

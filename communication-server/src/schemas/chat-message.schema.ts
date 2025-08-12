@@ -23,4 +23,4 @@ export class ChatMessage {
   timestamp: Date;
 }
 
-export const ChatMessageSchema = SchemaFactory.createForClass(ChatMessage); 
+export const ChatMessageSchema = SchemaFactory.createForClass(ChatMessage);

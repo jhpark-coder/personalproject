@@ -78,7 +78,10 @@ public class CalendarController {
             System.out.println("Redis에 캘린더 연동 플래그 저장: userId=" + userId);
 
             // Google OAuth2 인증 URL 생성 (캘린더 연동용)
-            String authUrl = UriComponentsBuilder.fromHttpUrl(backendUrl + "/oauth2/authorization/google")
+            // 외부 접근 기준의 베이스 URL을 요청 헤더로부터 우선 계산하고, 실패 시 app.backend.url 사용
+            String externalBaseUrl = resolveExternalBaseUrl(request);
+            String authUrl = UriComponentsBuilder.fromHttpUrl(externalBaseUrl)
+                    .path("/oauth2/authorization/google")
                     .queryParam("user_id", userId)
                     .queryParam("calendar_only", "true") // 캘린더 연동임을 표시
                     .toUriString();
@@ -129,6 +132,36 @@ public class CalendarController {
             }
         }
         throw new UsernameNotFoundException("사용자 ID를 추출할 수 없습니다: " + principal);
+    }
+
+    // 요청 헤더 기반으로 외부 기준의 베이스 URL을 계산합니다.
+    // X-Forwarded-Proto / X-Forwarded-Host가 존재하면 이를 사용하고, 없으면 Host/기본 서버 정보를 사용합니다.
+    // 모두 없으면 설정값(app.backend.url)로 폴백합니다.
+    private String resolveExternalBaseUrl(HttpServletRequest request) {
+        try {
+            String proto = firstNonBlank(
+                request.getHeader("X-Forwarded-Proto"),
+                request.getScheme()
+            );
+            String host = firstNonBlank(
+                request.getHeader("X-Forwarded-Host"),
+                request.getHeader("Host"),
+                request.getServerName()
+            );
+
+            if (proto != null && host != null && !host.isBlank()) {
+                return proto + "://" + host;
+            }
+        } catch (Exception ignored) {}
+        return backendUrl; // 최종 폴백
+    }
+
+    private String firstNonBlank(String... values) {
+        if (values == null) return null;
+        for (String v : values) {
+            if (v != null && !v.isBlank()) return v;
+        }
+        return null;
     }
 
     /**

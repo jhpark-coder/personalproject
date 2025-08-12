@@ -128,6 +128,14 @@ public class DataLoader {
                 System.out.println("🔒 테스트 사용자 비밀번호를 BCrypt 로 암호화했습니다.");
             }
             
+            // 📱 테스트 사용자 전화번호 보정
+            String desiredPhone = "010-1234-5678";
+            if (existingUser.getPhoneNumber() == null || !existingUser.getPhoneNumber().equals(desiredPhone)) {
+                existingUser.setPhoneNumber(desiredPhone);
+                userService.save(existingUser);
+                System.out.println("📱 테스트 사용자 전화번호를 010-1234-5678 로 업데이트했습니다.");
+            }
+            
             // 기존 테스트 데이터가 있는지 확인
             long workoutCount = workoutRecordService.countByUserId(existingUser.getId());
             long bodyRecordCount = bodyRecordService.countByUserId(existingUser.getId());
@@ -168,7 +176,7 @@ public class DataLoader {
         User testUser = new User();
         testUser.setEmail("test@fitmate.com");
         testUser.setName("테스트 사용자");
-        testUser.setPhoneNumber("010-2623-8769");
+        testUser.setPhoneNumber("010-1234-5678");
         testUser.setAge("28");
         testUser.setGender("male");
         testUser.setHeight("175.0");

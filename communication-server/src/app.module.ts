@@ -25,10 +25,15 @@ import databaseConfig from './config/database.config';
         redisConfig,
         databaseConfig,
         // 환경에 따라 적절한 설정 로드
-        process.env.NODE_ENV === 'production' ? productionConfig : developmentConfig,
+        process.env.NODE_ENV === 'production'
+          ? productionConfig
+          : developmentConfig,
       ],
       envFilePath: [
-        path.join(process.cwd(), `.env.${process.env.NODE_ENV || 'development'}`),
+        path.join(
+          process.cwd(),
+          `.env.${process.env.NODE_ENV || 'development'}`,
+        ),
         path.join(process.cwd(), '.env'),
       ],
       expandVariables: true,
@@ -37,7 +42,10 @@ import databaseConfig from './config/database.config';
     MongooseModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (configService: ConfigService) => ({
-        uri: configService.get<string>('database.mongodb.uri') || process.env.MONGODB_URI || 'mongodb://localhost:27017/communication-server-dev',
+        uri:
+          configService.get<string>('database.mongodb.uri') ||
+          process.env.MONGODB_URI ||
+          'mongodb://localhost:27017/communication-server-dev',
       }),
       inject: [ConfigService],
     }),

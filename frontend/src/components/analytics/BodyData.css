@@ -1,12 +1,13 @@
 .body-data-container {
   min-height: calc(100vh - 56px);
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background-color: var(--gray-50);
   padding-bottom: calc(env(safe-area-inset-bottom) + 48px);
+  width: 100%;
 }
 
 .header {
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(10px);
+  background: var(--brand-primary);
+  backdrop-filter: none;
   padding: 1rem;
   position: sticky;
   top: 0;
@@ -17,8 +18,10 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  max-width: 1200px;
+  max-width: var(--content-max);
   margin: 0 auto;
+  /* PC에서 컨테이너가 flex로 가운데 정렬되어 있어 폭이 줄어드는 문제 방지 */
+  width: 100%;
 }
 
 .back-button {
@@ -57,9 +60,11 @@
 }
 
 .body-data-content {
-  max-width: 1200px;
+  max-width: var(--content-max);
   margin: 0 auto;
   padding: 1rem;
+  /* PC에서 컨테이너의 align-items:center로 인해 폭이 줄지 않도록 확장 */
+  width: 100%;
 }
 
 .data-section {
@@ -90,7 +95,7 @@
 .current-value {
   font-size: 1.5rem;
   font-weight: 700;
-  color: #007AFF;
+  color: var(--brand-primary);
 }
 
 .change-info {
@@ -122,18 +127,18 @@
 }
 
 .tab-button.active {
-  background: #007AFF;
+  background: var(--brand-primary);
   color: white;
-  box-shadow: 0 2px 8px rgba(0, 122, 255, 0.3);
+  box-shadow: 0 2px 8px rgba(51, 65, 85, 0.25);
 }
 
 .tab-button:hover {
-  background: rgba(0, 122, 255, 0.1);
-  color: #007AFF;
+  background: rgba(51, 65, 85, 0.08);
+  color: var(--brand-primary);
 }
 
 .tab-button.active:hover {
-  background: #0056CC;
+  background: var(--brand-primary-strong);
 }
 
 .min-max-info {
@@ -225,6 +230,12 @@
 
 .retry-button:hover {
   background: rgba(255, 255, 255, 0.3);
+}
+
+/* Profile 페이지와 동일한 방식으로 content-wrapper 제한 해제 */
+.body-data-container .body-data-content {
+  width: 100%;
+  max-width: 100% !important; /* content-wrapper의 --content-max 제한 덮어쓰기 */
 }
 
 /* 반응형 디자인 */

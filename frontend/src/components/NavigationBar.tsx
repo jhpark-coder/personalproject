@@ -16,7 +16,6 @@ const NavigationBar: React.FC<NavigationBarProps> = ({ className = '' }) => {
     return location.pathname === path;
   };
 
-  // 읽지 않은 알림 개수 조회
   useEffect(() => {
     const fetchUnreadCount = async () => {
       if (!user?.id) return;
@@ -34,14 +33,12 @@ const NavigationBar: React.FC<NavigationBarProps> = ({ className = '' }) => {
     };
 
     fetchUnreadCount();
-    
-    // 30초마다 알림 개수 새로고침
     const interval = setInterval(fetchUnreadCount, 30000);
     return () => clearInterval(interval);
   }, [user?.id]);
 
-  return (
-    <div className={`navigation-bar ${className}`}>
+  const NavItems = (
+    <>
       <Link to="/" className={`nav-item ${isActive('/') ? 'active' : ''}`}>
         <div className="nav-icon">🏠</div>
         <span>홈</span>
@@ -67,7 +64,24 @@ const NavigationBar: React.FC<NavigationBarProps> = ({ className = '' }) => {
         <div className="nav-icon">👤</div>
         <span>마이페이지</span>
       </Link>
-    </div>
+    </>
+  );
+
+  return (
+    <>
+      {/* 모바일/태블릿: 하단 네비게이션 */}
+      <div className={`navigation-bar ${className}`}>
+        {NavItems}
+      </div>
+
+      {/* 데스크톱: 좌측 사이드바 네비게이션 */}
+      <aside className="sidebar-navigation desktop-only">
+        <div className="sidebar-header">FitMate</div>
+        <nav className="sidebar-items">
+          {NavItems}
+        </nav>
+      </aside>
+    </>
   );
 };
 

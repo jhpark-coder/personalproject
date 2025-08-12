@@ -1,6 +1,7 @@
 package backend.fitmate.Exercise.repository;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -21,6 +22,13 @@ public interface ExerciseRepository extends JpaRepository<Exercise, Long> {
      * @return List<Exercise>
      */
     List<Exercise> findByNameContainingIgnoreCase(String name);
+
+    /**
+     * 한국어 운동 이름으로 운동을 찾습니다.
+     * @param koreanName 한국어 운동 이름
+     * @return Optional<Exercise>
+     */
+    Optional<Exercise> findByKoreanName(String koreanName);
 
     /**
      * 운동 이름(대소문자 구분 없이)으로 검색합니다. (페이지네이션 지원)
@@ -78,4 +86,10 @@ public interface ExerciseRepository extends JpaRepository<Exercise, Long> {
      */
     @Query("SELECT DISTINCT e.category FROM Exercise e WHERE e.category IS NOT NULL ORDER BY e.category")
     List<String> findAllDistinctCategories();
+
+    @Query("SELECT e FROM Exercise e WHERE EXISTS (SELECT 1 FROM e.muscles m WHERE LOWER(m) LIKE LOWER(CONCAT('%', :muscle, '%'))) OR EXISTS (SELECT 1 FROM e.musclesSecondary ms WHERE LOWER(ms) LIKE LOWER(CONCAT('%', :muscle, '%')))")
+    List<Exercise> findByAnyMuscleContaining(@Param("muscle") String muscle);
+
+    @Query("SELECT e FROM Exercise e WHERE LOWER(e.name) LIKE LOWER(CONCAT('%', :name, '%')) AND (EXISTS (SELECT 1 FROM e.muscles m WHERE LOWER(m) LIKE LOWER(CONCAT('%', :muscle, '%'))) OR EXISTS (SELECT 1 FROM e.musclesSecondary ms WHERE LOWER(ms) LIKE LOWER(CONCAT('%', :muscle, '%'))))")
+    List<Exercise> findByNameContainingIgnoreCaseAndAnyMuscleContaining(@Param("name") String name, @Param("muscle") String muscle);
 } 

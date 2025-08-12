@@ -6,6 +6,24 @@
   text-align: initial;
 }
 
+/* 모바일/태블릿에서는 중앙 정렬 */
+@media (max-width: 1023px) {
+  #root {
+    display: flex;
+    justify-content: center;
+  }
+}
+
+/* 데스크톱에서 전체 화면을 사용하는 래퍼 */
+@media (min-width: 1024px) {
+  .app-wrapper {
+    position: relative;
+    width: 100%;
+    max-width: none; /* 전체 화면 사용 */
+    margin: 0;
+  }
+}
+
 .logo {
   height: 6em;
   padding: 1.5em;

@@ -15,7 +15,9 @@ describe('NotificationsService', () => {
       }),
     };
 
-    mockNotificationModel = jest.fn().mockImplementation(() => mockNotification);
+    mockNotificationModel = jest
+      .fn()
+      .mockImplementation(() => mockNotification);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -76,7 +78,9 @@ describe('NotificationsService', () => {
       const result = await service.getUserNotifications(userId);
 
       // then
-      expect(mockNotificationModel.find).toHaveBeenCalledWith({ targetUserId: userId });
+      expect(mockNotificationModel.find).toHaveBeenCalledWith({
+        targetUserId: userId,
+      });
       expect(result).toEqual(mockNotifications);
     });
   });
@@ -91,7 +95,10 @@ describe('NotificationsService', () => {
       await service.markAsRead(notificationId);
 
       // then
-      expect(mockNotificationModel.findByIdAndUpdate).toHaveBeenCalledWith(notificationId, { isRead: true });
+      expect(mockNotificationModel.findByIdAndUpdate).toHaveBeenCalledWith(
+        notificationId,
+        { isRead: true },
+      );
     });
   });
 
@@ -101,7 +108,9 @@ describe('NotificationsService', () => {
       const userId = 1;
       const unreadCount = 5;
 
-      mockNotificationModel.countDocuments = jest.fn().mockResolvedValue(unreadCount);
+      mockNotificationModel.countDocuments = jest
+        .fn()
+        .mockResolvedValue(unreadCount);
 
       // when
       const result = await service.getUnreadCount(userId);
