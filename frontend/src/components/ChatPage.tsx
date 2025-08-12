@@ -200,14 +200,21 @@ const ChatPage: React.FC<ChatPageProps> = ({ onClose, isModal = true }) => {
   return (
     <div className={`chat-page ${isModal ? 'chat-modal' : 'chat-page-standalone'}`}>
       {/* 헤더 */}
-      <div className="chat-header">
+      <div className="chat-header content-wrapper">
         <div className="chat-title">{getAdminStatusText()}</div>
-        <button className="close-button" onClick={onClose}>나가기</button>
+        <button className="close-button" onClick={onClose} aria-label="채팅 나가기">나가기</button>
       </div>
 
       {/* 메시지 영역 */}
-      <div className="chat-messages">
-        {messages.length === 0 && (
+      <div className="chat-messages content-wrapper">
+        {!isConnected && (
+          <div style={{ padding: 12 }}>
+            <div className="skeleton skeleton-bar" style={{ width: '30%', marginBottom: 8 }}></div>
+            <div className="skeleton skeleton-card" style={{ height: 80, marginBottom: 8 }}></div>
+            <div className="skeleton skeleton-card" style={{ height: 80 }}></div>
+          </div>
+        )}
+        {messages.length === 0 && isConnected && (
           <div className="date-separator">
             <span className="date-label">{formatDate(new Date())}</span>
           </div>
@@ -244,7 +251,7 @@ const ChatPage: React.FC<ChatPageProps> = ({ onClose, isModal = true }) => {
       </div>
 
       {/* 입력 영역 */}
-      <div className="chat-input-area">
+      <div className="chat-input-area content-wrapper">
         <div className="input-container">
           <textarea
             value={inputMessage}
@@ -253,17 +260,19 @@ const ChatPage: React.FC<ChatPageProps> = ({ onClose, isModal = true }) => {
             placeholder="메시지를 입력하세요..."
             className="message-input"
             rows={1}
+            aria-label="메시지 입력"
           />
           <button 
             onClick={sendMessage}
             disabled={!inputMessage.trim() || !isConnected}
             className="send-button"
+            aria-label="메시지 전송"
           >
             전송
           </button>
         </div>
         {!isConnected && (
-          <div className="connection-status">
+          <div className="connection-status" aria-live="polite">
             연결 중...
           </div>
         )}

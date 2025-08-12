@@ -1,0 +1,27 @@
+.toast-container {
+  position: fixed;
+  left: 50%;
+  bottom: max(env(safe-area-inset-bottom), 16px);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  z-index: 2000;
+}
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--white);
+  color: var(--gray-900);
+  border: 1px solid var(--gray-200);
+  box-shadow: var(--shadow-md);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  min-width: 240px;
+}
+.toast-success { border-color: var(--success-green); }
+.toast-error { border-color: var(--danger-red); }
+.toast-info { border-color: var(--brand-primary); }
+.toast-message { flex: 1; }
+.toast-close { border: none; background: transparent; cursor: pointer; font-size: 14px; } 

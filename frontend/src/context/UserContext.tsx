@@ -13,6 +13,7 @@ export interface UserData {
   gender?: string;
   phoneNumber?: string;
   birthDate?: string;
+  role?: string;
 }
 
 interface UserContextValue {
@@ -30,6 +31,19 @@ export const useUser = () => {
   if (!ctx) throw new Error('useUser must be used within UserProvider');
   return ctx;
 };
+
+function decodeJwtRole(token: string | null): string | undefined {
+  try {
+    if (!token) return undefined;
+    const parts = token.split('.');
+    if (parts.length < 2) return undefined;
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/')));
+    return typeof payload.role === 'string' ? payload.role : undefined;
+  } catch (e) {
+    console.warn('JWT decode failed', e);
+    return undefined;
+  }
+}
 
 const fetchProfile = async (signal: AbortSignal): Promise<UserData> => {
   const token = localStorage.getItem('token');
@@ -90,6 +104,7 @@ const fetchProfile = async (signal: AbortSignal): Promise<UserData> => {
     }
     
     const u = responseData.user;
+    const roleFromToken = decodeJwtRole(token);
     const user: UserData = {
       id: u.id || 0,
       email: u.email || '',
@@ -102,6 +117,7 @@ const fetchProfile = async (signal: AbortSignal): Promise<UserData> => {
       gender: u.gender || '',
       phoneNumber: u.phoneNumber || '',
       birthDate: u.birthDate || '',
+      role: u.role || roleFromToken, // 서버가 제공하면 우선 사용, 없으면 JWT에서 추출
     };
     
     console.log('✅ UserContext 사용자 정보:', user);
@@ -123,6 +139,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
   const setUserFromLogin = (userData: any, token: string) => {
     console.log('🔄 UserContext setUserFromLogin 호출:', userData);
     
+    const roleFromToken = decodeJwtRole(token);
     const user: UserData = {
       id: userData.id || 0,
       email: userData.email || '',
@@ -135,6 +152,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       gender: userData.gender || '',
       phoneNumber: userData.phoneNumber || '',
       birthDate: userData.birthDate || '',
+      role: userData.role || roleFromToken,
     };
     
     console.log('✅ UserContext 로그인 후 사용자 설정:', user);

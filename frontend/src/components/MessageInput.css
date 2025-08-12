@@ -21,8 +21,8 @@
 }
 
 .message-input:focus {
-  border-color: #667eea;
-  box-shadow: 0 0 0 0.125rem rgba(102, 126, 234, 0.1);
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 0.125rem rgba(51, 65, 85, 0.12);
 }
 
 .message-input::placeholder {
@@ -30,7 +30,7 @@
 }
 
 .send-button {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background-color: var(--brand-primary);
   color: white;
   border: none;
   border-radius: 50%;
@@ -45,7 +45,7 @@
 
 .send-button:hover:not(:disabled) {
   transform: scale(1.05);
-  box-shadow: 0 0.25rem 0.75rem rgba(102, 126, 234, 0.3);
+  box-shadow: 0 0.25rem 0.75rem rgba(51, 65, 85, 0.25);
 }
 
 .send-button:disabled {

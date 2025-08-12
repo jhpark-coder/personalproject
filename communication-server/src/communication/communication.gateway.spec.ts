@@ -71,7 +71,8 @@ describe('CommunicationGateway', () => {
 
     gateway = module.get<CommunicationGateway>(CommunicationGateway);
     chatService = module.get<ChatService>(ChatService);
-    notificationsService = module.get<NotificationsService>(NotificationsService);
+    notificationsService =
+      module.get<NotificationsService>(NotificationsService);
 
     // WebSocketServer 데코레이터로 인해 수동으로 설정
     (gateway as any).server = mockServer;
@@ -138,13 +139,17 @@ describe('CommunicationGateway', () => {
         },
       } as any;
 
-      jest.spyOn(chatService, 'removeOnlineUserBySocketId').mockReturnValue('testUser');
+      jest
+        .spyOn(chatService, 'removeOnlineUserBySocketId')
+        .mockReturnValue('testUser');
 
       // when
       gateway.handleDisconnect(mockSocket);
 
       // then
-      expect(chatService.removeOnlineUserBySocketId).toHaveBeenCalledWith('test-socket-id');
+      expect(chatService.removeOnlineUserBySocketId).toHaveBeenCalledWith(
+        'test-socket-id',
+      );
       expect(mockServer.to).toHaveBeenCalledWith('admin');
     });
 
@@ -183,7 +188,10 @@ describe('CommunicationGateway', () => {
 
       // then
       expect(mockSocket.join).toHaveBeenCalledWith('testUser');
-      expect(chatService.addOnlineUser).toHaveBeenCalledWith('testUser', 'test-socket-id');
+      expect(chatService.addOnlineUser).toHaveBeenCalledWith(
+        'testUser',
+        'test-socket-id',
+      );
       expect(result).toEqual({ status: 'joined', user: 'testUser' });
     });
   });
@@ -199,10 +207,15 @@ describe('CommunicationGateway', () => {
       };
 
       const savedMessage = { ...data, id: 'msg-1', timestamp: new Date() };
-      jest.spyOn(chatService, 'saveMessage').mockResolvedValue(savedMessage as any);
+      jest
+        .spyOn(chatService, 'saveMessage')
+        .mockResolvedValue(savedMessage as any);
 
       // when
-      const result = await gateway.handleSendMessage(data, mockSocket as Socket);
+      const result = await gateway.handleSendMessage(
+        data,
+        mockSocket as Socket,
+      );
 
       // then
       expect(chatService.saveMessage).toHaveBeenCalledWith(data);
@@ -219,10 +232,15 @@ describe('CommunicationGateway', () => {
       };
 
       const savedMessage = { ...data, id: 'msg-1', timestamp: new Date() };
-      jest.spyOn(chatService, 'saveMessage').mockResolvedValue(savedMessage as any);
+      jest
+        .spyOn(chatService, 'saveMessage')
+        .mockResolvedValue(savedMessage as any);
 
       // when
-      const result = await gateway.handleSendMessage(data, mockSocket as Socket);
+      const result = await gateway.handleSendMessage(
+        data,
+        mockSocket as Socket,
+      );
 
       // then
       expect(chatService.saveMessage).toHaveBeenCalledWith(data);
@@ -239,14 +257,19 @@ describe('CommunicationGateway', () => {
         { id: '2', content: 'Hi', timestamp: new Date() },
       ];
 
-      jest.spyOn(chatService, 'getChatHistory').mockResolvedValue(history as any);
+      jest
+        .spyOn(chatService, 'getChatHistory')
+        .mockResolvedValue(history as any);
 
       // when
       await gateway.handleGetHistory(data, mockSocket as Socket);
 
       // then
       expect(chatService.getChatHistory).toHaveBeenCalledWith('testUser');
-      expect(mockSocket.emit).toHaveBeenCalledWith('chatHistory', { userId: 'testUser', history });
+      expect(mockSocket.emit).toHaveBeenCalledWith('chatHistory', {
+        userId: 'testUser',
+        history,
+      });
     });
   });
 
@@ -282,7 +305,10 @@ describe('CommunicationGateway', () => {
       gateway.broadcastNotification(notification);
 
       // then
-      expect(mockServer.emit).toHaveBeenCalledWith('broadcastNotification', notification);
+      expect(mockServer.emit).toHaveBeenCalledWith(
+        'broadcastNotification',
+        notification,
+      );
     });
   });
-}); 
+});

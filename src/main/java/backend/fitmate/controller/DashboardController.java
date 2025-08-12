@@ -9,7 +9,6 @@ import java.util.Map;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -19,7 +18,6 @@ import backend.fitmate.config.RateLimit;
 
 @RestController
 @RequestMapping("/api/dashboard")
-@CrossOrigin(origins = "*")
 public class DashboardController {
 
     @Autowired
@@ -229,18 +227,10 @@ public class DashboardController {
                 Map<String, Object> weekData = new HashMap<>();
                 weekData.put("week", stat[0] != null ? stat[0].toString() : "");
                 weekData.put("value", percentage);
+                weekData.put("minutes", duration);
                 chartData.add(weekData);
             }
             Collections.reverse(chartData); // 데이터 순서를 프론트엔드에 맞게 변경
-        }
-        
-        // 데이터가 없으면 기본값 반환
-        if (chartData.isEmpty()) {
-            chartData.add(Map.of("week", "~12-10", "value", 20));
-            chartData.add(Map.of("week", "~12-17", "value", 30));
-            chartData.add(Map.of("week", "~12-24", "value", 25));
-            chartData.add(Map.of("week", "~12-31", "value", 40));
-            chartData.add(Map.of("week", "~01-07", "value", 80));
         }
         
         return chartData;
@@ -265,11 +255,11 @@ public class DashboardController {
             "count", "6회",
             "comparison", "+2시간 47분",
             "chartData", Arrays.asList(
-                Map.of("week", "~05-03", "value", 20),
-                Map.of("week", "~05-10", "value", 30),
-                Map.of("week", "~05-17", "value", 25),
-                Map.of("week", "~05-24", "value", 40),
-                Map.of("week", "~05-31", "value", 80)
+                Map.of("week", "~05-03", "value", 20, "minutes", 60),
+                Map.of("week", "~05-10", "value", 30, "minutes", 90),
+                Map.of("week", "~05-17", "value", 25, "minutes", 75),
+                Map.of("week", "~05-24", "value", 40, "minutes", 120),
+                Map.of("week", "~05-31", "value", 80, "minutes", 240)
             )
         );
 
@@ -317,11 +307,11 @@ public class DashboardController {
             "count", "6회",
             "comparison", "+2시간 47분",
             "chartData", Arrays.asList(
-                Map.of("week", "~05-03", "value", 20),
-                Map.of("week", "~05-10", "value", 30),
-                Map.of("week", "~05-17", "value", 25),
-                Map.of("week", "~05-24", "value", 40),
-                Map.of("week", "~05-31", "value", 80)
+                Map.of("week", "~05-03", "value", 20, "minutes", 60),
+                Map.of("week", "~05-10", "value", 30, "minutes", 90),
+                Map.of("week", "~05-17", "value", 25, "minutes", 75),
+                Map.of("week", "~05-24", "value", 40, "minutes", 120),
+                Map.of("week", "~05-31", "value", 80, "minutes", 240)
             )
         );
 

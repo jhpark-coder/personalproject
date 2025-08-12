@@ -1,40 +1,49 @@
 /* NotificationCenter.css */
 .notification-center {
-  max-width: 480px;
-  margin: 0 auto;
+  width: 100%;
+  margin: 0;
   background: white;
-  border-radius: 16px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+  border-radius: 0;
+  box-shadow: none;
   overflow: hidden;
-  min-height: 100vh;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  min-height: 100dvh;
+  font-family: inherit;
   padding-bottom: env(safe-area-inset-bottom);
 }
 
 .notification-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background-color: var(--brand-primary);
   color: white;
-  padding: 20px;
+  padding: 1rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 100;
+  border-radius: 0;
+  width: 100%;
+}
+
+.notification-header-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  width: 100%;
 }
 
 .notification-header h2 {
   margin: 0;
-  font-size: 1.5rem;
-  font-weight: 700;
+  font-size: 1.2rem;
+  font-weight: 600;
 }
 
 .notification-actions {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
 
 .unread-badge {
@@ -86,6 +95,9 @@
   padding: 0;
   max-height: calc(100vh - 80px);
   overflow-y: auto;
+  max-width: var(--content-max);
+  margin: 0 auto;
+  width: 100%;
 }
 
 .notification-item {
@@ -105,7 +117,7 @@
 
 .notification-item.unread {
   background: #f0f8ff;
-  border-left: 4px solid #667eea;
+  border-left: 4px solid var(--brand-primary);
 }
 
 .notification-item.unread:hover {
@@ -154,18 +166,18 @@
 }
 
 .unread-indicator {
-  color: #667eea;
+  color: var(--brand-primary);
   font-size: 0.8rem;
   font-weight: bold;
 }
 
 /* 카테고리별 스타일 */
 .notification-item.admin {
-  border-left-color: #667eea;
+  border-left-color: var(--brand-primary);
 }
 
 .notification-item.social {
-  border-left-color: #28a745;
+  border-left-color: var(--success-green);
 }
 
 .notification-item.auction {
@@ -173,7 +185,7 @@
 }
 
 .notification-item.order {
-  border-left-color: #dc3545;
+  border-left-color: var(--danger-red);
 }
 
 .notification-item.default {
@@ -190,11 +202,12 @@
   text-align: center;
 }
 
+/* 로딩 스피너는 전역 유틸 사용 권장, 남겨둘 경우 토큰 기반 */
 .loading-spinner {
   width: 40px;
   height: 40px;
   border: 3px solid #f3f3f3;
-  border-top: 3px solid #667eea;
+  border-top: 3px solid var(--brand-primary);
   border-radius: 50%;
   animation: spin 1s linear infinite;
   margin-bottom: 16px;
@@ -228,7 +241,7 @@
 }
 
 .retry-button {
-  background: #667eea;
+  background: var(--accent-coral);
   color: white;
   border: none;
   padding: 8px 16px;
@@ -240,7 +253,7 @@
 }
 
 .retry-button:hover {
-  background: #5a6fd8;
+  background: var(--primary-blue-dark);
   transform: translateY(-1px);
 }
 
@@ -369,5 +382,29 @@
 
   .no-notifications span {
     color: #aaa;
+  }
+} 
+
+/* PC 화면에서 컨테이너 제한 해제 */
+@media (min-width: 1024px) {
+  .notification-center {
+    width: 100%;
+    max-width: none;
+  }
+  
+  .notification-list {
+    max-width: var(--content-max);
+  }
+}
+
+/* 모바일과 태블릿에서는 전체 폭 사용 */
+@media (max-width: 1023px) {
+  .notification-center {
+    width: 100vw;
+    max-width: 100vw;
+  }
+  
+  .notification-list {
+    max-width: 100%;
   }
 } 

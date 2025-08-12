@@ -736,6 +736,19 @@ const SignupForm: React.FC = () => {
         
         if (data.success) {
           showModal('회원가입 완료', '회원가입이 완료되었습니다!', 'success');
+
+          // 온보딩 상태 초기화 및 로컬 가입 플래그 설정
+          try {
+            localStorage.setItem('justSignedUp', 'true');
+            localStorage.setItem('currentProvider', 'local');
+            localStorage.removeItem('onboardingCompleted');
+            Object.keys(localStorage).forEach((key) => {
+              if (key.startsWith('onboardingCompleted_')) {
+                localStorage.removeItem(key);
+              }
+            });
+          } catch {}
+
           // 로그인 페이지로 이동
           setTimeout(() => {
             window.location.href = '/login';

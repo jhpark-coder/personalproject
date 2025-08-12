@@ -16,24 +16,24 @@ const MessageInput: React.FC<MessageInputProps> = ({
   onKeyPress, 
   placeholder 
 }) => {
+  const handleSend = () => {
+    onSend();
+  };
+
   return (
     <div className="message-input-container">
       <div className="message-input-wrapper">
-        <input
-          type="text"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onKeyPress={onKeyPress}
-          placeholder={placeholder}
-          className="message-input"
-        />
-        <button
-          onClick={onSend}
-          disabled={!value.trim()}
-          className="send-button"
-        >
-          <i className="fas fa-paper-plane"></i>
-        </button>
+        <div className="message-input" role="group" aria-label="메시지 입력 영역">
+          <textarea
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onKeyPress={onKeyPress}
+            placeholder={placeholder}
+            aria-label="메시지 입력"
+            title="Enter로 전송, Shift+Enter로 줄바꿈"
+          />
+          <button onClick={handleSend} className="send-button" aria-label="메시지 전송">전송</button>
+        </div>
       </div>
     </div>
   );

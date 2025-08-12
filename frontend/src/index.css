@@ -1,14 +1,30 @@
 /* 전체 디자인 시스템 */
 :root {
-  /* 색상 팔레트 */
-  --primary-blue: #007AFF;
-  --primary-blue-light: #E3F2FD;
-  --secondary-green: #34C759;
-  --secondary-orange: #FF9500;
-  --secondary-red: #FF3B30;
-  --secondary-purple: #AF52DE;
-  
-  /* 중성 색상 */
+  /* ===== Primary (신뢰성 + 활동성) ===== */
+  --primary: #2563EB;         /* 더 활기찬 블루 (기존 #334155 대신) */
+  --primary-dark: #1D4ED8;    /* 깊이감 있는 블루 */
+  --primary-light: #DBEAFE;   /* 부드러운 배경용 */
+
+  /* ===== Accent (피트니스 특화) ===== */
+  --accent-energy: #F97316;   /* 오렌지 (운동 에너지, CTA) */
+  --accent-energy-dark: #EA580C;  /* hover state */
+  --accent-success: #10B981;  /* 민트그린 (성취/목표달성) */
+  --accent-success-dark: #18A27D; /* hover state */
+  --accent-focus: #8B5CF6;    /* 보라 (집중/명상/프리미엄) */
+
+  /* ===== Semantic (기능적 색상) ===== */
+  --success: #059669;         /* 성공/완료 */
+  --warning: #F59E0B;         /* 주의/경고 */
+  --danger: #DC2626;          /* 위험/오류 */
+  --info: #0EA5E9;           /* 정보/가이드 */
+
+  /* ===== Fitness Tracking (운동 데이터 표현) ===== */
+  --cardio: #EF4444;         /* 유산소 운동 (심박수, 달리기) */
+  --strength: #8B5CF6;       /* 근력 운동 (웨이트, 근육) */  
+  --flexibility: #10B981;    /* 유연성/요가 (스트레칭) */
+  --recovery: #6B7280;       /* 휴식/회복 (수면, 휴식일) */
+
+  /* ===== Grayscale (기존 유지) ===== */
   --white: #FFFFFF;
   --gray-50: #F8F9FA;
   --gray-100: #F1F3F4;
@@ -52,6 +68,32 @@
   --text-2xl: 1.5rem;
   --text-3xl: 1.875rem;
   --text-4xl: 2.25rem;
+  --content-max: 1080px;
+
+  /* ===== Chart & Data Visualization ===== */
+  --chart-active: var(--primary);
+  --chart-neutral: var(--gray-300);
+  --chart-progress: var(--accent-success);
+  --chart-goal: var(--accent-energy);
+  /* Secondary palette for charts */
+  --secondary-red: #EF4444;    /* 체지방 등 경고/감소 경향 */
+  --secondary-green: #10B981;  /* 체중 안정/개선 경향 */
+  --secondary-orange: #F59E0B; /* 중간 강도/중립 오렌지 */
+
+  /* ===== Legacy Support (Phase-out 예정) ===== */
+  --legacy-blue: #007AFF;              /* 기존 iOS 스타일 */
+  --legacy-coral: #FF6B6B;            /* 기존 coral */
+  --legacy-mint: #20C997;             /* 기존 mint */
+  --primary-blue: #007AFF;            /* 임시 호환성 */
+  --brand-primary: #334155;           /* 임시 호환성 */
+  --brand-primary-strong: #1F2937;    /* 임시 호환성 */
+  --accent-coral: #FF6B6B;            /* 임시 호환성 */
+  --accent-coral-dark: #E85C5C;       /* 임시 호환성 */
+  --accent-mint: #20C997;             /* 임시 호환성 */
+  --accent-mint-dark: #18A27D;        /* 임시 호환성 */
+}
+@media (min-width: 1280px) {
+  :root { --content-max: 1200px; }
 }
 
 * {
@@ -61,9 +103,7 @@
 }
 
 body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: "Pretendard Variable", "Pretendard", -apple-system, BlinkMacSystemFont, system-ui, "Roboto", "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: var(--gray-50);
@@ -93,27 +133,54 @@ body {
 
 /* 공통 컴포넌트 스타일 */
 .container {
-  max-width: 480px;
+  width: 100%;
   margin: 0 auto;
   background-color: var(--white);
-  min-height: 100vh;
+  min-height: 100dvh;
   position: relative;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
-.header {
-  background-color: var(--white);
-  padding: var(--spacing-md) var(--spacing-lg);
+/* 반응형 컨테이너 최대폭 - PC 이전까지는 화면 가득 */
+@media (max-width: 1023px) {
+  .container { 
+    max-width: 100vw; /* 뷰포트 전체 폭 사용 */
+    width: 100vw;
+    margin: 0;
+    padding: 0;
+    align-items: stretch; /* 자식 요소들이 가득 채우도록 */
+  }
+}
+
+/* PC 화면에서만 최대폭 제한 */
+@media (min-width: 1024px) {
+  .container { max-width: var(--content-max); }
+}
+@media (min-width: 1280px) {
+  .container { max-width: 1200px; }
+}
+
+/* 대시보드 헤더만 특정하게 타겟 */
+.dashboard-container .header {
+  background: var(--white);
+  padding: var(--spacing-xl) var(--spacing-lg);
   border-bottom: 1px solid var(--gray-200);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-  backdrop-filter: blur(10px);
+  position: relative; /* sticky 제거 */
+  width: 100%;
+  box-shadow: var(--shadow-sm);
+  margin-bottom: var(--spacing-sm);
 }
 
-.header-content {
+/* 대시보드 헤더 콘텐츠만 특정하게 타겟 - content-wrapper와 header-content 둘 다 클래스명 포함 */
+.dashboard-container .header .header-content.content-wrapper {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  width: 100%;
+  padding: 0 var(--spacing-lg); /* 좌우 패딩 명시적으로 설정 */
 }
 
 .header-title {
@@ -196,12 +263,12 @@ body {
 }
 
 .button-primary {
-  background-color: var(--primary-blue);
+  background-color: var(--accent-energy);
   color: var(--white);
 }
 
 .button-primary:hover {
-  background-color: #0056CC;
+  background-color: var(--accent-energy-dark);
   transform: translateY(-1px);
   box-shadow: var(--shadow-md);
 }
@@ -246,20 +313,91 @@ body {
   color: var(--white);
 }
 
+/* 피트니스 특화 유틸리티 클래스 */
+.fitness-energy {
+  color: var(--accent-energy);
+}
+
+.fitness-success {
+  color: var(--accent-success);
+}
+
+.fitness-focus {
+  color: var(--accent-focus);
+}
+
+.bg-fitness-energy {
+  background-color: var(--accent-energy);
+  color: var(--white);
+}
+
+.bg-fitness-success {
+  background-color: var(--accent-success);
+  color: var(--white);
+}
+
+.bg-fitness-focus {
+  background-color: var(--accent-focus);
+  color: var(--white);
+}
+
+/* 하단 네비게이션 바 */
 .navigation-bar {
   position: fixed;
-  bottom: max(env(safe-area-inset-bottom), 4px); /* 약간 위로 띄워 OS 바와 겹침 방지 */
+  bottom: env(safe-area-inset-bottom, 0);
   left: 50%;
   transform: translateX(-50%);
   width: 100%;
   max-width: 480px;
   background-color: var(--white);
   border-top: 1px solid var(--gray-200);
-  padding: 6px 8px; /* 더 컴팩트한 하단바 패딩 */
+  padding: 6px 8px;
   display: flex;
   justify-content: space-around;
   z-index: 100;
-  height: 56px; /* 레이아웃 계산을 위해 고정 높이 가정 */
+  height: 56px;
+}
+
+@media (max-width: 480px) {
+  .navigation-bar {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: calc(100% - 32px);
+    max-width: none;
+    padding: 4px 2px;
+    height: 56px;
+    bottom: env(safe-area-inset-bottom, 0);
+  }
+}
+
+/* 데스크톱(>=1024px)에서는 하단 네비게이션 바 숨김 */
+@media (min-width: 1024px) {
+  .navigation-bar { display: none; }
+}
+
+@media (min-width: 481px) and (max-width: 1023px) {
+  /* 컨텐츠 좌우 16px 여백을 반영해 네비 폭을 동적으로 설정 */
+  .navigation-bar {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: calc(100% - 32px);
+    max-width: none;
+  }
+  .nav-item { font-size: 0.8rem; padding-bottom: 2px; }
+  .nav-icon { font-size: 1.3rem; margin-bottom: 4px; }
+  .nav-item span { line-height: 1; }
+}
+
+@media (max-width: 1023px) {
+  .navigation-bar {
+    left: 16px;
+    right: 16px;
+    transform: none;
+    width: auto;
+    max-width: none;
+  }
 }
 
 .nav-item {
@@ -289,7 +427,7 @@ body {
   position: absolute;
   top: -8px;
   right: -8px;
-  background-color: #ff4757;
+  background-color: var(--danger);
   color: white;
   border-radius: 50%;
   width: 16px;
@@ -325,7 +463,7 @@ body {
     max-width: 100%;
     padding: 4px 2px;
     height: 56px; /* 모바일에서도 동일 높이 */
-    bottom: max(env(safe-area-inset-bottom), 4px);
+    bottom: env(safe-area-inset-bottom, 0);
   }
   
   .nav-item {
@@ -371,5 +509,188 @@ body {
     --gray-800: #E5E5EA;
     --gray-900: #F2F2F7;
     --black: #FFFFFF;
+  }
+}
+
+/* 데스크톱 사이드바 네비게이션 */
+.sidebar-navigation {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 240px;
+  height: 100dvh;
+  background: var(--brand-primary);
+  border-right: 1px solid rgba(0, 0, 0, 0.15);
+  padding: 12px 10px;
+  display: none; /* 기본 숨김: 모바일 우선 */
+  z-index: 90;
+  color: #e7e9ee;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 800;
+  font-size: 16px;
+  line-height: 1;
+  padding: 12px 10px;
+  color: #ffffff;
+}
+
+.sidebar-items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+/* 사이드바 내 항목은 가로 정렬, 컴팩트하게 */
+.sidebar-navigation .nav-item {
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  color: #aeb4be;
+  font-weight: 600;
+  text-decoration: none;
+  width: 100%;
+}
+
+.sidebar-navigation .nav-item .nav-icon {
+  font-size: 1.05rem;
+  margin: 0;
+  width: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sidebar-navigation .nav-item span {
+  font-size: 0.92rem;
+}
+
+.sidebar-navigation .nav-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #eef2f7;
+}
+
+.sidebar-navigation .nav-item.active {
+  background: rgba(255, 255, 255, 0.14); /* header tint match */
+  color: #ffffff;
+  position: relative;
+}
+
+.sidebar-navigation .nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: 6px;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  background: #ffffff;
+  opacity: 0.9;
+  border-radius: 6px;
+}
+
+/* 배지 대비 향상 */
+.sidebar-navigation .notification-badge {
+  background-color: #ef4444;
+  color: #fff;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.25);
+}
+
+/* 데스크톱에서 사이드바 노출, 하단바 숨김(기존 규칙 유지) */
+@media (min-width: 1024px) {
+  .sidebar-navigation { 
+    display: block; 
+    left: 0; 
+    position: fixed; 
+    top: 0; 
+    height: 100vh;
+    width: 240px;
+  }
+  .container { 
+    margin-left: 240px; /* 사이드바 바로 옆에 배치 */
+    margin-right: 0;
+    width: calc(100% - 240px); /* 사이드바를 제외한 나머지 전체 폭 사용 */
+    max-width: none; 
+    position: relative;
+    z-index: 1;
+    padding-left: 0;
+    padding-right: 0;
+  }
+}
+
+/* 데스크톱에서 사이드바 여백 제거가 필요한 공개 페이지용 오버라이드 */
+@media (min-width: 1024px) {
+  .container.no-sidebar { 
+    margin-left: 0; 
+    padding-left: 0;
+    width: 100%; /* 전체 폭 사용 */
+  }
+}
+
+/* 공통 컨텐츠 래퍼: 데스크톱에서 통일된 폭 유지 */
+.content-wrapper {
+  width: 100%;
+  max-width: 100%; /* 기본적으로 가득 채움 */
+  margin: 0 auto;
+  padding: 0 8px; /* 모바일/태블릿에서는 최소한의 여백만 */
+}
+
+/* 위에서 더 구체적인 셀렉터로 처리했으므로 제거 */
+
+/* PC에서만 폭 제한과 패딩 증가 */
+@media (min-width: 1024px) {
+  .content-wrapper {
+    max-width: var(--content-max);
+    padding: 0 16px;
+  }
+  
+  /* 헤더는 별도 패딩 설정 */
+  .dashboard-container .header .header-content.content-wrapper {
+    padding: 0 var(--spacing-lg);
+  }
+}
+
+/* 스켈레톤 로딩 유틸리티 */
+@keyframes skeleton-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(90deg, var(--gray-100) 25%, var(--gray-200) 37%, var(--gray-100) 63%);
+  background-size: 400% 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  border-radius: var(--radius-md);
+}
+.skeleton-bar { height: 12px; }
+.skeleton-card { height: 140px; border-radius: var(--radius-lg); }
+.skeleton-circle { border-radius: 50%; }
+
+@media (max-width: 1023px) {
+  .desktop-only { display: none !important; }
+}
+
+@media (min-width: 1024px) {
+  /* 데스크톱: 컨텐츠를 가운데 정렬 */
+  .container .content-wrapper {
+    margin: 0 auto;            /* 가운데 정렬 복구 */
+    padding: 0 16px;           /* 좌우 균등한 패딩 */
+    max-width: var(--content-max); /* 일관된 최대 폭 */
+  }
+  
+  /* 헤더는 예외: PC에서는 우측 정렬 (제목이 숨겨져 있으므로) */
+  .dashboard-container .header .header-content.content-wrapper {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end; /* 우측 정렬로 변경 */
+    margin: 0; /* 가운데 정렬 해제 */
+    padding: 0 var(--spacing-lg); /* 헤더용 패딩 */
   }
 }

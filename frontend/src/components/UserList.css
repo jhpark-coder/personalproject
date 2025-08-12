@@ -78,7 +78,7 @@
   width: 2.5rem;
   height: 2.5rem;
   border-radius: 50%;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background-color: var(--brand-primary);
   color: white;
   display: flex;
   align-items: center;
@@ -158,6 +158,8 @@
   font-weight: 600;
   margin-left: 0.5rem;
 }
+
+.invite-button { background-color: var(--accent-energy); }
 
 /* 반응형 디자인 */
 @media (max-width: 768px) {

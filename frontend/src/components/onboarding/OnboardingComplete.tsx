@@ -12,6 +12,16 @@ const OnboardingComplete: React.FC = () => {
       setIsConnectingCalendar(true);
       const token = localStorage.getItem('token');
       const userId = getUserIdFromToken(token); // JWT에서 userId 추출 함수 필요
+
+      // 온보딩 완료 플래그 설정 (연동 진행 시에도 완료로 간주)
+      try {
+        localStorage.setItem('onboardingCompleted', 'true');
+        const provider = localStorage.getItem('currentProvider');
+        if (provider) {
+          localStorage.setItem(`onboardingCompleted_${provider}`, 'true');
+        }
+      } catch {}
+
       const response = await fetch(API_ENDPOINTS.CALENDAR_AUTH_GOOGLE, {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -45,6 +55,13 @@ const OnboardingComplete: React.FC = () => {
   }
 
   const handleSkipCalendar = () => {
+    try {
+      localStorage.setItem('onboardingCompleted', 'true');
+      const provider = localStorage.getItem('currentProvider');
+      if (provider) {
+        localStorage.setItem(`onboardingCompleted_${provider}`, 'true');
+      }
+    } catch {}
     navigate('/');
   };
 
