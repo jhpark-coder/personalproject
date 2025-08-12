@@ -53,7 +53,8 @@ public class MetsDataLoader implements CommandLineRunner {
                     }
                     if (line.trim().isEmpty()) continue;
 
-                    String[] parts = line.split(",");
+                    // CSV 파싱: 따옴표 안의 쉼표는 구분자로 사용하지 않음
+                    String[] parts = line.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", -1);
                     if (parts.length < 6) {
                         log.warn("⚠️ 잘못된 CSV 라인(컬럼 6개 필요): {}", line);
                         continue;

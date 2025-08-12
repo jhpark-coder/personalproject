@@ -5,9 +5,16 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -18,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 import backend.fitmate.User.entity.BodyRecord;
 import backend.fitmate.User.entity.User;
 import backend.fitmate.User.entity.WorkoutRecord;
+import backend.fitmate.User.repository.UserRepository;
 import backend.fitmate.User.service.BodyRecordService;
 import backend.fitmate.User.service.UserService;
 import backend.fitmate.User.service.WorkoutRecordService;
@@ -32,6 +40,7 @@ public class MyPageController {
     private final UserService userService;
     private final WorkoutRecordService workoutRecordService;
     private final BodyRecordService bodyRecordService;
+    private final UserRepository userRepository;
 
     /**
      * 마이페이지 대시보드 데이터 조회
@@ -399,5 +408,63 @@ public class MyPageController {
         } catch (Exception e) {
             return ResponseEntity.badRequest().build();
         }
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<?> searchUsers(
+            @RequestParam(name = "q", required = false) String q,
+            @RequestParam(name = "page", defaultValue = "0") int page,
+            @RequestParam(name = "size", defaultValue = "10") int size) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated()) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", "인증이 필요합니다");
+            return ResponseEntity.status(401).body(response);
+        }
+
+        // 간단 권한 체크: SecurityContext에 저장된 Principal의 권한 문자열 포함 여부로 판단
+        boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority() != null && a.getAuthority().contains("ROLE_ADMIN"));
+        if (!isAdmin) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", "관리자만 접근 가능합니다");
+            return ResponseEntity.status(403).body(response);
+        }
+
+        Pageable pageable = PageRequest.of(Math.max(page, 0), Math.max(size, 1));
+
+        // 간단한 검색: 이메일 또는 이름에 q가 포함되는 사용자
+        Page<User> resultPage;
+        if (!StringUtils.hasText(q)) {
+            resultPage = userRepository.findAll(pageable);
+        } else {
+            // repository에 동적 메소드가 없으므로 메모리 필터링 (데이터가 많아지면 Specification/Query 필요)
+            Page<User> all = userRepository.findAll(pageable);
+            List<User> filtered = all.getContent().stream()
+                .filter(u -> (u.getEmail() != null && u.getEmail().toLowerCase().contains(q.toLowerCase()))
+                          || (u.getName() != null && u.getName().toLowerCase().contains(q.toLowerCase())))
+                .collect(Collectors.toList());
+            resultPage = new org.springframework.data.domain.PageImpl<>(filtered, pageable, filtered.size());
+        }
+
+        List<Map<String, Object>> content = resultPage.getContent().stream().map(u -> {
+            Map<String, Object> m = new HashMap<>();
+            m.put("id", u.getId());
+            m.put("email", u.getEmail());
+            m.put("name", u.getName());
+            m.put("birthDate", u.getBirthDate());
+            return m;
+        }).collect(Collectors.toList());
+
+        Map<String, Object> body = new HashMap<>();
+        body.put("content", content);
+        body.put("page", resultPage.getNumber());
+        body.put("size", resultPage.getSize());
+        body.put("totalElements", resultPage.getTotalElements());
+        body.put("totalPages", resultPage.getTotalPages());
+        body.put("success", true);
+        return ResponseEntity.ok(body);
     }
 } 

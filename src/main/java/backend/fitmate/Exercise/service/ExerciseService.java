@@ -1,10 +1,16 @@
 package backend.fitmate.Exercise.service;
 
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import org.springframework.data.domain.Page;
 import org.springframework.stereotype.Service;
@@ -738,16 +744,16 @@ public class ExerciseService {
     }
 
     @Transactional(readOnly = true)
-    public Map<String, Object> searchExercisesWithPagination(String keyword, String muscle, String category, int page, int size) {
+    public Map<String, Object> searchExercisesWithPagination(String keyword, String muscle, String category, String intensity, int page, int size) {
         List<Exercise> allExercises;
         
         if (muscle != null && !muscle.trim().isEmpty()) {
             if (keyword != null && !keyword.trim().isEmpty()) {
-                // 키워드와 근육 모두 필터링
-                allExercises = exerciseRepository.findByNameContainingIgnoreCaseAndMusclesContaining(keyword, muscle);
+                // 키워드와 (주/보조)근육 모두 필터링
+                allExercises = exerciseRepository.findByNameContainingIgnoreCaseAndAnyMuscleContaining(keyword, muscle);
             } else {
-                // 근육만 필터링
-                allExercises = exerciseRepository.findByMusclesContaining(muscle);
+                // (주/보조) 근육만 필터링
+                allExercises = exerciseRepository.findByAnyMuscleContaining(muscle);
             }
         } else if (keyword != null && !keyword.trim().isEmpty()) {
             // 키워드만 필터링
@@ -762,6 +768,14 @@ public class ExerciseService {
             String normalized = category.trim();
             allExercises = allExercises.stream()
                 .filter(e -> normalized.equalsIgnoreCase(String.valueOf(e.getCategory())))
+                .toList();
+        }
+
+        // 강도 필터 적용 (LOW/MEDIUM/HIGH). 한글 입력 지원: 낮음/보통/높음
+        if (intensity != null && !intensity.trim().isEmpty()) {
+            String norm = normalizeIntensity(intensity);
+            allExercises = allExercises.stream()
+                .filter(e -> e.getIntensity() != null && normalizeIntensity(e.getIntensity()).equals(norm))
                 .toList();
         }
 
@@ -798,7 +812,18 @@ public class ExerciseService {
         return result;
     }
 
-
+    private String normalizeIntensity(String raw) {
+        String v = raw.trim().toUpperCase();
+        // 한글 매핑
+        if (v.contains("높")) return "HIGH";
+        if (v.contains("보통") || v.contains("중")) return "MEDIUM";
+        if (v.contains("낮")) return "LOW";
+        // 영문 그대로 허용
+        if (v.startsWith("HI")) return "HIGH";
+        if (v.startsWith("ME")) return "MEDIUM";
+        if (v.startsWith("LO")) return "LOW";
+        return v;
+    }
 
     @Transactional(readOnly = true)
     public Map<String, Object> getExercisesWithMets(int page, int size, String keyword, String muscle, String category) {
@@ -860,5 +885,90 @@ public class ExerciseService {
             "hasNext", exercisePage.hasNext(),
             "hasPrevious", exercisePage.hasPrevious()
         );
+    }
+
+    @Transactional
+    public void reloadExercisesFromSeed() {
+        try (InputStream inputStream = getClass().getResourceAsStream("/exercises_seed.csv");
+             BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, "UTF-8"))) {
+
+            String line = reader.readLine(); // Read header
+
+            while ((line = reader.readLine()) != null) {
+                String[] data = line.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", -1);
+
+                if (data.length < 8) continue;
+
+                String koreanName = data[0];
+                Optional<Exercise> existingExercise = exerciseRepository.findByKoreanName(koreanName);
+
+                Exercise exercise = existingExercise.orElse(new Exercise());
+                exercise.setKoreanName(koreanName);
+                exercise.setName(koreanName); // Use Korean name as default English name
+                exercise.setMets(Double.parseDouble(data[1]));
+                exercise.setCategory(data[2].split(";")[0]); // Use first target area as category
+                exercise.setMuscles(Arrays.asList(data[3].split(";")));
+                exercise.setMusclesSecondary(Arrays.asList(data[4].split(";")));
+                
+                String description = data[5];
+                String instructions = data[7].replace("\"", "").replace("|", "\n");
+                exercise.setDescription(description + "\n\n[운동 방법]\n" + instructions);
+
+                exerciseRepository.save(exercise);
+            }
+        } catch (IOException e) {
+            // Consider logging the error
+            throw new RuntimeException("Failed to read or process seed data", e);
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public Map<String, Object> getExerciseDetailById(Long id) {
+        Optional<Exercise> exerciseOpt = exerciseRepository.findById(id);
+        if (exerciseOpt.isEmpty()) {
+            return null;
+        }
+        
+        Exercise exercise = exerciseOpt.get();
+        
+        // CSV에서 instructions_ko 데이터 추출
+        List<String> instructionsKo = getInstructionsFromCsv(exercise.getName());
+        
+        Map<String, Object> result = new HashMap<>();
+        result.put("id", exercise.getId());
+        result.put("name", exercise.getName());
+        result.put("koreanName", exercise.getKoreanName());
+        result.put("description", exercise.getDescription());
+        result.put("category", exercise.getCategory());
+        result.put("muscleGroup", exercise.getMuscleGroup());
+        result.put("equipment", exercise.getEquipment());
+        result.put("muscles", exercise.getMuscles());
+        result.put("musclesSecondary", exercise.getMusclesSecondary());
+        result.put("mets", exercise.getMets());
+        result.put("intensity", exercise.getIntensity());
+        result.put("instructionsKo", instructionsKo);
+        
+        return result;
+    }
+    
+    private List<String> getInstructionsFromCsv(String exerciseName) {
+        try (InputStream inputStream = getClass().getResourceAsStream("/exercises_seed.csv");
+             BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream, "UTF-8"))) {
+
+            String line = reader.readLine(); // Read header
+
+            while ((line = reader.readLine()) != null) {
+                String[] data = line.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)", -1);
+
+                if (data.length >= 8 && data[0].trim().equals(exerciseName)) {
+                    String instructions = data[7].replace("\"", "");
+                    return Arrays.asList(instructions.split("\\|"));
+                }
+            }
+        } catch (IOException e) {
+            System.err.println("CSV 파일 읽기 실패: " + e.getMessage());
+        }
+        
+        return new ArrayList<>();
     }
 } 

@@ -6,6 +6,7 @@ import ChatButton from './ChatButton';
 import NavigationBar from './NavigationBar';
 import './Dashboard.css';
 import TodayChecklist from './TodayChecklist';
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from 'recharts';
 
 // JWT 토큰에서 role을 추출하는 함수
 const getRoleFromToken = (): string => {
@@ -29,7 +30,7 @@ interface WorkoutData {
   volume: string;
   count: string;
   comparison: string;
-  chartData: Array<{week: string, value: number}>;
+  chartData: Array<{week: string, value: number, minutes?: number}>;
 }
 
 interface GoalData {
@@ -71,6 +72,25 @@ const Dashboard: React.FC = () => {
     return labels;
   };
 
+  // YYYYWW 형태를 'M월 N째주'로 변환
+  const formatYearWeekToMonthNthWeek = (yearWeek: string): string => {
+    const match = /^\s*(\d{4})(\d{2,3})\s*$/.exec(String(yearWeek));
+    if (!match) return yearWeek;
+    const year = Number(match[1]);
+    const weekOfYear = Number(match[2]);
+    if (!Number.isFinite(year) || !Number.isFinite(weekOfYear) || weekOfYear <= 0) return yearWeek;
+
+    // 1월 1일부터 (week-1)주 후의 날짜를 기준으로 월/월내 n째주 계산 (일요일 시작 기준)
+    const firstJan = new Date(year, 0, 1);
+    const approxDate = new Date(firstJan.getTime() + (weekOfYear - 1) * 7 * 24 * 60 * 60 * 1000);
+
+    const monthIndex = approxDate.getMonth(); // 0-11
+    const firstOfMonth = new Date(approxDate.getFullYear(), monthIndex, 1);
+    const weekOfMonth = Math.ceil((approxDate.getDate() + firstOfMonth.getDay()) / 7);
+
+    return `${monthIndex + 1}월 ${weekOfMonth}째주`;
+  };
+
   // 온보딩 완료 여부 확인
   useEffect(() => {
     const userRole = getRoleFromToken();
@@ -83,19 +103,23 @@ const Dashboard: React.FC = () => {
       return;
     }
     
-    const onboardingCompleted = localStorage.getItem('onboardingCompleted');
+    const localOnboardingCompleted = localStorage.getItem('onboardingCompleted') === 'true';
     const currentProvider = localStorage.getItem('currentProvider');
     const providerOnboardingKey = currentProvider ? `onboardingCompleted_${currentProvider}` : null;
-    const providerOnboardingCompleted = providerOnboardingKey ? localStorage.getItem(providerOnboardingKey) : null;
-    
-    console.log('Dashboard - onboardingCompleted:', onboardingCompleted);
+    const providerOnboardingCompleted = providerOnboardingKey ? localStorage.getItem(providerOnboardingKey) === 'true' : null;
+
+    // 사용자 프로필 완성도 기반 온보딩 완료 판단
+    // 주의: Dashboard 내부에서 user 컨텍스트는 직접 접근하지 않으므로, 서버 데이터 로드 전에 보수적으로 로컬 플래그를 우선 고려하되,
+    // provider 키가 존재하거나 프로필 완성 추정 시 보정
+    const shouldTreatAsCompleted = Boolean(localOnboardingCompleted || providerOnboardingCompleted);
+
+    console.log('Dashboard - localOnboardingCompleted:', localOnboardingCompleted);
     console.log('Dashboard - currentProvider:', currentProvider);
     console.log('Dashboard - providerOnboardingKey:', providerOnboardingKey);
     console.log('Dashboard - providerOnboardingCompleted:', providerOnboardingCompleted);
-    
-    // 전체 onboarding이 완료되었거나, 현재 provider의 onboarding이 완료된 경우
-    if (onboardingCompleted === 'true' || providerOnboardingCompleted === 'true') {
-      console.log('✅ onboarding 완료, 대시보드 데이터 로드');
+
+    if (shouldTreatAsCompleted) {
+      console.log('✅ onboarding 완료로 간주, 대시보드 데이터 로드');
       loadDashboardData();
     } else {
       console.log('❌ onboarding 미완료, onboarding 페이지로 이동');
@@ -151,9 +175,10 @@ const Dashboard: React.FC = () => {
   if (isLoading) {
     return (
       <div className="dashboard-container">
-        <div className="loading-container">
-          <div className="loading-spinner"></div>
-          <p>데이터를 불러오는 중...</p>
+        <div style={{ padding: 16 }}>
+          <div className="skeleton skeleton-bar" style={{ width: '30%', marginBottom: 12 }}></div>
+          <div className="skeleton skeleton-card" style={{ height: 140, marginBottom: 12 }}></div>
+          <div className="skeleton skeleton-card" style={{ height: 180 }}></div>
         </div>
       </div>
     );
@@ -163,10 +188,10 @@ const Dashboard: React.FC = () => {
     <div className="dashboard-container">
       {/* 헤더 */}
       <div className="header">
-        <div className="header-content">
+        <div className="header-content content-wrapper">
           <div className="app-title">FitMate</div>
           <div className="header-actions">
-            <button className="settings-button" onClick={() => navigate('/settings')}>
+            <button className="settings-button" onClick={() => navigate('/settings')} aria-label="설정으로 이동">
               ⚙️
             </button>
           </div>
@@ -174,7 +199,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* 메인 콘텐츠 */}
-      <div className="dashboard-content">
+      <div className="dashboard-content content-wrapper">
         {/* 목표 카드 */}
         <div className="card goal-card">
           <div className="card-header">
@@ -231,38 +256,56 @@ const Dashboard: React.FC = () => {
             </div>
             
             <div className="stats-chart">
-              <div className="chart-placeholder">
-                {workoutData?.chartData && workoutData.chartData.length > 0 ? (
-                  workoutData.chartData.map((data, index) => (
-                    <div 
-                      key={index}
-                      className={`chart-bar ${index === workoutData.chartData.length - 1 ? 'active' : ''}`}
-                      style={{ height: `${data.value}%` }}
-                    ></div>
-                  ))
-                ) : (
-                  Array(5).fill(0).map((_, index) => (
-                    <div key={index} className="chart-bar" style={{ height: '20%' }}></div>
-                  ))
-                )}
-              </div>
-              <div className="chart-labels">
-                {workoutData?.chartData && workoutData.chartData.length > 0 ? (
-                  // 실제 데이터가 있으면 데이터 개수만큼 라벨 생성
-                  workoutData.chartData.map((_, index) => {
-                    const date = new Date();
-                    date.setDate(date.getDate() - (workoutData.chartData.length - 1 - index));
-                    const day = date.getDate();
-                    const weekDay = ['일', '월', '화', '수', '목', '금', '토'][date.getDay()];
-                    return <span key={index}>{`${day}/${weekDay}`}</span>;
-                  })
-                ) : (
-                  // 데이터가 없으면 5일치 기본 라벨
-                  generateWeekLabels().map((label, index) => (
-                    <span key={index}>{label}</span>
-                  ))
-                )}
-              </div>
+              {(() => {
+                const hasData = !!(workoutData?.chartData && workoutData.chartData.length > 0);
+                if (!hasData) {
+                  return (
+                    <div style={{
+                      height: 220,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#80868B'
+                    }}>
+                      운동 기록이 없습니다.
+                    </div>
+                  );
+                }
+
+                const series = workoutData!.chartData.map((d, i, arr) => ({
+                  name: d.week,
+                  label: formatYearWeekToMonthNthWeek(d.week),
+                  value: d.value,
+                  minutes: (d as any).minutes ?? 0,
+                  isLast: i === arr.length - 1
+                }));
+
+                return (
+                  <ResponsiveContainer width="100%" height={220}>
+                    <BarChart data={series} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                      <XAxis dataKey="label" tick={{ fontSize: 12, fill: '#80868B' }} axisLine={false} tickLine={false} />
+                      <YAxis hide />
+                      <Tooltip 
+                        cursor={{ fill: 'rgba(0,0,0,0.04)' }} 
+                        formatter={(val: number, _name, payload: any) => {
+                          const minutes: number = payload?.payload?.minutes ?? 0;
+                          const h = Math.floor(minutes / 60);
+                          const m = minutes % 60;
+                          const text = h > 0 ? `${h}시간 ${m}분` : `${m}분`;
+                          return [text, '운동시간'];
+                        }}
+                        labelFormatter={(label: string) => label}
+                      />
+                      <Bar dataKey="value" radius={[6, 6, 0, 0]}>
+                        {series.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={entry.isLast ? 'var(--chart-active)' : 'var(--chart-neutral)'} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                );
+              })()}
             </div>
           </div>
         </div>
@@ -273,28 +316,30 @@ const Dashboard: React.FC = () => {
         {/* 추천 루틴 팝업 */}
         {showRecommendation && recommendationData && (
           <div className="recommendation-overlay">
-            <div className="recommendation-card">
-              <div className="recommendation-header">
-                <h3>추천 루틴</h3>
-                <button 
-                  className="close-button"
-                  onClick={handleCloseRecommendation}
-                >
-                  ✕
-                </button>
-              </div>
-              
-              <div className="routine-card">
-                <div className="routine-icon">{recommendationData.icon}</div>
-                <div className="routine-info">
-                  <h4 className="routine-title">{recommendationData.title}</h4>
-                  <p className="routine-details">{recommendationData.description}</p>
+            <div className="recommendation-inner content-wrapper">
+              <div className="recommendation-card">
+                <div className="recommendation-header">
+                  <h3>추천 루틴</h3>
+                  <button 
+                    className="close-button"
+                    onClick={handleCloseRecommendation}
+                  >
+                    ✕
+                  </button>
                 </div>
-              </div>
-              
-              <div className="recommendation-tooltip">
-                <div className="tooltip-arrow"></div>
-                <p>{recommendationData.tooltip}</p>
+                
+                <div className="routine-card">
+                  <div className="routine-icon">{recommendationData.icon}</div>
+                  <div className="routine-info">
+                    <h4 className="routine-title">{recommendationData.title}</h4>
+                    <p className="routine-details">{recommendationData.description}</p>
+                  </div>
+                </div>
+                
+                <div className="recommendation-tooltip">
+                  <div className="tooltip-arrow"></div>
+                  <p>{recommendationData.tooltip}</p>
+                </div>
               </div>
             </div>
           </div>

@@ -54,17 +54,42 @@ const RecordsRoom: React.FC = () => {
     fetchData();
   }, []);
 
-  if (loading) return <div className="profile-container"><div className="profile-loading"><div className="loading-spinner"></div><p>기록을 불러오는 중...</p></div></div>;
-  if (error) return <div className="profile-container"><div className="profile-error"><p>{error}</p><button onClick={() => navigate(-1)} className="retry-button">뒤로</button></div></div>;
+  if (loading) return (
+    <div className="profile-container records-room">
+      <div className="header">
+        <div className="header-content">
+          <button onClick={() => navigate(-1)} className="back-button" aria-label="뒤로 가기">←</button>
+          <div className="header-title">나의 기록실</div>
+          <div></div>
+        </div>
+      </div>
+      <div style={{ padding: 16 }}>
+        <div className="skeleton skeleton-bar" style={{ width: '40%', marginBottom: 12 }}></div>
+        <div className="skeleton skeleton-card" style={{ height: 120, marginBottom: 12 }}></div>
+        <div className="skeleton skeleton-card" style={{ height: 120 }}></div>
+      </div>
+    </div>
+  );
+  if (error) return (
+    <div className="profile-container">
+      <div className="profile-error">
+        <p>{error}</p>
+        <button onClick={() => navigate(-1)} className="retry-button" aria-label="뒤로 가기">뒤로</button>
+      </div>
+    </div>
+  );
   if (!data) return null;
 
   const { pr, streak, cumulative } = data;
 
   return (
     <div className="profile-container records-room">
-      <div className="profile-header">
-        <button onClick={() => navigate(-1)} className="back-button">←</button>
-        <h1>나의 기록실</h1>
+      <div className="header">
+        <div className="header-content">
+          <button onClick={() => navigate(-1)} className="back-button" aria-label="뒤로 가기">←</button>
+          <div className="header-title">나의 기록실</div>
+          <div></div>
+        </div>
       </div>
 
       <div className="profile-content">

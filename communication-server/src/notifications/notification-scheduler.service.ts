@@ -19,7 +19,7 @@ export class NotificationSchedulerService {
   // @Cron('18 14 * * *') // 매일 오후 2시 18분
   // async sendTestSms() {
   //   this.logger.log('🧪 테스트 SMS 스케줄러 실행');
-    
+
   //   try {
   //     const testUser = {
   //       phoneNumber: '+821026238769',
@@ -45,7 +45,7 @@ export class NotificationSchedulerService {
   @Cron(CronExpression.EVERY_DAY_AT_9AM)
   async sendDailyWorkoutReminder() {
     this.logger.log('🏃‍♂️ 일일 운동 알림 스케줄러 실행');
-    
+
     try {
       // TODO: 실제 사용자 데이터베이스에서 운동 알림을 받을 사용자들 조회
       const usersToNotify = [
@@ -70,7 +70,9 @@ export class NotificationSchedulerService {
           category: 'ADMIN',
         });
 
-        this.logger.log(`✅ ${user.name}에게 운동 알림 발송 완료 (사이트 알림만)`);
+        this.logger.log(
+          `✅ ${user.name}에게 운동 알림 발송 완료 (사이트 알림만)`,
+        );
       }
     } catch (error) {
       this.logger.error('❌ 일일 운동 알림 발송 실패:', error);
@@ -84,7 +86,7 @@ export class NotificationSchedulerService {
   @Cron('0 18 * * 0') // 매주 일요일 오후 6시
   async sendWeeklyReport() {
     this.logger.log('📊 주간 리포트 스케줄러 실행');
-    
+
     try {
       // TODO: 실제 사용자 데이터베이스에서 주간 리포트를 받을 사용자들 조회
       const usersToNotify = [
@@ -109,7 +111,9 @@ export class NotificationSchedulerService {
           category: 'ADMIN',
         });
 
-        this.logger.log(`✅ ${user.name}에게 주간 리포트 발송 완료 (사이트 알림만)`);
+        this.logger.log(
+          `✅ ${user.name}에게 주간 리포트 발송 완료 (사이트 알림만)`,
+        );
       }
     } catch (error) {
       this.logger.error('❌ 주간 리포트 발송 실패:', error);
@@ -122,7 +126,7 @@ export class NotificationSchedulerService {
   @Cron(CronExpression.EVERY_DAY_AT_MIDNIGHT)
   async checkGoalAchievement() {
     this.logger.log('🎯 목표 달성 확인 스케줄러 실행');
-    
+
     try {
       // TODO: 실제 사용자 데이터베이스에서 목표 달성한 사용자들 조회
       const usersWithGoals = [
@@ -140,7 +144,9 @@ export class NotificationSchedulerService {
           category: 'ADMIN',
         });
 
-        this.logger.log(`✅ ${user.name}의 목표 달성 축하 알림 발송 완료 (사이트 알림만)`);
+        this.logger.log(
+          `✅ ${user.name}의 목표 달성 축하 알림 발송 완료 (사이트 알림만)`,
+        );
       }
     } catch (error) {
       this.logger.error('❌ 목표 달성 확인 실패:', error);
@@ -153,7 +159,7 @@ export class NotificationSchedulerService {
   @Cron('0 15 * * *') // 매일 오후 3시
   async sendWorkoutHabitReminder() {
     this.logger.log('💪 운동 습관 형성 알림 스케줄러 실행');
-    
+
     try {
       // TODO: 실제 사용자 데이터베이스에서 운동을 안 한 사용자들 조회
       const inactiveUsers = [
@@ -171,10 +177,12 @@ export class NotificationSchedulerService {
           category: 'ADMIN',
         });
 
-        this.logger.log(`✅ ${user.name}에게 운동 습관 형성 알림 발송 완료 (사이트 알림만)`);
+        this.logger.log(
+          `✅ ${user.name}에게 운동 습관 형성 알림 발송 완료 (사이트 알림만)`,
+        );
       }
     } catch (error) {
       this.logger.error('❌ 운동 습관 형성 알림 발송 실패:', error);
     }
   }
-} 
+}

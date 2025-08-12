@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   nginx:
     build:
@@ -18,16 +16,15 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      cache_from:
+        - fitmate-backend:latest
+    image: fitmate-backend:latest
     container_name: fitmate_backend
+    env_file:
+      - ./.env
     environment:
-      - SPRING_PROFILES_ACTIVE=dev
-      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/personalproject?useSSL=false&serverTimezone=UTC&characterEncoding=UTF-8
       - SPRING_DATA_REDIS_HOST=redis
       - SPRING_DATA_REDIS_PORT=6379
-      - OAUTH_REDIRECT_URI=http://localhost/login/oauth2/code/google
-      - KAKAO_REDIRECT_URI=http://localhost/login/oauth2/code/kakao
-      - NAVER_REDIRECT_URI=http://localhost/login/oauth2/code/naver
-      - JWT_SECRET=c2VjcmV0S2V5Zm9yZGV2ZWxvcG1lbnQxMjM0NTY3ODkwYWJjZGVmZ2hpamtsbW5vcHFyc3R1dnd4eXo=
     depends_on:
       - mysql
       - redis
@@ -38,17 +35,19 @@ services:
     build:
       context: ./communication-server
       dockerfile: Dockerfile
+      cache_from:
+        - fitmate-communication:latest
+    image: fitmate-communication:latest
     container_name: fitmate_communication_server
+    env_file:
+      - ./.env
     environment:
       - NODE_ENV=development
       - MONGODB_URI=mongodb://mongo:27017/communication-server-dev
       - REDIS_HOST=redis
       - REDIS_PORT=6379
-      - TWILIO_ACCOUNT_SID=ACd69318104dae68ea5c6be4ad74c65d6c
-      - TWILIO_AUTH_TOKEN=ee14e7e70b2c10711bd1885485db2e13
-      - TWILIO_PHONE_NUMBER=+12513104213
     ports:
-      - "3000:3000"
+      - "4000:3000"
     depends_on:
       - mongo
       - redis
@@ -59,10 +58,10 @@ services:
     image: mysql:8.0
     container_name: fitmate-mysql
     environment:
-      MYSQL_ROOT_PASSWORD: rootpassword
-      MYSQL_DATABASE: personalproject
-      MYSQL_USER: fitmate_user
-      MYSQL_PASSWORD: fitmate_password
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
     ports:
       - "3306:3306"
     volumes:
