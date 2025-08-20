@@ -150,54 +150,60 @@ public class UserService {
 
     @Transactional
     public User saveOrUpdateOAuth2User(String email, String name, String picture, String provider, String oauthId) {
-        System.out.println("=== OAuth2 사용자 저장/업데이트 시작 ===");
-        System.out.println("Email: " + email + ", Provider: " + provider + ", OAuthId: " + oauthId);
+        System.out.println("--- [UserService] saveOrUpdateOAuth2User 진입 ---");
+        System.out.println("Email: " + email + ", Provider: " + provider);
 
+        // 1. 먼저 OAuth provider와 ID로 기존 사용자 찾기
         Optional<User> userOptional = userRepository.findByOauthProviderAndOauthId(provider, oauthId);
-        User user;
         if (userOptional.isPresent()) {
-            // 이미 가입된 소셜 계정이면 정보 업데이트
-            user = userOptional.get();
+            User user = userOptional.get();
+            System.out.println("✅ [UserService] 기존 OAuth 사용자 발견. 정보 업데이트: " + user.getId());
             user.setName(name);
             user.setProfileImage(picture);
-            System.out.println("기존 사용자 정보 업데이트: " + user.getId());
-        } else {
-            // 이메일로 기존 사용자인지 확인
-            Optional<User> byEmail = userRepository.findByEmail(email);
-            if(byEmail.isPresent()) {
-                // 이미 다른 소셜로 가입된 이메일이면, 현재 소셜 정보 추가
-                user = byEmail.get();
-                user.setOauthProvider(provider);
-                user.setOauthId(oauthId);
-                user.setProfileImage(picture);
-                if ("google".equals(provider)) {
-                    user.setGoogleOAuthId(oauthId);
-                    user.setGoogleEmail(email);
-                    user.setGoogleName(name);
-                    user.setGooglePicture(picture);
-                }
-                System.out.println("기존 이메일 사용자에 소셜 정보 추가: " + user.getId());
-            } else {
-                // 신규 사용자 생성
-                System.out.println("새로운 사용자 생성");
-                user = new User();
-                user.setEmail(email);
-                user.setName(name);
-                user.setProfileImage(picture);
-                user.setOauthProvider(provider);
-                user.setOauthId(oauthId);
-                user.setEmailVerified(true);
-                if ("google".equals(provider)) {
-                    user.setGoogleOAuthId(oauthId);
-                    user.setGoogleEmail(email);
-                    user.setGoogleName(name);
-                    user.setGooglePicture(picture);
-                }
+            if ("google".equals(provider)) {
+                user.setGoogleOAuthId(oauthId);
+                user.setGoogleEmail(email);
+                user.setGoogleName(name);
+                user.setGooglePicture(picture);
             }
+            return userRepository.save(user);
         }
-        User savedUser = userRepository.save(user);
-        System.out.println("사용자 저장/업데이트 완료: " + savedUser.getId());
-        return savedUser;
+
+        // 2. OAuth로 찾지 못했으면 이메일로 기존 사용자인지 확인
+        userOptional = userRepository.findByEmail(email);
+        if (userOptional.isPresent()) {
+            User user = userOptional.get();
+            System.out.println("✅ [UserService] 기존 이메일 사용자 발견. OAuth 정보 추가: " + user.getId());
+            user.setOauthProvider(provider);
+            user.setOauthId(oauthId);
+            user.setProfileImage(picture);
+            if ("google".equals(provider)) {
+                user.setGoogleOAuthId(oauthId);
+                user.setGoogleEmail(email);
+                user.setGoogleName(name);
+                user.setGooglePicture(picture);
+            }
+            return userRepository.save(user);
+        }
+
+        // 3. 완전 신규 사용자
+        System.out.println("🚨 [UserService] 신규 사용자 생성");
+        User user = new User();
+        user.setEmail(email);
+        user.setName(name);
+        user.setProfileImage(picture);
+        user.setOauthProvider(provider);
+        user.setOauthId(oauthId);
+        user.setRole("ROLE_USER");
+        if ("google".equals(provider)) {
+            user.setGoogleOAuthId(oauthId);
+            user.setGoogleEmail(email);
+            user.setGoogleName(name);
+            user.setGooglePicture(picture);
+        }
+        user.setEmailVerified(true);
+        
+        return userRepository.save(user);
     }
 
     /**
@@ -205,29 +211,18 @@ public class UserService {
      */
     @Transactional
     public User addGoogleCalendarInfo(String email, String name, String picture, String googleOauthId) {
-        System.out.println("=== Google 캘린더 연동 시작 ===");
-        System.out.println("Email: " + email + ", GoogleOAuthId: " + googleOauthId);
-
-        // 이메일로 기존 사용자 찾기
-        Optional<User> userOptional = userRepository.findByEmail(email);
+        System.out.println("--- [UserService] addGoogleCalendarInfo 진입 ---");
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new UsernameNotFoundException("사용자를 찾을 수 없습니다: " + email));
         
-        if (userOptional.isEmpty()) {
-            throw new RuntimeException("캘린더 연동을 위한 기존 사용자를 찾을 수 없습니다: " + email);
-        }
-
-        User user = userOptional.get();
-        
-        // Google 캘린더 정보만 추가/업데이트 (기본 OAuth provider는 유지)
+        System.out.println("✅ [UserService] 기존 사용자 ID " + user.getId() + "에 Google 캘린더 정보 추가");
         user.setGoogleOAuthId(googleOauthId);
         user.setGoogleEmail(email);
         user.setGoogleName(name);
         user.setGooglePicture(picture);
         
-        System.out.println("기존 사용자 (" + user.getOauthProvider() + ")에 Google 캘린더 정보 추가: " + user.getId());
-        
-        User savedUser = userRepository.save(user);
-        System.out.println("Google 캘린더 연동 완료: " + savedUser.getId());
-        return savedUser;
+        // 캐시 무효화를 위해 공통 save 경로 사용
+        return save(user);
     }
 
     /**
@@ -235,37 +230,18 @@ public class UserService {
      */
     @Transactional
     public User addGoogleCalendarInfoByUserId(Long userId, String googleEmail, String googleName, String picture, String googleOauthId) {
-        System.out.println("=== 사용자 ID로 Google 캘린더 연동 시작 ===");
-        System.out.println("UserId: " + userId + ", GoogleEmail: " + googleEmail + ", GoogleOAuthId: " + googleOauthId);
-
-        // 사용자 ID로 기존 사용자 찾기
-        Optional<User> userOptional = userRepository.findById(userId);
+        System.out.println("--- [UserService] addGoogleCalendarInfoByUserId 진입 ---");
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UsernameNotFoundException("사용자를 찾을 수 없습니다: " + userId));
         
-        if (userOptional.isEmpty()) {
-            throw new RuntimeException("캘린더 연동을 위한 기존 사용자를 찾을 수 없습니다. UserId: " + userId);
-        }
-
-        User user = userOptional.get();
-        
-        // Google 캘린더 정보만 추가/업데이트 (기본 OAuth provider는 유지)
+        System.out.println("✅ [UserService] ID " + userId + " 사용자에 Google 캘린더 정보 추가/업데이트");
         user.setGoogleOAuthId(googleOauthId);
         user.setGoogleEmail(googleEmail);
         user.setGoogleName(googleName);
         user.setGooglePicture(picture);
         
-        System.out.println("기존 사용자 (" + user.getOauthProvider() + ", ID=" + user.getId() + ")에 Google 캘린더 정보 추가");
-        System.out.println("기존 이메일: " + user.getEmail() + " → Google 이메일: " + googleEmail);
-        
-        User savedUser = userRepository.save(user);
-        
-        // 즉시 DB에 반영하고 JPA 캐시 비우기
-        userRepository.flush();
-        userRepository.saveAndFlush(savedUser);  // 추가 보장
-        
-        System.out.println("Google 캘린더 연동 완료: " + savedUser.getId());
-        System.out.println("🔄 DB 즉시 반영 및 캐시 클리어 완료!");
-        
-        return savedUser;
+        // 캐시 무효화를 위해 공통 save 경로 사용
+        return save(user);
     }
 
     /**
@@ -368,5 +344,36 @@ public class UserService {
         User linkedUser = userRepository.save(user);
         System.out.println("Google 계정 연동 완료: ID=" + linkedUser.getId() + ", Google Email=" + linkedUser.getGoogleEmail());
         return linkedUser;
+    }
+
+    /**
+     * 캘린더 연동 상태 확인
+     */
+    public boolean isCalendarConnected(Long userId) {
+        return userRepository.findById(userId)
+                .map(user -> user.getGoogleOAuthId() != null && !user.getGoogleOAuthId().trim().isEmpty())
+                .orElse(false);
+    }
+
+    /**
+     * 캘린더 연동 해제
+     */
+    @Transactional
+    public User disconnectGoogleCalendar(Long userId) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UsernameNotFoundException("사용자를 찾을 수 없습니다: " + userId));
+
+        System.out.println("Google 캘린더 연동 해제: ID=" + user.getId());
+        
+        // Google 관련 정보 제거
+        user.setGoogleEmail(null);
+        user.setGoogleName(null);
+        user.setGooglePicture(null);
+        user.setGoogleOAuthId(null);
+
+        // 캐시 무효화를 위해 공통 save 경로 사용
+        User updatedUser = save(user);
+        System.out.println("Google 캘린더 연동 해제 완료: ID=" + updatedUser.getId());
+        return updatedUser;
     }
 } 
