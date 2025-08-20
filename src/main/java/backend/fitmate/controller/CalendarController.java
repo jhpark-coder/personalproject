@@ -26,6 +26,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import com.google.api.client.util.DateTime;
@@ -33,6 +35,7 @@ import com.google.api.services.calendar.model.Event;
 
 import backend.fitmate.User.entity.User;
 import backend.fitmate.User.service.UserService;
+import backend.fitmate.config.JwtTokenProvider;
 import backend.fitmate.service.CalendarService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -47,6 +50,7 @@ public class CalendarController {
 
     private final UserService userService;
     private final RedisTemplate<String, Object> redisTemplate;
+    private final JwtTokenProvider jwtTokenProvider;
 
     @Value("${app.backend.url}")
     private String backendUrl;
@@ -66,41 +70,59 @@ public class CalendarController {
      * Google Calendar 인증을 시작합니다.
      */
     @GetMapping("/auth/google")
-    public ResponseEntity<?> startGoogleAuth(HttpServletRequest request) {
-        System.out.println("=== 캘린더 연동 요청 받음 ===");
+    public ResponseEntity<?> startGoogleAuth(HttpServletRequest request, HttpServletResponse response) {
         try {
-            Long userId = getUserIdFromAuthentication(SecurityContextHolder.getContext().getAuthentication());
-            System.out.println("인증된 사용자 ID: " + userId);
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication == null || !authentication.isAuthenticated() || "anonymousUser".equals(authentication.getPrincipal())) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("success", false, "message", "로그인이 필요합니다."));
+            }
 
-            // Redis에 캘린더 연동 정보 저장 (사용자 ID 기반)
-            String calendarLinkingKey = "calendar_linking_user:" + userId;
-            redisTemplate.opsForValue().set(calendarLinkingKey, userId.toString(), 300, java.util.concurrent.TimeUnit.SECONDS);
-            System.out.println("Redis에 캘린더 연동 플래그 저장: userId=" + userId);
+            Long userId = getUserIdFromAuthentication(authentication);
 
-            // Google OAuth2 인증 URL 생성 (캘린더 연동용)
-            // 외부 접근 기준의 베이스 URL을 요청 헤더로부터 우선 계산하고, 실패 시 app.backend.url 사용
-            String externalBaseUrl = resolveExternalBaseUrl(request);
-            String authUrl = UriComponentsBuilder.fromHttpUrl(externalBaseUrl)
-                    .path("/oauth2/authorization/google")
-                    .queryParam("user_id", userId)
-                    .queryParam("calendar_only", "true") // 캘린더 연동임을 표시
+            System.out.println("[CAL-LINK][START] /api/calendar/auth/google - userId=" + userId);
+            System.out.println("[CAL-LINK][HDR] Host=" + request.getHeader("Host") + ", XFH=" + request.getHeader("X-Forwarded-Host") + ", XFP=" + request.getHeader("X-Forwarded-Proto"));
+
+            // 세션에 캘린더 연동 마커 저장 (Spring Security OAuth가 자체 state를 사용하므로 세션 의존)
+            HttpSession session = request.getSession(true);
+            session.setAttribute("calendar_linking_active", true);
+            session.setAttribute("calendar_linking_user_id", userId);
+            session.setAttribute("calendar_linking_timestamp", System.currentTimeMillis());
+            System.out.println("[CAL-LINK][SES] sessionId=" + session.getId());
+
+            // Redis에도 세션 ID로 사용자 매핑 저장 (이중 보안, 15분 TTL)
+            String sessionKey = "calendar_session:" + session.getId();
+            redisTemplate.opsForValue().set(sessionKey, String.valueOf(userId), java.time.Duration.ofMinutes(15));
+            System.out.println("[CAL-LINK][REDIS] set " + sessionKey + " -> " + userId);
+
+            // HttpOnly 쿠키에도 userId 저장 (세션/state 이슈 보조)
+            jakarta.servlet.http.Cookie cookie = new jakarta.servlet.http.Cookie("calendar_link_uid", String.valueOf(userId));
+            cookie.setHttpOnly(true);
+            cookie.setPath("/");
+            cookie.setMaxAge(15 * 60); // 15분
+            response.addCookie(cookie);
+            System.out.println("[CAL-LINK][CK ] set cookie calendar_link_uid=" + userId);
+
+            // Google OAuth2 인증 URL 생성 (캘린더 연동용, 별도 registrationId 사용)
+            String authUrl = UriComponentsBuilder.fromPath("/oauth2/authorization/google-connect")
                     .toUriString();
+            System.out.println("[CAL-LINK][AUTH-URL] " + authUrl);
 
-            System.out.println("생성된 인증 URL: " + authUrl);
+            Map<String, Object> responseBody = new HashMap<>();
+            responseBody.put("success", true);
+            responseBody.put("message", "Google 인증을 시작합니다.");
+            responseBody.put("authUrl", authUrl);
+            return ResponseEntity.ok(responseBody);
 
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("message", "Google 인증을 시작합니다.");
-            response.put("authUrl", authUrl);
-            return ResponseEntity.ok(response);
-
+        } catch (InsufficientAuthenticationException e) {
+            System.err.println("인증되지 않은 사용자: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("success", false, "message", "로그인이 필요합니다."));
         } catch (Exception e) {
             System.err.println("캘린더 연동 시작 중 오류: " + e.getMessage());
             e.printStackTrace();
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", false);
-            response.put("message", "인증 처리 중 오류가 발생했습니다: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
+            Map<String, Object> responseBody = new HashMap<>();
+            responseBody.put("success", false);
+            responseBody.put("message", "인증 처리 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(responseBody);
         }
     }
     
@@ -165,34 +187,60 @@ public class CalendarController {
     }
 
     /**
-     * 브라우저가 직접 방문할 수 있는 구글 인증 시작 엔드포인트
+     * 브라우저가 직접 방문할 수 있는 구글 인증 시작 엔드포인트 (캘린더 연동 전용)
      */
     @GetMapping("/start-google-auth")
     public void startGoogleAuthDirect(HttpServletRequest request, HttpServletResponse response) throws IOException {
-        System.out.println("=== 직접 구글 인증 시작 ===");
+        System.out.println("=== 직접 구글 캘린더 연동 시작 ===");
         
-        // 현재 로그인한 사용자 정보를 state에 포함
-        Authentication auth = SecurityContextHolder.getContext().getAuthentication();
-        String currentUserInfo = "";
-        
-        if (auth != null && auth.getPrincipal() instanceof String) {
-            String principal = (String) auth.getPrincipal();
-            if (principal.contains(":")) {
-                currentUserInfo = "&current_user=" + java.net.URLEncoder.encode(principal, java.nio.charset.StandardCharsets.UTF_8);
-                System.out.println("현재 사용자 정보: " + principal);
+        try {
+            Long userId = getUserIdFromAuthentication(SecurityContextHolder.getContext().getAuthentication());
+            System.out.println("인증된 사용자 ID: " + userId);
+
+            // 세션에 캘린더 연동 마커 저장 (Spring Security OAuth가 state를 덮어쓰므로 세션 의존)
+            HttpSession session = request.getSession(true);
+            session.setAttribute("calendar_linking_active", true);
+            session.setAttribute("calendar_linking_user_id", userId);
+            session.setAttribute("calendar_linking_timestamp", System.currentTimeMillis());
+            System.out.println("세션에 캘린더 연동 플래그 저장 - userId: " + userId + ", sessionId: " + session.getId());
+
+            // Redis에도 세션 ID로 사용자 매핑 저장 (이중 보안)
+            String sessionKey = "calendar_session:" + session.getId();
+            redisTemplate.opsForValue().set(sessionKey, String.valueOf(userId));
+            redisTemplate.expire(sessionKey, java.time.Duration.ofMinutes(15));
+            System.out.println("Redis 세션 매핑 저장: " + sessionKey + " -> userId=" + userId);
+
+            // 동적 URL 생성
+            String externalBaseUrl = resolveExternalBaseUrl(request);
+            if (System.getenv("NODE_ENV") != null && System.getenv("NODE_ENV").equals("production")) {
+                externalBaseUrl = System.getenv().getOrDefault("APP_BACKEND_URL", "https://api.fitmate.com");
+            } else {
+                boolean isDockerEnvironment = System.getenv("DOCKER_ENV") != null || 
+                                            System.getProperty("app.environment", "").equals("docker");
+                
+                if (isDockerEnvironment) {
+                    externalBaseUrl = "http://localhost";
+                } else {
+                    externalBaseUrl = backendUrl;
+                }
             }
+
+            // Spring Security가 자체 state를 생성하므로 state 파라미터 제거
+            String authUrl = UriComponentsBuilder.fromHttpUrl(externalBaseUrl)
+                    .path("/oauth2/authorization/google-connect")
+                    .toUriString();
+
+            System.out.println("캘린더 연동용 인증 URL: " + authUrl);
+            response.sendRedirect(authUrl);
+
+        } catch (InsufficientAuthenticationException e) {
+            System.err.println("인증되지 않은 사용자: " + e.getMessage());
+            response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "로그인이 필요합니다.");
+        } catch (Exception e) {
+            System.err.println("캘린더 연동 시작 중 오류: " + e.getMessage());
+            e.printStackTrace();
+            response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "캘린더 연동 시작 중 오류가 발생했습니다.");
         }
-        
-        // 세션에 캘린더 연동 정보 저장
-        HttpSession session = request.getSession(true);
-        session.setAttribute("calendar_link_info", currentUserInfo);
-        System.out.println("세션에 캘린더 연동 정보 저장: " + currentUserInfo);
-        
-        // 단순한 state 파라미터 사용
-        String authUrl = backendUrl + "/oauth2/authorization/google";
-        
-        System.out.println("직접 리다이렉트: " + authUrl);
-        response.sendRedirect(authUrl);
     }
 
     /**
@@ -206,30 +254,31 @@ public class CalendarController {
             String googleName = (String) requestBody.get("googleName");
             String googlePicture = (String) requestBody.get("googlePicture");
             
-            // 네이버 사용자 ID 1번 찾기
-            User naverUser = userService.findById(1L).orElse(null);
+            // 현재 로그인된 사용자 찾기
+            Long userId = getUserIdFromAuth();
+            User currentUser = userService.findById(userId).orElse(null);
             
-            if (naverUser != null) {
-                // 네이버 사용자에게 구글 정보 추가
-                naverUser.setGoogleOAuthId(googleOauthId);
-                naverUser.setGoogleEmail(googleEmail);
-                naverUser.setGoogleName(googleName);
+            if (currentUser != null) {
+                // 현재 사용자에게 구글 정보 추가
+                currentUser.setGoogleOAuthId(googleOauthId);
+                currentUser.setGoogleEmail(googleEmail);
+                currentUser.setGoogleName(googleName);
                 if (googlePicture != null) {
-                    naverUser.setGooglePicture(googlePicture);
+                    currentUser.setGooglePicture(googlePicture);
                 }
-                userService.save(naverUser);
+                userService.save(currentUser);
                 
-                System.out.println("네이버 사용자에게 구글 정보 추가 완료: " + naverUser.getId());
+                System.out.println("현재 사용자에게 구글 정보 추가 완료: " + currentUser.getId());
                 
                 return ResponseEntity.ok(Map.of(
                     "success", true,
-                    "message", "네이버 사용자에게 구글 캘린더가 연동되었습니다.",
-                    "userId", naverUser.getId()
+                    "message", "현재 사용자에게 구글 캘린더가 연동되었습니다.",
+                    "userId", currentUser.getId()
                 ));
             } else {
                 return ResponseEntity.badRequest().body(Map.of(
                     "success", false,
-                    "message", "네이버 사용자를 찾을 수 없습니다."
+                    "message", "현재 사용자를 찾을 수 없습니다."
                 ));
             }
         } catch (Exception e) {
@@ -330,54 +379,29 @@ public class CalendarController {
      * 다가오는 이벤트 목록을 가져옵니다.
      */
     @GetMapping("/events")
-    public ResponseEntity<?> getUpcomingEvents(@RequestParam(defaultValue = "10") int maxResults) {
-        if (!isAuthenticated()) {
-            return ResponseEntity.status(401).body(Map.of("error", "OAuth2 인증이 필요합니다."));
-        }
-
+    public ResponseEntity<?> getUpcomingEvents() {
         try {
-            List<Event> events = calendarService.getUpcomingEvents(maxResults);
+            Long userId = getUserIdFromAuth();
+            
+            // Get events for the next 3 months
+            DateTime now = new DateTime(System.currentTimeMillis());
+            DateTime threeMonthsLater = new DateTime(now.getValue() + (long) 90 * 24 * 60 * 60 * 1000); // 90 days in milliseconds
+
+            List<Event> events = calendarService.getEventsInRange(userId, now, threeMonthsLater);
             
             // Google Calendar Event를 프론트엔드 친화적 형태로 변환
-            List<Map<String, Object>> formattedEvents = events.stream().map(event -> {
-                Map<String, Object> formattedEvent = new HashMap<>();
-                
-                formattedEvent.put("id", event.getId());
-                formattedEvent.put("title", event.getSummary() != null ? event.getSummary() : "제목 없음");
-                formattedEvent.put("description", event.getDescription());
-                formattedEvent.put("location", event.getLocation());
-                formattedEvent.put("htmlLink", event.getHtmlLink());
-                
-                // 날짜 형식 통일 (ISO 8601 형식으로)
-                String startDate = formatEventDateTime(event.getStart());
-                String endDate = formatEventDateTime(event.getEnd());
-                
-                formattedEvent.put("startDate", startDate);
-                formattedEvent.put("endDate", endDate);
-                
-                // All-day 이벤트 여부 확인
-                boolean isAllDay = (event.getStart().getDateTime() == null);
-                formattedEvent.put("isAllDay", isAllDay);
-                
-                // 생성자 정보
-                if (event.getCreator() != null) {
-                    formattedEvent.put("creator", Map.of(
-                        "email", event.getCreator().getEmail() != null ? event.getCreator().getEmail() : "",
-                        "displayName", event.getCreator().getDisplayName() != null ? event.getCreator().getDisplayName() : ""
-                    ));
-                }
-                
-                // 생성 시간
-                formattedEvent.put("created", event.getCreated() != null ? event.getCreated().toString() : null);
-                
-                return formattedEvent;
-            }).toList();
+            List<Map<String, Object>> formattedEvents = events.stream().map(this::formatEventToMap).toList();
             
-            return ResponseEntity.ok(formattedEvents);
+            Map<String, Object> response = new HashMap<>();
+            response.put("events", formattedEvents);
+            
+            return ResponseEntity.ok(response);
         } catch (IOException | GeneralSecurityException e) {
             System.err.println("CalendarController 오류: " + e.getMessage());
             return ResponseEntity.internalServerError()
                     .body(Map.of("error", "캘린더 이벤트를 가져오는 중 오류가 발생했습니다: " + e.getMessage()));
+        } catch (InsufficientAuthenticationException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", e.getMessage()));
         }
     }
     
@@ -402,21 +426,53 @@ public class CalendarController {
         return null;
     }
 
+    private Map<String, Object> formatEventToMap(Event event) {
+        Map<String, Object> formattedEvent = new HashMap<>();
+        
+        formattedEvent.put("id", event.getId());
+        formattedEvent.put("title", event.getSummary() != null ? event.getSummary() : "제목 없음");
+        formattedEvent.put("description", event.getDescription());
+        formattedEvent.put("location", event.getLocation());
+        formattedEvent.put("htmlLink", event.getHtmlLink());
+        
+        // 날짜 형식 통일 (ISO 8601 형식으로)
+        String startDate = formatEventDateTime(event.getStart());
+        String endDate = formatEventDateTime(event.getEnd());
+        
+        formattedEvent.put("startDate", startDate);
+        formattedEvent.put("endDate", endDate);
+        
+        // All-day 이벤트 여부 확인
+        boolean isAllDay = (event.getStart().getDateTime() == null);
+        formattedEvent.put("isAllDay", isAllDay);
+        
+        // 생성자 정보
+        if (event.getCreator() != null) {
+            formattedEvent.put("creator", Map.of(
+                "email", event.getCreator().getEmail() != null ? event.getCreator().getEmail() : "",
+                "displayName", event.getCreator().getDisplayName() != null ? event.getCreator().getDisplayName() : ""
+            ));
+        }
+        
+        // 생성 시간
+        formattedEvent.put("created", event.getCreated() != null ? event.getCreated().toString() : null);
+        
+        return formattedEvent;
+    }
+
     /**
      * 새로운 이벤트를 생성합니다.
      */
     @PostMapping("/events")
     public ResponseEntity<?> createEvent(@RequestBody Map<String, Object> eventData) {
-        if (!isAuthenticated()) {
-            return ResponseEntity.status(401).body(Map.of("error", "OAuth2 인증이 필요합니다."));
-        }
-
         try {
+            Long userId = getUserIdFromAuth();
             String summary = (String) eventData.get("summary");
             String description = (String) eventData.get("description");
             String location = (String) eventData.get("location");
             String startDateTimeStr = (String) eventData.get("startDateTime");
             String endDateTimeStr = (String) eventData.get("endDateTime");
+            String recurrence = (String) eventData.get("recurrence"); // New parameter
             
             @SuppressWarnings("unchecked")
             List<String> attendeeEmails = (List<String>) eventData.get("attendeeEmails");
@@ -425,13 +481,15 @@ public class CalendarController {
             DateTime startDateTime = new DateTime(startDateTimeStr);
             DateTime endDateTime = new DateTime(endDateTimeStr);
 
-            Event createdEvent = calendarService.createEvent(summary, description, location, 
-                    startDateTime, endDateTime, attendeeEmails);
+            Event createdEvent = calendarService.createEvent(userId, summary, description, location, 
+                    startDateTime, endDateTime, attendeeEmails, recurrence); // Pass recurrence
             
             return ResponseEntity.ok(createdEvent);
         } catch (IOException | GeneralSecurityException e) {
             return ResponseEntity.internalServerError()
                     .body(Map.of("error", "이벤트 생성 중 오류가 발생했습니다: " + e.getMessage()));
+        } catch (InsufficientAuthenticationException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", e.getMessage()));
         }
     }
 
@@ -440,16 +498,15 @@ public class CalendarController {
      */
     @GetMapping("/events/{eventId}")
     public ResponseEntity<?> getEvent(@PathVariable String eventId) {
-        if (!isAuthenticated()) {
-            return ResponseEntity.status(401).body(Map.of("error", "OAuth2 인증이 필요합니다."));
-        }
-
         try {
-            Event event = calendarService.getEvent(eventId);
+            Long userId = getUserIdFromAuth();
+            Event event = calendarService.getEvent(userId, eventId);
             return ResponseEntity.ok(event);
         } catch (IOException | GeneralSecurityException e) {
             return ResponseEntity.internalServerError()
                     .body(Map.of("error", "이벤트를 가져오는 중 오류가 발생했습니다: " + e.getMessage()));
+        } catch (InsufficientAuthenticationException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", e.getMessage()));
         }
     }
 
@@ -457,17 +514,32 @@ public class CalendarController {
      * 이벤트를 업데이트합니다.
      */
     @PutMapping("/events/{eventId}")
-    public ResponseEntity<?> updateEvent(@PathVariable String eventId, @RequestBody Event updatedEvent) {
-        if (!isAuthenticated()) {
-            return ResponseEntity.status(401).body(Map.of("error", "OAuth2 인증이 필요합니다."));
-        }
-
+    public ResponseEntity<?> updateEvent(@PathVariable String eventId, @RequestBody Map<String, Object> eventData) { // Change to Map
         try {
-            Event event = calendarService.updateEvent(eventId, updatedEvent);
-            return ResponseEntity.ok(event);
+            Long userId = getUserIdFromAuth();
+            String summary = (String) eventData.get("summary");
+            String description = (String) eventData.get("description");
+            String location = (String) eventData.get("location");
+            String startDateTimeStr = (String) eventData.get("startDateTime");
+            String endDateTimeStr = (String) eventData.get("endDateTime");
+            String recurrence = (String) eventData.get("recurrence"); // New parameter
+            
+            @SuppressWarnings("unchecked")
+            List<String> attendeeEmails = (List<String>) eventData.get("attendeeEmails");
+
+            // DateTime 객체 생성
+            DateTime startDateTime = new DateTime(startDateTimeStr);
+            DateTime endDateTime = new DateTime(endDateTimeStr);
+
+            Event updatedEvent = calendarService.updateEvent(userId, eventId, summary, description, location, 
+                    startDateTime, endDateTime, attendeeEmails, recurrence); // Pass recurrence
+            
+            return ResponseEntity.ok(updatedEvent);
         } catch (IOException | GeneralSecurityException e) {
             return ResponseEntity.internalServerError()
                     .body(Map.of("error", "이벤트 업데이트 중 오류가 발생했습니다: " + e.getMessage()));
+        } catch (InsufficientAuthenticationException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", e.getMessage()));
         }
     }
 
@@ -476,16 +548,15 @@ public class CalendarController {
      */
     @DeleteMapping("/events/{eventId}")
     public ResponseEntity<?> deleteEvent(@PathVariable String eventId) {
-        if (!isAuthenticated()) {
-            return ResponseEntity.status(401).body(Map.of("error", "OAuth2 인증이 필요합니다."));
-        }
-
         try {
-            calendarService.deleteEvent(eventId);
+            Long userId = getUserIdFromAuth();
+            calendarService.deleteEvent(userId, eventId);
             return ResponseEntity.ok(Map.of("message", "이벤트가 성공적으로 삭제되었습니다."));
         } catch (IOException | GeneralSecurityException e) {
             return ResponseEntity.internalServerError()
                     .body(Map.of("error", "이벤트 삭제 중 오류가 발생했습니다: " + e.getMessage()));
+        } catch (InsufficientAuthenticationException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", e.getMessage()));
         }
     }
 
@@ -495,55 +566,22 @@ public class CalendarController {
     @GetMapping("/events/range")
     public ResponseEntity<?> getEventsInRange(@RequestParam String startTime, 
                                             @RequestParam String endTime) {
-        if (!isAuthenticated()) {
-            return ResponseEntity.status(401).body(Map.of("error", "OAuth2 인증이 필요합니다."));
-        }
-
         try {
+            Long userId = getUserIdFromAuth();
             DateTime startDateTime = new DateTime(startTime);
             DateTime endDateTime = new DateTime(endTime);
             
-            List<Event> events = calendarService.getEventsInRange(startDateTime, endDateTime);
+            List<Event> events = calendarService.getEventsInRange(userId, startDateTime, endDateTime);
             
             // Google Calendar Event를 프론트엔드 친화적 형태로 변환
-            List<Map<String, Object>> formattedEvents = events.stream().map(event -> {
-                Map<String, Object> formattedEvent = new HashMap<>();
-                
-                formattedEvent.put("id", event.getId());
-                formattedEvent.put("title", event.getSummary() != null ? event.getSummary() : "제목 없음");
-                formattedEvent.put("description", event.getDescription());
-                formattedEvent.put("location", event.getLocation());
-                formattedEvent.put("htmlLink", event.getHtmlLink());
-                
-                // 날짜 형식 통일
-                String startDate = formatEventDateTime(event.getStart());
-                String endDate = formatEventDateTime(event.getEnd());
-                
-                formattedEvent.put("startDate", startDate);
-                formattedEvent.put("endDate", endDate);
-                
-                // All-day 이벤트 여부 확인
-                boolean isAllDay = (event.getStart().getDateTime() == null);
-                formattedEvent.put("isAllDay", isAllDay);
-                
-                // 생성자 정보
-                if (event.getCreator() != null) {
-                    formattedEvent.put("creator", Map.of(
-                        "email", event.getCreator().getEmail() != null ? event.getCreator().getEmail() : "",
-                        "displayName", event.getCreator().getDisplayName() != null ? event.getCreator().getDisplayName() : ""
-                    ));
-                }
-                
-                // 생성 시간
-                formattedEvent.put("created", event.getCreated() != null ? event.getCreated().toString() : null);
-                
-                return formattedEvent;
-            }).toList();
+            List<Map<String, Object>> formattedEvents = events.stream().map(this::formatEventToMap).toList();
             
             return ResponseEntity.ok(formattedEvents);
         } catch (IOException | GeneralSecurityException e) {
             return ResponseEntity.internalServerError()
                     .body(Map.of("error", "날짜 범위 이벤트를 가져오는 중 오류가 발생했습니다: " + e.getMessage()));
+        } catch (InsufficientAuthenticationException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", e.getMessage()));
         }
     }
 
@@ -552,16 +590,14 @@ public class CalendarController {
      */
     @PostMapping("/workout")
     public ResponseEntity<?> createWorkoutEvent(@RequestBody Map<String, Object> workoutData) {
-        if (!isAuthenticated()) {
-            return ResponseEntity.status(401).body(Map.of("error", "OAuth2 인증이 필요합니다."));
-        }
-
         try {
+            Long userId = getUserIdFromAuth();
             String workoutName = (String) workoutData.get("name");
             String description = (String) workoutData.get("description");
             String location = (String) workoutData.get("location");
             String startTime = (String) workoutData.get("startTime");
             String endTime = (String) workoutData.get("endTime");
+            String recurrence = (String) workoutData.get("recurrence"); // Add recurrence parameter
             
             @SuppressWarnings("unchecked")
             List<String> attendeeEmails = (List<String>) workoutData.get("attendeeEmails");
@@ -572,13 +608,15 @@ public class CalendarController {
             DateTime startDateTime = new DateTime(startTime);
             DateTime endDateTime = new DateTime(endTime);
 
-            Event createdEvent = calendarService.createEvent(summary, description, location, 
-                    startDateTime, endDateTime, attendeeEmails);
+            Event createdEvent = calendarService.createEvent(userId, summary, description, location, 
+                    startDateTime, endDateTime, attendeeEmails, recurrence); // Pass recurrence
             
             return ResponseEntity.ok(createdEvent);
         } catch (IOException | GeneralSecurityException e) {
             return ResponseEntity.internalServerError()
                     .body(Map.of("error", "운동 일정 생성 중 오류가 발생했습니다: " + e.getMessage()));
+        } catch (InsufficientAuthenticationException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", e.getMessage()));
         }
     }
 
@@ -587,24 +625,99 @@ public class CalendarController {
      */
     @GetMapping("/status")
     public ResponseEntity<?> getCalendarStatus() {
-        if (!isAuthenticated()) {
-            return ResponseEntity.status(401).body(Map.of("error", "OAuth2 인증이 필요합니다."));
-        }
-
         try {
-            // 간단한 테스트로 캘린더 서비스가 정상 작동하는지 확인
-            List<Event> events = calendarService.getUpcomingEvents(1);
-            return ResponseEntity.ok(Map.of(
-                "connected", true,
-                "provider", "google",
-                "message", "캘린더가 정상적으로 연결되어 있습니다."
-            ));
-        } catch (IOException | GeneralSecurityException e) {
-            return ResponseEntity.ok(Map.of(
+            // JWT에서 사용자 ID 추출
+            String jwt = extractJwtFromRequest();
+            if (jwt == null || !jwtTokenProvider.validateToken(jwt)) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of(
+                    "connected", false,
+                    "message", "유효한 인증 토큰이 없습니다."
+                ));
+            }
+
+            Long userId = Long.parseLong(jwtTokenProvider.getUserIdFromToken(jwt));
+
+            // CalendarService를 통해 실제 연결 상태 및 토큰 유효성 검증
+            boolean isConnected = calendarService.isCalendarConnected(userId);
+
+            if (isConnected) {
+                return ResponseEntity.ok(Map.of(
+                    "connected", true,
+                    "provider", "google",
+                    "message", "Google 캘린더가 정상적으로 연동되어 있습니다."
+                ));
+            } else {
+                return ResponseEntity.ok(Map.of(
+                    "connected", false,
+                    "provider", "google",
+                    "message", "Google 캘린더 연동이 필요하거나 토큰이 만료되었습니다."
+                ));
+            }
+
+        } catch (Exception e) {
+            System.err.println("캘린더 상태 확인 중 오류: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
                 "connected", false,
-                "provider", "google",
-                "message", "캘린더 연결에 실패했습니다: " + e.getMessage()
+                "message", "캘린더 상태 확인 중 서버 오류가 발생했습니다."
             ));
         }
+    }
+
+    /**
+     * Google 캘린더 연동을 해제합니다.
+     */
+    @DeleteMapping("/disconnect")
+    public ResponseEntity<?> disconnectGoogleCalendar() {
+        try {
+            Long userId = getUserIdFromAuth();
+            boolean isDisconnected = calendarService.disconnectCalendar(userId);
+
+            if (isDisconnected) {
+                return ResponseEntity.ok(Map.of(
+                    "success", true,
+                    "message", "Google 캘린더 연동이 성공적으로 해제되었습니다."
+                ));
+            } else {
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of(
+                    "success", false,
+                    "message", "연동된 Google 캘린더가 없거나 연동 해제에 실패했습니다."
+                ));
+            }
+        } catch (InsufficientAuthenticationException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("success", false, "message", e.getMessage()));
+        } catch (Exception e) {
+            System.err.println("캘린더 연동 해제 중 컨트롤러 오류: " + e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
+                "success", false,
+                "message", "캘린더 연동 해제 중 서버 오류가 발생했습니다."
+            ));
+        }
+    }
+
+    /**
+     * HTTP 요청에서 JWT 토큰을 추출합니다.
+     */
+    private String extractJwtFromRequest() {
+        try {
+            HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
+            String authorizationHeader = request.getHeader("Authorization");
+            if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
+                return authorizationHeader.substring(7); // "Bearer " 뒤의 토큰 값
+            }
+        } catch (Exception e) {
+            System.err.println("JWT 토큰 추출 중 오류: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * 인증 정보에서 사용자 ID를 추출하는 헬퍼 메소드
+     */
+    private Long getUserIdFromAuth() {
+        String jwt = extractJwtFromRequest();
+        if (jwt == null || !jwtTokenProvider.validateToken(jwt)) {
+            throw new InsufficientAuthenticationException("유효한 인증 토큰이 없습니다.");
+        }
+        return Long.parseLong(jwtTokenProvider.getUserIdFromToken(jwt));
     }
 } 
