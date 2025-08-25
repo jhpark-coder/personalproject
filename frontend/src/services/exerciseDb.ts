@@ -3,6 +3,8 @@
 const BASE_URL = (import.meta.env.VITE_EXDB_BASE_URL || 'https://www.exercisedb.dev/api/v1').replace(/\/$/, '');
 const APP_API_BASE = '';
 
+import { apiClient, handleApiError } from '../utils/axiosConfig';
+
 // 부정확한 검색 결과를 수동으로 보정하기 위한 특별 검색어 매핑
 const specialSearchMap: Record<string, string> = {
   '스쿼트': 'potty squat', // 기본 스쿼트가 potty squat으로 잘못 등록되어 있음
@@ -46,10 +48,8 @@ export interface ExdbExerciseDetail extends ExdbExerciseSummary {
 // 서버 캐시 조회
 export async function getKoInstructions(exerciseId: string): Promise<string[] | null> {
   try {
-    const res = await fetch(`/api/exercises/instructions/${encodeURIComponent(exerciseId)}`);
-    if (!res.ok) return null;
-    const json = await res.json();
-    return json?.data || null;
+    const response = await apiClient.get(`/api/exercises/instructions/${encodeURIComponent(exerciseId)}`);
+    return response.data?.data || null;
   } catch {
     return null;
   }
@@ -58,12 +58,12 @@ export async function getKoInstructions(exerciseId: string): Promise<string[] | 
 // 서버 저장
 export async function saveKoInstructions(exerciseId: string, instructionsKo: string[], nameKo?: string): Promise<boolean> {
   try {
-    const res = await fetch(`/api/exercises/instructions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ exerciseId, nameKo, instructionsKo })
+    const response = await apiClient.post(`/api/exercises/instructions`, {
+      exerciseId,
+      nameKo,
+      instructionsKo
     });
-    return res.ok;
+    return response.status >= 200 && response.status < 300;
   } catch {
     return false;
   }
@@ -83,6 +83,7 @@ export async function searchExerciseByName(name: string): Promise<ExdbExerciseSu
   const searchQuery = toSearchQuery(name);
   const q = encodeURIComponent(searchQuery);
   const url = `${BASE_URL}/exercises/search?q=${q}&limit=5`;
+  // 외부 API이므로 네이티브 fetch 사용 (CORS 문제 방지)
   const res = await fetch(url);
   if (!res.ok) return null;
 
@@ -117,6 +118,7 @@ export async function searchExerciseByName(name: string): Promise<ExdbExerciseSu
 }
 
 export async function getExerciseById(id: string): Promise<ExdbExerciseDetail | null> {
+  // 외부 API이므로 네이티브 fetch 사용 (CORS 문제 방지)
   const res = await fetch(`${BASE_URL}/exercises/${encodeURIComponent(id)}`);
   if (!res.ok) return null;
   const json = await res.json();

@@ -1,0 +1,29 @@
+source,target,label
+User,FE_Login,사용자 → 로그인/회원가입
+FE_Login,BE_Auth,POST /api/auth/login
+FE_Login,BE_Auth,POST /api/auth/signup
+BE_Auth,MySQL,DB
+FE_Login,COM_SMS,POST /sms/request-otp
+COM_SMS,SMSSvc,SMS Gateway
+FE_Login,BE_Auth,/oauth2/authorization/{provider}
+BE_Auth,Google,OAuth2
+Google,FE_OAuth,성공 리다이렉트
+FE_Profile,BE_Auth,GET /api/auth/profile
+FE_Profile,BE_Auth,PUT /api/auth/update-profile
+FE_Profile,BE_Auth,POST /api/auth/verify-password
+FE_Profile,BE_Auth,POST /api/auth/change-password
+FE_Onboarding,BE_Auth,PUT /api/auth/update-basic-info
+FE_Profile,BE_Calendar,캘린더 연동/상태
+BE_Calendar,Google,Google Calendar
+BE_Calendar,MySQL,DB
+FE_Analytics1,BE_MyPage,GET /api/mypage/{id}/trends
+FE_Analytics2,BE_MyPage,GET /api/mypage/{id}/workouts
+FE_Records,BE_MyPage,GET /api/mypage/{id}/records-room
+BE_MyPage,MySQL,DB
+FE_Programs,BE_Exercise,GET /api/exercise-information
+BE_Exercise,MySQL,DB
+FE_Notifications,COM_Notif,GET/PUT /api/notifications
+FE_Notifications,SocketIO,socket.io
+COM_Notif,Mongo,DB
+SocketIO,Redis,PubSub
+FE_Chat,SocketIO,socket.io 

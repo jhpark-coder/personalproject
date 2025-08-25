@@ -1,9 +1,21 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import path from 'path'
 
 // https://vitejs.dev/config/
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: {
+      '@features': path.resolve(__dirname, 'src/features'),
+      '@components': path.resolve(__dirname, 'src/components'),
+      '@utils': path.resolve(__dirname, 'src/utils'),
+      '@config': path.resolve(__dirname, 'src/config'),
+      '@context': path.resolve(__dirname, 'src/context'),
+      '@services': path.resolve(__dirname, 'src/services'),
+      '@assets': path.resolve(__dirname, 'src/assets'),
+    }
+  },
   server: {
     port: 5173,
     host: '0.0.0.0',
@@ -36,6 +48,11 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
+      '/test/': {
+        target: 'http://localhost:80',
+        changeOrigin: true,
+        secure: false,
+      },
       // 통신 서버(Nest, 3000)는 알림/소켓/SMS
       '/api/notifications': {
         target: 'http://localhost:3000',
@@ -56,11 +73,15 @@ export default defineConfig({
     }
   },
   build: {
-    chunkSizeWarningLimit: 1000,
+    chunkSizeWarningLimit: 1500,
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vendor': ['react', 'react-dom']
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return;
+          if (id.includes('recharts')) return 'recharts';
+          if (id.includes('@mediapipe/pose')) return 'mediapipe-pose';
+          if (id.includes('socket.io-client')) return 'socket-io';
+          if (id.includes('react') || id.includes('react-dom')) return 'react-vendor';
         }
       }
     }

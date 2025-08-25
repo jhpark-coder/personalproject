@@ -26,6 +26,20 @@ export const CHAT_SERVER_URL = configuredChatServerUrl;
 // - 그 외에는 환경변수 또는 로컬 기본값 사용
 const NOTIF_BASE_URL = isHttps ? '' : configuredChatServerUrl || '';
 
+// Quick Tunnel 동적 URL 감지 함수
+const getCurrentBaseUrl = () => {
+  if (typeof window !== 'undefined') {
+    return window.location.origin;
+  }
+  return 'http://localhost';
+};
+
+// OAuth2 리다이렉트 URL 동적 생성
+const generateOAuthRedirectUrl = (provider: string) => {
+  const baseUrl = getCurrentBaseUrl();
+  return `${baseUrl}/login/oauth2/code/${provider}`;
+};
+
 // API 엔드포인트
 export const API_ENDPOINTS = {
   // 백엔드 URL
@@ -47,10 +61,42 @@ export const API_ENDPOINTS = {
   // 프로필 및 로그아웃
   PROFILE: `${backendUrl}/api/auth/profile`,
   LOGOUT: `${backendUrl}/api/auth/logout`,
+
+  // 프로필 수정/검증/비밀번호 변경
+  VERIFY_PASSWORD: `${backendUrl}/api/auth/verify-password`,
+  UPDATE_PROFILE: `${backendUrl}/api/auth/update-profile`,
+  CHANGE_PASSWORD: `${backendUrl}/api/auth/change-password`,
   
-  // OAuth2 관련
-  OAUTH2_AUTHORIZATION: (provider: string) => `${backendUrl}/oauth2/authorization/${provider}`,
+  // OAuth2 관련 - 동적 리다이렉트 URL 지원
+  OAUTH2_AUTHORIZATION: (provider: string) => {
+    const redirectUrl = generateOAuthRedirectUrl(provider);
+    return `${backendUrl}/oauth2/authorization/${provider}?redirect_uri=${encodeURIComponent(redirectUrl)}`;
+  },
   OAUTH2_USER_INFO: `${backendUrl}/api/auth/oauth2-user-info`,
+  UPDATE_OAUTH_REDIRECT: `${backendUrl}/api/auth/update-oauth-redirect`,
+  
+  // OAuth 리다이렉트 URL 생성 함수 (외부 사용용)
+  GENERATE_OAUTH_REDIRECT_URL: generateOAuthRedirectUrl,
+  GET_CURRENT_BASE_URL: getCurrentBaseUrl,
+  
+  // OAuth 환경 테스트 함수
+  TEST_OAUTH_ENVIRONMENT: () => {
+    const currentBaseUrl = getCurrentBaseUrl();
+    const isQuickTunnel = currentBaseUrl.includes('https://') && !currentBaseUrl.includes('localhost');
+    const isLocalhost = currentBaseUrl.includes('localhost');
+    
+    return {
+      currentBaseUrl,
+      isQuickTunnel,
+      isLocalhost,
+      environment: isQuickTunnel ? 'Quick Tunnel' : isLocalhost ? 'Localhost' : 'Unknown',
+      redirectUrls: {
+        google: generateOAuthRedirectUrl('google'),
+        kakao: generateOAuthRedirectUrl('kakao'),
+        naver: generateOAuthRedirectUrl('naver')
+      }
+    };
+  },
   
   // 온보딩 관련
   UPDATE_BASIC_INFO: `${backendUrl}/api/auth/update-basic-info`,
@@ -63,9 +109,12 @@ export const API_ENDPOINTS = {
   BROADCAST_NOTIFICATION: `${NOTIF_BASE_URL}/api/notifications/broadcast`,
   
   // 새로운 API 엔드포인트들
-  // 운동 프로그램 관련
-  WORKOUT_PROGRAMS: `${backendUrl}/api/workout/programs`,
-  WORKOUT_PROGRAM: (id: string) => `${backendUrl}/api/workout/programs/${id}`,
+  // 운동 기록 관련 (실제 백엔드 경로와 일치)
+  WORKOUT_RECORDS: (userId: string) => `${backendUrl}/api/workout-records/${userId}`,
+  WORKOUT_RECORD: (recordId: string) => `${backendUrl}/api/workout-records/${recordId}`,
+  WORKOUT_RECORDS_PERIOD: (userId: string) => `${backendUrl}/api/workout-records/${userId}/period`,
+  WORKOUT_RECORDS_BY_DATE: (userId: string, date: string) => `${backendUrl}/api/workout-records/${userId}/date/${date}`,
+  WORKOUT_RECORDS_STATS: (userId: string) => `${backendUrl}/api/workout-records/${userId}/stats`,
   
   // 운동정보 관련
   EXERCISES: `${backendUrl}/api/exercise-information`,
