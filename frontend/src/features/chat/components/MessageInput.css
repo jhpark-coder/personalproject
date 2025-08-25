@@ -1,0 +1,103 @@
+.message-input-container {
+  padding: 0.75rem;
+  border-top: 0.0625rem solid #e9ecef;
+  background: white;
+}
+
+.message-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.message-input-field {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  border: 0.0625rem solid #e9ecef;
+  border-radius: 1.5rem;
+  font-size: 0.95rem;
+  outline: none;
+  transition: border-color 0.2s ease;
+  min-height: 3rem;
+  max-height: 5rem;
+  resize: none;
+  font-family: inherit;
+}
+
+.message-input-field:focus {
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 0.125rem rgba(51, 65, 85, 0.12);
+}
+
+.message-input-field::placeholder {
+  color: #adb5bd;
+}
+
+.send-button {
+  background-color: var(--brand-primary);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  width: 2.5rem;
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  flex-shrink: 0;
+  font-size: 0.85rem;
+}
+
+.send-button:hover:not(:disabled) {
+  transform: scale(1.05);
+  box-shadow: 0 0.25rem 0.75rem rgba(51, 65, 85, 0.25);
+}
+
+.send-button:disabled {
+  background: #e9ecef;
+  color: #adb5bd;
+  cursor: not-allowed;
+}
+
+/* 반응형 디자인 */
+@media (max-width: 768px) {
+  .message-input-container {
+    padding: 0.5rem;
+  }
+  
+  .message-input-wrapper {
+    max-width: 100%;
+  }
+  
+  .message-input-field {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+    min-height: 2.25rem;
+  }
+  
+  .send-button {
+    width: 2rem;
+    height: 2rem;
+  }
+}
+
+/* 작은 화면에서 더 컴팩트하게 */
+@media (max-width: 480px) {
+  .message-input-container {
+    padding: 0.5rem;
+  }
+  
+  .message-input-field {
+    padding: 0.375rem 0.625rem;
+    font-size: 0.8rem;
+    min-height: 2rem;
+  }
+  
+  .send-button {
+    width: 1.875rem;
+    height: 1.875rem;
+  }
+} 

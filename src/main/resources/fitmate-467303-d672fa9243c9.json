@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "fitmate-467303",
+  "private_key_id": "d672fa9243c94e742574dc308af0dcf68a5a8682",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCD2QKYCfQimqYk\nc7c/L70OeetVLwLJkix1oMG+IHPOTVSAhhvp0kw/YcDXY2WcqK18EGjuiJntK71T\nB/XJHn+nB11RSiHeNq+XWNf5QAHIgfn7tkQzn+x3lF2g0qAklZNNlcT9Bnd4ZBsF\nSp4UVTtk88GK54NDcYrhWQTkZ1dycmmIHEZ1rajNRZFAa9xMNAOmJurOaR1ipGm5\nDVDlSpZJiJD4nZeBRW/+tF1BYETOEr8CNGKbRJEACQzpZgS6Ga/x5QsmSnHg02Iu\n99wjS4gQiBolHRdzc7A9iTL5AP3zzaBfMX8LMqUUzvkimh7eM1tNGPzQ23ZjmpHl\ngV5UxyZTAgMBAAECggEAJlwvlIOk26KJ/yYJpSEjDMCtFvoYAgR82fZdGA+CEf5O\nvRwHqAZu96vduuzo5eTvoJ53oRruSeJFcZBp0suEUVjjriB27RuVB+Ap6hNU0Xz7\neeAkRK7dUkdA3Gcbf7ljA5o1F3bXsJfTgr0cdAb+QldnMp48AxXYVcscEMX+W8YC\nBW3ZrAzGNWPFolL5kUlMYwVgKFNZLFFagXRveJ/OhMlHfjSlzVxrhSmPtcgJTs6K\n68wNSspZnXp/Itfpl9Lm7Jz4nYtOdOHJDtSwVaAH5zmvh963nAM9eJovhLqbwcoQ\nfVOkCcxcACpI2VUWntDHoj4G45eTFlw/kIbz8zn9HQKBgQC33ZJ8VjdTqU/zUPtw\nyhbIx3JEXQRMTAAa7tQXbUCYZE2ArUc4+9e5j2JLdqAmJ8FakweROzeau7RRNVEF\nzpoAyhWhwIE5o/PqKyzsKmigzUSC1svWKuGDa+sbuP0rC996O+I3WNxV0JS99ari\nGweJem2lIg6SRgl1JcsmGuldXQKBgQC3kw7Th3XtI/yOz0TeFQXrjThGsVyiNZoP\nNQBOVrttfbE1Za8Z+YbccVVY3wwYn57RIhqCpbdWyeQl57e7pw2bYrKvCbmeYVI8\nJZNuoPYb3nlU8n5mcYrbrlT6XX1vxs3V6ZOBixZwLhPVKBatREiUKe3p200ggacv\nhXupmXCnbwKBgEwn6Um4yDfN1EC61Tq1adSFz82DHYmgnRaKv6xoYy37taJLo0l1\n/rdsLVGGc/T52Ht0lNjRx0k+4AQW6lVWarFTAry5qIzAXQIsGfJD6oxYGT18THeL\n0VaG953G9I3E4C6X6S31j2W3/DPmMn5upaOK4ylXvuNVQQuVuNwyn2A9AoGAWf49\nxnUh2p9JsLjrifPEczVH4WARiXO9krbo736VY5e6x/KRZKpu8qKctHSj+W5G7T9K\nv8F9n45ZyjtOVzAN+57m+ehKltoe9l11aUZ/YCowUPSQAqim6gsMnbA3ThSn07Yu\nGdOVrGjqUBTXCRnwerITcBGSPd1RmHpXpU0TbQECgYB21U5YIm3XWO6/nKdfJ4RX\nGh0lneeq9cyrXxI2eS4oTKMngBlduti10yrcSNcU9tAjdOd5zwhYFpJS5wR6tWCG\n38Kc6NBWCBnGJmPIKxd0hYTTfv0ABrWNbkVQK00Qs+3voSZC4GyGg0mS8BJO3HOY\ntLDzaYJNDInx+J+jrLplGw==\n-----END PRIVATE KEY-----\n",
+  "client_email": "tts-service-account@fitmate-467303.iam.gserviceaccount.com",
+  "client_id": "108241947446620393140",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/tts-service-account%40fitmate-467303.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

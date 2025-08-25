@@ -21,7 +21,19 @@
     "noUnusedParameters": true,
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true,
-    "noUncheckedSideEffectImports": true
+    "noUncheckedSideEffectImports": true,
+
+    /* Path aliases */
+    "baseUrl": "./src",
+    "paths": {
+      "@features/*": ["features/*"],
+      "@components/*": ["components/*"],
+      "@utils/*": ["utils/*"],
+      "@config/*": ["config/*"],
+      "@context/*": ["context/*"],
+      "@services/*": ["services/*"],
+      "@assets/*": ["assets/*"]
+    }
   },
   "include": ["src"]
 }

@@ -1,42 +1,47 @@
 import React, { lazy, Suspense } from 'react';
 import { HashRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import './App.css';
-import Dashboard from './components/Dashboard';
-import ChatPage from './components/ChatPage';
-import MotionCoach from './components/MotionCoach';
-import SignupForm from './components/SignupForm';
-import OAuth2Callback from './components/OAuth2Callback';
-import UserList from './components/UserList';
-import MemberForm from './components/MemberForm';
-const ChatDashboard = lazy(() => import('./components/ChatDashboard'));
-import ChatStats from './components/ChatStats';
-import ChatRoom from './components/ChatRoom';
-import MessageInput from './components/MessageInput';
-import ChatButton from './components/ChatButton';
-import Modal from './components/Modal';
-import PoseDetector from './components/pose-detection/PoseDetector';
-import AuthGuard from './components/AuthGuard';
-import { UserProvider } from './context/UserContext';
+import MemberForm from '@features/authentication/components/MemberForm';
+const Dashboard = lazy(() => import('./features/dashboard/components/Dashboard'));
+const ChatPage = lazy(() => import('@features/chat/components/ChatPage'));
+const MotionCoach = lazy(() => import('@features/workout/components/MotionCoach'));
+const SignupForm = lazy(() => import('@features/authentication/components/SignupForm'));
+const OAuth2Callback = lazy(() => import('@features/authentication/components/OAuth2Callback'));
+const UserList = lazy(() => import('@features/chat/components/UserList'));
+const ChatDashboard = lazy(() => import('@features/chat/components/ChatDashboard'));
+const ChatStats = lazy(() => import('@features/chat/components/ChatStats'));
+const ChatRoom = lazy(() => import('@features/chat/components/ChatRoom'));
+const MessageInput = lazy(() => import('@features/chat/components/MessageInput'));
+const ChatButton = lazy(() => import('@features/chat/components/ChatButton'));
+import Modal from '@components/ui/Modal';
+const PoseDetector = lazy(() => import('@features/pose-detection/components/PoseDetector'));
+import AuthGuard from '@features/authentication/components/AuthGuard';
+import { UserProvider } from '@context/UserContext';
 
 // 새로운 페이지 컴포넌트들
-import OnboardingExperience from './components/onboarding/OnboardingExperience';
-import OnboardingGoal from './components/onboarding/OnboardingGoal';
-import OnboardingBasicInfo from './components/onboarding/OnboardingBasicInfo';
+const OnboardingExperience = lazy(() => import('@features/onboarding/components/OnboardingExperience'));
+const OnboardingGoal = lazy(() => import('@features/onboarding/components/OnboardingGoal'));
+const OnboardingBasicInfo = lazy(() => import('@features/onboarding/components/OnboardingBasicInfo'));
 // import OnboardingBodyInfo from './components/onboarding/OnboardingBodyInfo';
-import OnboardingComplete from './components/onboarding/OnboardingComplete';
-import WorkoutDetail from './components/workout/WorkoutDetail';
-import BodyData from './components/analytics/BodyData';
-import WorkoutStats from './components/analytics/WorkoutStats';
-import Profile from './components/profile/Profile';
-import Settings from './components/settings/Settings';
-import Calendar from './components/Calendar';
-import ExerciseTest from './components/ExerciseTest';
-import ExerciseInformation from './components/workout/ExerciseInformation';
-import Analytics from './components/analytics/WorkoutStats';
-import RecordsRoom from './components/profile/RecordsRoom';
-import BodyRecordForm from './components/profile/BodyRecordForm';
-import ScrollToTop from './components/ScrollToTop';
-import NotificationCenter from './components/NotificationCenter';
+const OnboardingComplete = lazy(() => import('@features/onboarding/components/OnboardingComplete'));
+const WorkoutDetail = lazy(() => import('@features/workout/components/WorkoutDetail'));
+const BodyData = lazy(() => import('@features/analytics/components/BodyData'));
+const WorkoutStats = lazy(() => import('@features/analytics/components/WorkoutStats'));
+const Profile = lazy(() => import('@features/profile/components/Profile'));
+const Settings = lazy(() => import('@features/settings/components/Settings'));
+const Calendar = lazy(() => import('@features/calendar/components/Calendar'));
+const ExerciseTest = lazy(() => import('@features/workout/components/ExerciseTest'));
+const SpeechSynthesisTest = lazy(() => import('@features/dev-test/components/SpeechSynthesisTest')); // 음성 합성 테스트 페이지 임포트
+const OAuthEnvironmentTest = lazy(() => import('@features/dev-test/components/OAuthEnvironmentTest')); // OAuth 환경 테스트 페이지 임포트
+const ExerciseInformation = lazy(() => import('@features/workout/components/ExerciseInformation'));
+const Analytics = lazy(() => import('@features/analytics/components/WorkoutStats'));
+const RecordsRoom = lazy(() => import('@features/profile/components/RecordsRoom'));
+const BodyRecordForm = lazy(() => import('@features/profile/components/BodyRecordForm'));
+const ProfileEdit = lazy(() => import('@features/profile/components/ProfileEdit'));
+import ScrollToTop from '@components/ui/ScrollToTop';
+const NotificationCenter = lazy(() => import('@features/notifications/components/NotificationCenter'));
+
+const Loading = <div>Loading...</div>;
 
 function AppRoutes() {
   const location = useLocation();
@@ -53,7 +58,8 @@ function AppRoutes() {
 
   return (
     <div className={`container ${isPublicRoute ? 'no-sidebar' : ''}`}>
-      <Routes>
+      <Suspense fallback={Loading}>
+        <Routes>
         {/* 공개 페이지들 (인증 불필요) */}
         <Route path="/login" element={<MemberForm />} />
         <Route path="/signup" element={<SignupForm />} />
@@ -82,29 +88,27 @@ function AppRoutes() {
         } />
         <Route path="/users" element={
           <AuthGuard requireAuth={true}>
-            <UserList />
+            <UserList users={[]} currentUser={null} onSelectUser={() => {}} unreadCounts={new Map()} />
           </AuthGuard>
         } />
         <Route path="/chat-dashboard" element={
           <AuthGuard requireAuth={true}>
-            <Suspense fallback={<div>Loading Chat Dashboard...</div>}>
-              <ChatDashboard />
-            </Suspense>
+            <ChatDashboard />
           </AuthGuard>
         } />
         <Route path="/chat-stats" element={
           <AuthGuard requireAuth={true}>
-            <ChatStats />
+            <ChatStats onlineUsers={0} totalMessages={0} />
           </AuthGuard>
         } />
         <Route path="/chat-room" element={
           <AuthGuard requireAuth={true}>
-            <ChatRoom />
+            <ChatRoom currentUser={null} messages={[]} onSendMessage={() => {}} onBack={() => {}} />
           </AuthGuard>
         } />
         <Route path="/message-input" element={
           <AuthGuard requireAuth={true}>
-            <MessageInput />
+            <MessageInput value="" onChange={() => {}} onSend={() => {}} onKeyPress={() => {}} placeholder="" />
           </AuthGuard>
         } />
         <Route path="/chat-button" element={
@@ -114,7 +118,7 @@ function AppRoutes() {
         } />
         <Route path="/modal" element={
           <AuthGuard requireAuth={true}>
-            <Modal />
+            <Modal isOpen={false} onClose={() => {}} title="" message="" />
           </AuthGuard>
         } />
         <Route path="/pose-detector" element={
@@ -148,6 +152,11 @@ function AppRoutes() {
             <Profile />
           </AuthGuard>
         } />
+        <Route path="/profile/edit" element={
+          <AuthGuard requireAuth={true}>
+            <ProfileEdit />
+          </AuthGuard>
+        } />
         <Route path="/settings" element={
           <AuthGuard requireAuth={true}>
             <Settings />
@@ -173,11 +182,14 @@ function AppRoutes() {
             <NotificationCenter />
           </AuthGuard>
         } />
-        {/* 운동 API 테스트 페이지 (개발용) */}
+        {/* 개발용 테스트 페이지 */}
         <Route path="/exercise-test" element={<ExerciseTest />} />
+        <Route path="/speech-test" element={<AuthGuard requireAuth={true}><SpeechSynthesisTest /></AuthGuard>} />
+        <Route path="/oauth-test" element={<OAuthEnvironmentTest />} />
         {/* 기본 리다이렉트 */}
         <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+        </Routes>
+      </Suspense>
     </div>
   );
 }

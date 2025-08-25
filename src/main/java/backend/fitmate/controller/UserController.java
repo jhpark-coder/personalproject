@@ -113,4 +113,29 @@ public class UserController {
 
         return ResponseEntity.ok(result);
     }
+
+    // ===== 스케줄러용: 관리자를 제외한 모든 사용자 목록 (인증 불필요) =====
+    @GetMapping("/all")
+    public ResponseEntity<?> getAllUsersExceptAdmins() {
+        try {
+            List<Map<String, Object>> result = userRepository.findAll().stream()
+                .filter(u -> u.getRole() == null || !u.getRole().contains("ROLE_ADMIN"))
+                .map(u -> {
+                    Map<String, Object> m = new HashMap<>();
+                    m.put("id", u.getId());
+                    m.put("email", u.getEmail());
+                    m.put("name", u.getName());
+                    m.put("role", u.getRole());
+                    return m;
+                })
+                .collect(Collectors.toList());
+
+            return ResponseEntity.ok(result);
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of(
+                "success", false,
+                "message", "사용자 목록 조회 중 오류가 발생했습니다: " + e.getMessage()
+            ));
+        }
+    }
 } 

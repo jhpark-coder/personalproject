@@ -1,0 +1,93 @@
+graph TD
+  %% ===== Actors =====
+  subgraph User["User (Browser)"]
+    U[사용자]
+  end
+
+  %% ===== Frontend =====
+  subgraph Frontend["Frontend (Vite + React)"]
+    FE_Login[로그인/회원가입]
+    FE_OAuth[OAuth2 콜백]
+    FE_Profile[프로필/설정]
+    FE_Onboarding[온보딩(경험/목표/기본정보)]
+    FE_Analytics1[신체 데이터 분석]
+    FE_Analytics2[운동 통계 분석]
+    FE_Records[나의 기록실]
+    FE_Programs[운동정보/프로그램]
+    FE_Notifications[알림 센터]
+    FE_Chat[채팅]
+  end
+
+  %% ===== Backend =====
+  subgraph Backend["Backend (Spring Boot)"]
+    BE_Auth[/api/auth/*]
+    BE_MyPage[/api/mypage/*]
+    BE_Exercise[/api/exercise-information/*]
+    BE_Calendar[/api/calendar/*]
+    MySQL[(MySQL)]
+  end
+
+  %% ===== Communication Server =====
+  subgraph Comm["Communication Server (NestJS)"]
+    COM_Notif[/api/notifications/*]
+    COM_SMS[/sms/*]
+    SocketIO(((socket.io)))
+    Mongo[(MongoDB)]
+    Redis[(Redis)]
+  end
+
+  %% ===== External =====
+  subgraph External[External Services]
+    Google[Google OAuth/Calendar]
+    SMSSvc[SMS Gateway]
+  end
+
+  %% ===== Flows: Auth =====
+  U --> FE_Login
+  FE_Login -->|POST /api/auth/login| BE_Auth
+  FE_Login -->|POST /api/auth/signup| BE_Auth
+  BE_Auth --> MySQL
+
+  %% OTP (통신서버)
+  FE_Login -->|POST /sms/request-otp| COM_SMS
+  COM_SMS --> SMSSvc
+
+  %% OAuth2
+  FE_Login -->|/oauth2/authorization/{provider}| BE_Auth
+  BE_Auth --> Google
+  Google -->|성공 리다이렉트| FE_OAuth
+
+  %% 프로필/온보딩/캘린더
+  FE_Profile -->|GET /api/auth/profile| BE_Auth
+  FE_Profile -->|PUT /api/auth/update-profile| BE_Auth
+  FE_Profile -->|POST /api/auth/verify-password| BE_Auth
+  FE_Profile -->|POST /api/auth/change-password| BE_Auth
+  FE_Onboarding -->|PUT /api/auth/update-basic-info| BE_Auth
+
+  FE_Profile -->|캘린더 연동/상태| BE_Calendar
+  BE_Calendar --> Google
+  BE_Calendar --> MySQL
+
+  %% 마이페이지/분석/기록실
+  FE_Analytics1 -->|GET /api/mypage/{id}/trends| BE_MyPage
+  FE_Analytics2 -->|GET /api/mypage/{id}/workouts| BE_MyPage
+  FE_Records -->|GET /api/mypage/{id}/records-room| BE_MyPage
+  BE_MyPage --> MySQL
+
+  %% 운동정보/프로그램
+  FE_Programs -->|GET /api/exercise-information| BE_Exercise
+  BE_Exercise --> MySQL
+
+  %% 알림(REST + 실시간)
+  FE_Notifications -->|GET/PUT /api/notifications| COM_Notif
+  FE_Notifications <--> |socket.io| SocketIO
+  COM_Notif --> Mongo
+  SocketIO --> Redis
+
+  %% 채팅 (실시간)
+  FE_Chat <--> |socket.io| SocketIO
+
+  %% 스타일 보조
+  classDef svc fill:#eef,stroke:#446;
+  classDef db fill:#efe,stroke:#484;
+  class MySQL,Mongo,Redis db; 

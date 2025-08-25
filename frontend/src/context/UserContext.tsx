@@ -1,5 +1,7 @@
-import React, { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
-import { API_ENDPOINTS } from '../config/api';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
+import { API_ENDPOINTS } from '@config/api';
+import { apiClient, handleApiError } from '@utils/axiosConfig';
 
 export interface UserData {
   id: number;
@@ -14,6 +16,7 @@ export interface UserData {
   phoneNumber?: string;
   birthDate?: string;
   role?: string;
+  nickname?: string;
 }
 
 interface UserContextValue {
@@ -21,7 +24,7 @@ interface UserContextValue {
   loading: boolean;
   error: string | null;
   refresh: () => void;
-  setUserFromLogin: (userData: any, token: string) => void;
+  setUserFromLogin: (userData: UserData, token: string) => void;
 }
 
 const UserContext = createContext<UserContextValue | undefined>(undefined);
@@ -31,6 +34,10 @@ export const useUser = () => {
   if (!ctx) throw new Error('useUser must be used within UserProvider');
   return ctx;
 };
+
+interface UserProviderProps {
+  children: ReactNode;
+}
 
 function decodeJwtRole(token: string | null): string | undefined {
   try {
@@ -56,35 +63,15 @@ const fetchProfile = async (signal: AbortSignal): Promise<UserData> => {
   console.log('📡 Profile API 호출:', API_ENDPOINTS.PROFILE);
   
   try {
-    const res = await fetch(API_ENDPOINTS.PROFILE, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'Content-Type': 'application/json',
-        'Cache-Control': 'no-cache',
-        Pragma: 'no-cache',
-      },
+    const response = await apiClient.get(API_ENDPOINTS.PROFILE, {
       signal,
     });
 
-    console.log('📡 Profile API 응답:', res.status, res.statusText);
-
-    if (res.status === 429) {
-      console.log('⚠️ Rate limit 발생');
-      throw new Error('RATE_LIMIT');
-    }
-
-    if (!res.ok) {
-      const errorText = await res.text();
-      console.error('❌ Profile API 오류:', errorText);
-      console.error('❌ Profile API 상태:', res.status, res.statusText);
-      throw new Error('FAILED');
-    }
-
-    const data = await res.json();
-    console.log('📄 Profile API 데이터:', data);
+    console.log('📡 Profile API 응답:', response.status, response.statusText);
+    console.log('📄 Profile API 데이터:', response.data);
     
     // 응답이 배열인 경우 첫 번째 요소 사용
-    const responseData = Array.isArray(data) ? data[0] : data;
+    const responseData = Array.isArray(response.data) ? response.data[0] : response.data;
     console.log('📄 Profile API 처리된 데이터:', responseData);
     
     // 응답 형식 검증 개선
@@ -118,25 +105,40 @@ const fetchProfile = async (signal: AbortSignal): Promise<UserData> => {
       phoneNumber: u.phoneNumber || '',
       birthDate: u.birthDate || '',
       role: u.role || roleFromToken, // 서버가 제공하면 우선 사용, 없으면 JWT에서 추출
+      nickname: u.nickname || '',
     };
     
     console.log('✅ UserContext 사용자 정보:', user);
     return user;
   } catch (error) {
     console.error('❌ fetchProfile 예외:', error);
-    if (error instanceof Error && error.name === 'AbortError') {
+    
+    // axios의 AbortError 처리
+    if (signal.aborted) {
       throw new Error('요청이 취소되었습니다');
     }
-    throw error;
+    
+    // axios 에러 처리 유틸리티 사용
+    const errorMessage = handleApiError(error);
+    
+    // 특정 에러 타입 유지 (재시도 로직용)
+    if (errorMessage.includes('RATE_LIMIT')) {
+      throw new Error('RATE_LIMIT');
+    }
+    if (errorMessage.includes('세션이 만료') || errorMessage.includes('unauthorized')) {
+      throw new Error('FAILED');
+    }
+    
+    throw new Error(errorMessage);
   }
 };
 
-export const UserProvider = ({ children }: { children: ReactNode }) => {
+export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   const [user, setUser] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const setUserFromLogin = (userData: any, token: string) => {
+  const setUserFromLogin = (userData: UserData, token: string) => {
     console.log('🔄 UserContext setUserFromLogin 호출:', userData);
     
     const roleFromToken = decodeJwtRole(token);
@@ -153,6 +155,7 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
       phoneNumber: userData.phoneNumber || '',
       birthDate: userData.birthDate || '',
       role: userData.role || roleFromToken,
+      nickname: userData.nickname || '',
     };
     
     console.log('✅ UserContext 로그인 후 사용자 설정:', user);
@@ -230,6 +233,61 @@ export const UserProvider = ({ children }: { children: ReactNode }) => {
     return abort;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const updateUser = (userData: Partial<UserData>) => {
+    if (user) {
+      setUser({ ...user, ...userData });
+    }
+  };
+
+  const login = async (email: string, password: string): Promise<boolean> => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const response = await apiClient.post<any>(API_ENDPOINTS.LOGIN, {
+        email,
+        password
+      });
+
+      if (response.data.success && response.data.data) {
+        const { user: userData, token } = response.data.data;
+        setUserFromLogin(userData, token);
+        return true;
+      } else {
+        setError(response.data.message || '로그인에 실패했습니다.');
+        return false;
+      }
+    } catch (e: unknown) {
+      const errorMessage = handleApiError(e);
+      setError(errorMessage);
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const checkAuthStatus = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        setLoading(false);
+        return;
+      }
+
+      const response = await apiClient.get<any>(API_ENDPOINTS.PROFILE);
+      if (response.data.success && response.data.data) {
+        setUser(response.data.data);
+      } else {
+        localStorage.removeItem('token');
+      }
+    } catch (e: unknown) {
+      console.error('인증 상태 확인 실패:', handleApiError(e));
+      localStorage.removeItem('token');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const value: UserContextValue = {
     user,
