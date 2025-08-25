@@ -1,6 +1,9 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { Pose } from '@mediapipe/pose';
+import { hybridTTSService } from '@services/hybridTTSService';
+import { API_ENDPOINTS } from '@config/api';
+import { apiClient } from '@utils/axiosConfig';
 import './MotionCoach.css';
 import '@components/ui/styles/pose-detection.css';
 
@@ -25,6 +28,26 @@ interface ExerciseAnalysis {
   confidence: number;
 }
 
+interface WorkoutSessionData {
+  sessionId?: number;
+  exerciseType: string;
+  startTime: Date;
+  endTime?: Date;
+  totalReps: number;
+  averageFormScore: number;
+  formCorrections: string[];
+  duration: number; // in seconds
+  caloriesBurned?: number;
+}
+
+interface ExercisePerformanceData {
+  timestamp: Date;
+  repCount: number;
+  formScore: number;
+  confidence: number;
+  feedback: string;
+}
+
 const MEDIAPIPE_POSE_VERSION = '0.5.1675469404';
 
 // 관절점 인덱스 (MediaPipe Pose 33개 포인트)
@@ -45,9 +68,10 @@ const RIGHT_FOOT_INDEX = 32;
 
 interface MotionCoachProps {
   exerciseType?: ExerciseType;
+  onSessionComplete?: (sessionData: any) => void;
 }
 
-const MotionCoach: React.FC<MotionCoachProps> = ({ exerciseType = 'squat' }) => {
+const MotionCoach: React.FC<MotionCoachProps> = ({ exerciseType = 'squat', onSessionComplete }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafId = useRef<number | null>(null);
@@ -66,6 +90,18 @@ const MotionCoach: React.FC<MotionCoachProps> = ({ exerciseType = 'squat' }) => 
     confidence: 0
   });
 
+  // TTS 관련 상태
+  const [isTTSEnabled, setIsTTSEnabled] = useState<boolean>(true);
+  const [lastFeedbackTime, setLastFeedbackTime] = useState<number>(0);
+  const [lastTTSMessage, setLastTTSMessage] = useState<string>('');
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  // 워크아웃 세션 관련 상태
+  const [isSessionActive, setIsSessionActive] = useState<boolean>(false);
+  const [sessionStartTime, setSessionStartTime] = useState<Date | null>(null);
+  const [performanceHistory, setPerformanceHistory] = useState<ExercisePerformanceData[]>([]);
+  const [formCorrections, setFormCorrections] = useState<string[]>([]);
+
   // 운동별 상태(히스테리시스)
   const stateRef = useRef<{ phase: 'up' | 'down'; count: number }>({ phase: 'up', count: 0 });
 
@@ -78,6 +114,202 @@ const MotionCoach: React.FC<MotionCoachProps> = ({ exerciseType = 'squat' }) => 
     console.log(line);
     setLogs(prev => [...prev.slice(-300), line]);
   }, []);
+
+  // TTS 피드백 재생 함수
+  const playTTSFeedback = useCallback(async (message: string, isImportant: boolean = false) => {
+    if (!isTTSEnabled || !message || message.trim() === '') {
+      return;
+    }
+
+    const currentTime = Date.now();
+    const timeSinceLastFeedback = currentTime - lastFeedbackTime;
+    
+    // 중복 메시지 방지 (같은 메시지가 3초 내에 재생되면 건너뛰기)
+    if (message === lastTTSMessage && timeSinceLastFeedback < 3000 && !isImportant) {
+      return;
+    }
+
+    // 긴급하지 않은 일반 피드백은 2초 간격 유지
+    if (!isImportant && timeSinceLastFeedback < 2000) {
+      return;
+    }
+
+    try {
+      // 이전 오디오 중지
+      if (currentAudioRef.current) {
+        currentAudioRef.current.pause();
+        currentAudioRef.current = null;
+      }
+
+      addLog('🔊 TTS 피드백', { message, isImportant });
+      setLastFeedbackTime(currentTime);
+      setLastTTSMessage(message);
+
+      const result = await hybridTTSService.synthesizeExerciseGuide(message);
+      
+      if (result.success && result.audioUrl) {
+        const audio = new Audio(result.audioUrl);
+        currentAudioRef.current = audio;
+        
+        audio.onended = () => {
+          URL.revokeObjectURL(result.audioUrl!);
+          currentAudioRef.current = null;
+        };
+        
+        audio.onerror = (error) => {
+          addLog('🔊 TTS 재생 실패', { error });
+          currentAudioRef.current = null;
+        };
+
+        await audio.play();
+        addLog('🔊 TTS 재생 성공', { method: result.method });
+      } else {
+        addLog('🔊 TTS 합성 실패', { error: result.error });
+      }
+    } catch (error) {
+      addLog('🔊 TTS 에러', { error: String(error) });
+    }
+  }, [isTTSEnabled, lastFeedbackTime, lastTTSMessage, addLog]);
+
+  // 세션 시작 함수
+  const startWorkoutSession = useCallback(() => {
+    const now = new Date();
+    setIsSessionActive(true);
+    setSessionStartTime(now);
+    setPerformanceHistory([]);
+    setFormCorrections([]);
+    stateRef.current = { phase: 'up', count: 0 };
+    addLog('🏋️ 운동 세션 시작', { exerciseType: selectedExercise, startTime: now });
+    
+    // 세션 시작 안내
+    playTTSFeedback(`${selectedExercise} 운동을 시작합니다. 준비되셨나요?`, true);
+  }, [selectedExercise, addLog, playTTSFeedback]);
+
+  // 세션 종료 함수  
+  const endWorkoutSession = useCallback(async () => {
+    if (!isSessionActive || !sessionStartTime) {
+      return;
+    }
+
+    const endTime = new Date();
+    const duration = Math.floor((endTime.getTime() - sessionStartTime.getTime()) / 1000);
+    
+    // 평균 자세 점수 계산
+    const avgFormScore = performanceHistory.length > 0 
+      ? performanceHistory.reduce((sum, p) => sum + p.formScore, 0) / performanceHistory.length
+      : 0;
+
+    const sessionData: WorkoutSessionData = {
+      exerciseType: selectedExercise,
+      startTime: sessionStartTime,
+      endTime: endTime,
+      totalReps: stateRef.current.count,
+      averageFormScore: avgFormScore,
+      formCorrections: formCorrections,
+      duration: duration,
+      caloriesBurned: estimateCalories(selectedExercise, stateRef.current.count, duration)
+    };
+
+    addLog('🏋️ 운동 세션 완료', sessionData);
+    
+    // 완료 메시지
+    playTTSFeedback(
+      `운동 완료! ${stateRef.current.count}회를 ${Math.floor(duration / 60)}분 ${duration % 60}초 동안 수행했습니다.`,
+      true
+    );
+
+    try {
+      // 백엔드로 세션 데이터 전송
+      await sendWorkoutData(sessionData);
+    } catch (error) {
+      addLog('❌ 세션 데이터 전송 실패', { error: String(error) });
+    }
+
+    // IntegratedWorkoutSession에 세션 완료 알리기
+    if (onSessionComplete) {
+      onSessionComplete(sessionData);
+    }
+
+    setIsSessionActive(false);
+    setSessionStartTime(null);
+  }, [isSessionActive, sessionStartTime, performanceHistory, formCorrections, selectedExercise, addLog, playTTSFeedback, onSessionComplete]);
+
+  // 퍼포먼스 데이터 기록
+  const recordPerformance = useCallback((analysis: ExerciseAnalysis) => {
+    if (!isSessionActive) return;
+
+    const performanceData: ExercisePerformanceData = {
+      timestamp: new Date(),
+      repCount: analysis.currentCount,
+      formScore: analysis.isCorrectForm ? 1 : 0,
+      confidence: analysis.confidence,
+      feedback: analysis.feedback
+    };
+
+    setPerformanceHistory(prev => [...prev, performanceData]);
+
+    // 자세 교정 피드백 기록 (중복 제거)
+    if (!analysis.isCorrectForm && analysis.feedback && 
+        !formCorrections.includes(analysis.feedback)) {
+      setFormCorrections(prev => [...prev, analysis.feedback]);
+    }
+  }, [isSessionActive, formCorrections]);
+
+  // 칼로리 추정 함수 - 사용자 체중 반영 개선
+  const estimateCalories = useCallback((exerciseType: string, reps: number, duration: number): number => {
+    // 운동별 정확한 MET 값 (ACSM Guidelines 기반)
+    const metValues: Record<string, number> = {
+      'squat': 5.0,
+      'pushup': 3.8, // 더 정확한 값으로 조정
+      'lunge': 4.0,
+      'plank': 3.5,
+      'calf_raise': 2.8
+    };
+
+    const met = metValues[exerciseType] || 4.0;
+    
+    // TODO: 실제 사용자 체중 데이터 사용 (현재 평균값 사용)
+    const weightKg = 70;
+    
+    // 칼로리 = MET × 체중(kg) × 시간(hours)
+    // 강도 보정: 높은 횟수일수록 강도 증가
+    const intensityFactor = Math.min(1.3, 1.0 + (reps / 100));
+    const calories = met * weightKg * (duration / 3600) * intensityFactor;
+    
+    return Math.round(Math.max(1, calories)); // 최소 1칼로리
+  }, []);
+
+  // 백엔드로 운동 데이터 전송
+  const sendWorkoutData = useCallback(async (sessionData: WorkoutSessionData) => {
+    try {
+      const response = await apiClient.post('/api/workout/session-feedback', {
+        exerciseType: sessionData.exerciseType,
+        startTime: sessionData.startTime.toISOString(),
+        endTime: sessionData.endTime?.toISOString(),
+        totalReps: sessionData.totalReps,
+        averageFormScore: sessionData.averageFormScore,
+        formCorrections: sessionData.formCorrections,
+        duration: sessionData.duration,
+        caloriesBurned: sessionData.caloriesBurned,
+        performanceHistory: performanceHistory.map(p => ({
+          timestamp: p.timestamp.toISOString(),
+          repCount: p.repCount,
+          formScore: p.formScore,
+          confidence: p.confidence,
+          feedback: p.feedback
+        }))
+      });
+
+      if (response.data.success) {
+        addLog('✅ 세션 데이터 전송 성공', { sessionId: response.data.sessionId });
+      } else {
+        addLog('❌ 세션 데이터 전송 실패', { message: response.data.message });
+      }
+    } catch (error) {
+      addLog('❌ 세션 데이터 전송 에러', { error: String(error) });
+      throw error;
+    }
+  }, [performanceHistory, addLog]);
 
   useEffect(() => {
     startCamera();
@@ -96,13 +328,17 @@ const MotionCoach: React.FC<MotionCoachProps> = ({ exerciseType = 'squat' }) => 
       const landmarks = results.poseLandmarks;
       const analysis = analyzeExercise(landmarks, selectedExercise);
       setExerciseAnalysis(analysis);
+      
+      // 퍼포먼스 데이터 기록
+      recordPerformance(analysis);
+      
       drawPoseOnCanvas(landmarks);
     } else {
       if (!firstDetectionLogged.current && Math.random() < 0.1) {
         addLog('아직 포즈 미검출(프레임)');
       }
     }
-  }, [addLog, selectedExercise]);
+  }, [addLog, selectedExercise, recordPerformance]);
 
   // Pose 인스턴스 생성
   const createPose = useCallback(() => {
@@ -315,22 +551,74 @@ const MotionCoach: React.FC<MotionCoachProps> = ({ exerciseType = 'squat' }) => 
   };
   const avg = (a: number, b: number) => (a + b) / 2;
 
-  // 스쿼트 카운트
+  // 스쿼트 카운트 - 정확도 개선
   const analyzeSquatWithCount = useCallback((lm: any[]): ExerciseAnalysis => {
     const kneeL = lm[LEFT_KNEE], kneeR = lm[RIGHT_KNEE];
     const hipL = lm[LEFT_HIP], hipR = lm[RIGHT_HIP];
     const ankleL = lm[LEFT_ANKLE], ankleR = lm[RIGHT_ANKLE];
-    if (!(kneeL && kneeR && hipL && hipR && ankleL && ankleR)) return baseNA('squat');
+    
+    if (!(kneeL && kneeR && hipL && hipR && ankleL && ankleR)) {
+      return baseNA('squat');
+    }
+    
+    // 신뢰도 체크 - 낮은 신뢰도일 때 분석 제외
+    const minVisibility = Math.min(
+      kneeL.visibility || 0, 
+      kneeR.visibility || 0,
+      hipL.visibility || 0,
+      hipR.visibility || 0
+    );
+    
+    if (minVisibility < 0.5) {
+      return { 
+        exerciseType: 'squat', 
+        currentCount: stateRef.current.count, 
+        isCorrectForm: false, 
+        feedback: '카메라 앞에서 전신이 보이도록 해주세요', 
+        confidence: minVisibility 
+      };
+    }
+    
     const angleL = calculateAngle(hipL, kneeL, ankleL);
     const angleR = calculateAngle(hipR, kneeR, ankleR);
     const kneeAngle = avg(angleL, angleR);
-    const isDown = kneeAngle <= 110;
-    const isUp = kneeAngle >= 155;
+    
+    // 더 정확한 임계값 사용
+    const isDown = kneeAngle <= 100; // 더 엄격한 기준
+    const isUp = kneeAngle >= 160;   // 더 완전한 신전
     const was = stateRef.current.phase;
-    if (was === 'up' && isDown) stateRef.current.phase = 'down';
-    if (was === 'down' && isUp) { stateRef.current.phase = 'up'; stateRef.current.count += 1; }
-    return { exerciseType: 'squat', currentCount: stateRef.current.count, isCorrectForm: isDown || isUp, feedback: isDown ? '좋아요, 아래 구간' : '위 구간', confidence: Math.min(kneeL.visibility || 0, kneeR.visibility || 0) };
-  }, []);
+    
+    // 자세 평가 추가
+    const angleDiff = Math.abs(angleL - angleR);
+    const isBalanced = angleDiff < 15; // 좌우 균형 체크
+    
+    // 상태 변화와 개선된 피드백
+    if (was === 'up' && isDown && isBalanced) {
+      stateRef.current.phase = 'down';
+      playTTSFeedback('좋아요, 계속 내려가세요');
+    } else if (was === 'up' && isDown && !isBalanced) {
+      stateRef.current.phase = 'down';
+      playTTSFeedback('좌우 균형을 맞춰주세요');
+    }
+    
+    if (was === 'down' && isUp && isBalanced) { 
+      stateRef.current.phase = 'up'; 
+      stateRef.current.count += 1;
+      playTTSFeedback(`${stateRef.current.count}회 완료!`, true);
+    }
+    
+    const feedback = isDown ? 
+      (isBalanced ? '좋아요, 아래 구간' : '좌우 균형 맞추기') : 
+      (isUp ? '완전히 일어서세요' : '더 깊이 앉아보세요');
+    
+    return { 
+      exerciseType: 'squat', 
+      currentCount: stateRef.current.count, 
+      isCorrectForm: isBalanced && (isDown || isUp), 
+      feedback, 
+      confidence: minVisibility 
+    };
+  }, [playTTSFeedback]);
 
   // 런지 카운트(전/후 다리 최소 무릎각 기준)
   const analyzeLungeWithCount = useCallback((lm: any[]): ExerciseAnalysis => {
@@ -367,10 +655,24 @@ const MotionCoach: React.FC<MotionCoachProps> = ({ exerciseType = 'squat' }) => 
     const isUp = elbow >= 160;
     const goodForm = bodyStraight >= 160;
     const was = stateRef.current.phase;
-    if (was === 'up' && isDown) stateRef.current.phase = 'down';
-    if (was === 'down' && isUp) { stateRef.current.phase = 'up'; stateRef.current.count += 1; }
+    
+    // 상태 변화와 TTS 피드백
+    if (was === 'up' && isDown) {
+      stateRef.current.phase = 'down';
+      if (goodForm) {
+        playTTSFeedback('좋습니다, 아래로 내려가세요');
+      } else {
+        playTTSFeedback('몸을 일직선으로 유지하세요');
+      }
+    }
+    if (was === 'down' && isUp) { 
+      stateRef.current.phase = 'up'; 
+      stateRef.current.count += 1;
+      playTTSFeedback(`푸시업 ${stateRef.current.count}회!`, true);
+    }
+    
     return { exerciseType: 'pushup', currentCount: stateRef.current.count, isCorrectForm: goodForm, feedback: goodForm ? (isDown ? '바닥 근처' : '완전 펴기') : '몸통을 일직선으로 유지', confidence: Math.min(elL.visibility || 0, elR.visibility || 0) };
-  }, []);
+  }, [playTTSFeedback]);
 
   // 플랭크 판정(정적)
   const analyzePlankWithJudge = useCallback((lm: any[]): ExerciseAnalysis => {
@@ -499,13 +801,42 @@ const MotionCoach: React.FC<MotionCoachProps> = ({ exerciseType = 'squat' }) => 
           width={640}
           height={480}
         />
-        <button 
-          onClick={startCamera}
-          className="start-button"
-          disabled={isDetecting}
-        >
-          {isDetecting ? '감지 중...' : '카메라 시작'}
-        </button>
+        <div className="camera-controls">
+          <button 
+            onClick={startCamera}
+            className="start-button"
+            disabled={isDetecting}
+          >
+            {isDetecting ? '감지 중...' : '카메라 시작'}
+          </button>
+          
+          <button 
+            onClick={() => setIsTTSEnabled(!isTTSEnabled)}
+            className={`tts-toggle ${isTTSEnabled ? 'enabled' : 'disabled'}`}
+            title={isTTSEnabled ? 'TTS 끄기' : 'TTS 켜기'}
+          >
+            🔊 {isTTSEnabled ? '음성 ON' : '음성 OFF'}
+          </button>
+        </div>
+
+        <div className="session-controls">
+          {!isSessionActive ? (
+            <button 
+              onClick={startWorkoutSession}
+              className="session-start-button"
+              disabled={!isDetecting}
+            >
+              🏋️ 운동 세션 시작
+            </button>
+          ) : (
+            <button 
+              onClick={endWorkoutSession}
+              className="session-end-button"
+            >
+              ⏹️ 세션 종료
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="analysis-panel">
@@ -516,6 +847,22 @@ const MotionCoach: React.FC<MotionCoachProps> = ({ exerciseType = 'squat' }) => 
           <p><strong>자세:</strong> {exerciseAnalysis.isCorrectForm ? '올바름' : '수정 필요'}</p>
           <p><strong>신뢰도:</strong> {(exerciseAnalysis.confidence * 100).toFixed(1)}%</p>
           <p><strong>피드백:</strong> {exerciseAnalysis.feedback}</p>
+          
+          {/* 세션 정보 */}
+          {isSessionActive && sessionStartTime && (
+            <div className="session-info">
+              <h4>🏋️ 현재 세션</h4>
+              <p><strong>시작 시간:</strong> {sessionStartTime.toLocaleTimeString()}</p>
+              <p><strong>경과 시간:</strong> {Math.floor((Date.now() - sessionStartTime.getTime()) / 1000)}초</p>
+              <p><strong>총 횟수:</strong> {stateRef.current.count}</p>
+              <p><strong>자세 교정:</strong> {formCorrections.length}개</p>
+              {performanceHistory.length > 0 && (
+                <p><strong>평균 정확도:</strong> 
+                  {(performanceHistory.reduce((sum, p) => sum + p.formScore, 0) / performanceHistory.length * 100).toFixed(1)}%
+                </p>
+              )}
+            </div>
+          )}
         </div>
         <div className="navigation-buttons" style={{ marginTop: '20px', textAlign: 'center' }}>
             <Link 
@@ -559,4 +906,23 @@ const MotionCoach: React.FC<MotionCoachProps> = ({ exerciseType = 'squat' }) => 
   );
 };
 
-export default MotionCoach; 
+// 메모리 누수 방지를 위한 cleanup 후크 추가
+const MotionCoachWithCleanup = React.forwardRef<HTMLDivElement, MotionCoachProps>((props, ref) => {
+  const componentRef = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    return () => {
+      // 컴포넌트 언마운트 시 전역 정리
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+  
+  return <MotionCoach {...props} />;
+});
+
+MotionCoachWithCleanup.displayName = 'MotionCoachWithCleanup';
+
+// React.memo로 래핑하여 불필요한 리렌더링 방지
+export default React.memo(MotionCoachWithCleanup); 

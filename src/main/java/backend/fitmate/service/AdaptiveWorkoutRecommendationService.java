@@ -14,10 +14,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import backend.fitmate.User.entity.ExerciseExecution;
+import backend.fitmate.User.entity.SessionFeedback;
 import backend.fitmate.User.entity.User;
 import backend.fitmate.User.entity.UserExercisePreference;
+import backend.fitmate.User.entity.WorkoutSession;
 import backend.fitmate.User.repository.ExerciseExecutionRepository;
 import backend.fitmate.User.repository.UserExercisePreferenceRepository;
+import backend.fitmate.User.repository.WorkoutSessionRepository;
 import backend.fitmate.dto.UserFitnessProfile;
 import lombok.extern.slf4j.Slf4j;
 
@@ -41,6 +44,9 @@ public class AdaptiveWorkoutRecommendationService {
     
     @Autowired
     private UserExercisePreferenceRepository preferenceRepository;
+    
+    @Autowired
+    private WorkoutSessionRepository workoutSessionRepository;
     
     /**
      * 적응형 운동 추천 생성
@@ -144,31 +150,34 @@ public class AdaptiveWorkoutRecommendationService {
     }
     
     /**
-     * 운동별 점수 계산
+     * 운동별 점수 계산 (MotionCoach 데이터 통합)
      */
     private ScoredExercise calculateExerciseScore(User user, UserFitnessProfile profile, String exerciseName, String goal) {
         double score = 0.0;
         
-        // 1. 목표 적합도 (30%)
-        score += calculateGoalFitScore(exerciseName, goal) * 0.3;
+        // 1. 목표 적합도 (25%)
+        score += calculateGoalFitScore(exerciseName, goal) * 0.25;
         
-        // 2. 개인 선호도 (25%)
+        // 2. MotionCoach 성과 데이터 (20%) - 새로 추가
+        MotionCoachMetrics motionMetrics = getMotionCoachMetrics(user, exerciseName);
+        score += calculateMotionCoachScore(motionMetrics) * 0.2;
+        
+        // 3. 개인 선호도 (20%)
         Double preferenceScore = preferenceService.getPreferenceScore(user, exerciseName);
         Double confidenceScore = preferenceService.getConfidenceScore(user, exerciseName);
         if (confidenceScore > 0.3) { // 신뢰할 수 있는 데이터가 있는 경우만
-            score += preferenceScore * 0.25;
+            score += preferenceScore * 0.2;
         } else {
             score += 0.0; // 중립
         }
         
-        // 3. 피트니스 레벨 적합도 (20%)
-        score += calculateFitnessLevelFit(exerciseName, profile.getCurrentFitnessLevel()) * 0.2;
+        // 4. 피트니스 레벨 적합도 (15%)
+        score += calculateFitnessLevelFit(exerciseName, profile.getCurrentFitnessLevel()) * 0.15;
         
-        // 4. 효과도 (15%)
-        Double effectivenessScore = preferenceService.getEffectivenessScore(user, exerciseName);
-        score += (effectivenessScore - 0.5) * 2.0 * 0.15; // 0.5를 중립으로 정규화
+        // 5. 세션 피드백 점수 (10%) - 새로 추가
+        score += calculateSessionFeedbackScore(user, exerciseName) * 0.1;
         
-        // 5. 다양성 보너스 (10%)
+        // 6. 다양성 보너스 (10%)
         score += calculateVarietyBonus(user, exerciseName) * 0.1;
         
         return new ScoredExercise(exerciseName, Math.max(0.0, Math.min(1.0, score)));
@@ -263,7 +272,148 @@ public class AdaptiveWorkoutRecommendationService {
     }
     
     /**
-     * 운동별 진행도 계산
+     * MotionCoach 성과 메트릭 조회
+     */
+    private MotionCoachMetrics getMotionCoachMetrics(User user, String exerciseName) {
+        LocalDateTime fromDate = LocalDateTime.now().minusDays(30); // 최근 30일
+        List<WorkoutSession> sessions = workoutSessionRepository.findByUserAndSessionDateAfter(user, fromDate);
+        
+        List<ExerciseExecution> motionCoachExecutions = sessions.stream()
+                .flatMap(session -> session.getExerciseExecutions().stream())
+                .filter(execution -> execution.getExerciseName().equals(exerciseName))
+                .filter(execution -> {
+                    // MotionCoach를 통한 운동인지 확인 (세션 피드백 코멘트로 판별)
+                    SessionFeedback feedback = execution.getSession().getFeedback();
+                    return feedback != null && feedback.getComments() != null && 
+                           feedback.getComments().contains("모션 코치");
+                })
+                .collect(Collectors.toList());
+        
+        if (motionCoachExecutions.isEmpty()) {
+            return new MotionCoachMetrics(0.0, 0.0, 0.0, 0); // 기본값
+        }
+        
+        // 평균 완료율
+        double avgCompletionRate = motionCoachExecutions.stream()
+                .mapToDouble(execution -> execution.getCompletionRate() != null ? execution.getCompletionRate() : 0.8)
+                .average()
+                .orElse(0.8);
+        
+        // 평균 자세 정확도 (세션 피드백의 완료율을 자세 정확도로 사용)
+        double avgFormAccuracy = motionCoachExecutions.stream()
+                .map(execution -> execution.getSession().getFeedback())
+                .filter(feedback -> feedback != null && feedback.getCompletionRate() != null)
+                .mapToDouble(feedback -> feedback.getCompletionRate().doubleValue())
+                .average()
+                .orElse(0.8);
+        
+        // 개선 추세 (최근 5회 세션과 이전 5회 세션 비교)
+        List<ExerciseExecution> sortedExecutions = motionCoachExecutions.stream()
+                .sorted((a, b) -> a.getSession().getSessionDate().compareTo(b.getSession().getSessionDate()))
+                .collect(Collectors.toList());
+        
+        double improvementTrend = 0.0;
+        if (sortedExecutions.size() >= 4) {
+            int midPoint = sortedExecutions.size() / 2;
+            double oldAvg = sortedExecutions.subList(0, midPoint).stream()
+                    .mapToDouble(execution -> execution.getCompletionRate() != null ? execution.getCompletionRate() : 0.8)
+                    .average()
+                    .orElse(0.8);
+            double newAvg = sortedExecutions.subList(midPoint, sortedExecutions.size()).stream()
+                    .mapToDouble(execution -> execution.getCompletionRate() != null ? execution.getCompletionRate() : 0.8)
+                    .average()
+                    .orElse(0.8);
+            improvementTrend = newAvg - oldAvg; // -1.0 ~ 1.0 범위
+        }
+        
+        return new MotionCoachMetrics(avgCompletionRate, avgFormAccuracy, improvementTrend, motionCoachExecutions.size());
+    }
+    
+    /**
+     * MotionCoach 점수 계산
+     */
+    private double calculateMotionCoachScore(MotionCoachMetrics metrics) {
+        if (metrics.dataPoints() == 0) {
+            return 0.5; // 데이터가 없으면 중립
+        }
+        
+        double score = 0.0;
+        
+        // 완료율 점수 (40%)
+        score += metrics.avgCompletionRate() * 0.4;
+        
+        // 자세 정확도 점수 (40%)
+        score += metrics.avgFormAccuracy() * 0.4;
+        
+        // 개선 추세 점수 (20%)
+        // 개선되고 있으면 높은 점수, 악화되면 낮은 점수
+        double trendScore = 0.5 + (metrics.improvementTrend() * 0.5); // 0.0 ~ 1.0으로 정규화
+        score += Math.max(0.0, Math.min(1.0, trendScore)) * 0.2;
+        
+        return Math.max(0.0, Math.min(1.0, score));
+    }
+    
+    /**
+     * 세션 피드백 점수 계산
+     */
+    private double calculateSessionFeedbackScore(User user, String exerciseName) {
+        LocalDateTime fromDate = LocalDateTime.now().minusDays(21); // 최근 3주
+        List<WorkoutSession> sessions = workoutSessionRepository.findByUserAndSessionDateAfter(user, fromDate);
+        
+        List<SessionFeedback> relevantFeedbacks = sessions.stream()
+                .filter(session -> session.getExerciseExecutions().stream()
+                        .anyMatch(execution -> execution.getExerciseName().equals(exerciseName)))
+                .map(WorkoutSession::getFeedback)
+                .filter(feedback -> feedback != null)
+                .collect(Collectors.toList());
+        
+        if (relevantFeedbacks.isEmpty()) {
+            return 0.5; // 데이터가 없으면 중립
+        }
+        
+        double score = 0.0;
+        
+        // 만족도 점수 (40%) - 최신 피드백에 더 높은 가중치
+        List<SessionFeedback> sortedFeedbacks = relevantFeedbacks.stream()
+                .sorted((f1, f2) -> f2.getSession().getSessionDate().compareTo(f1.getSession().getSessionDate()))
+                .collect(Collectors.toList());
+        
+        double weightedSatisfaction = 0.0;
+        double totalWeight = 0.0;
+        for (int i = 0; i < sortedFeedbacks.size(); i++) {
+            SessionFeedback feedback = sortedFeedbacks.get(i);
+            if (feedback.getSatisfaction() != null) {
+                double weight = 1.0 / (1.0 + i * 0.1); // 최신일수록 높은 가중치
+                weightedSatisfaction += feedback.getSatisfaction() * weight;
+                totalWeight += weight;
+            }
+        }
+        double avgSatisfaction = totalWeight > 0 ? weightedSatisfaction / totalWeight : 3.0;
+        score += ((avgSatisfaction - 1.0) / 4.0) * 0.4;
+        
+        // 난이도 적정성 점수 (30%)
+        double avgDifficulty = relevantFeedbacks.stream()
+                .filter(feedback -> feedback.getOverallDifficulty() != null)
+                .mapToInt(SessionFeedback::getOverallDifficulty)
+                .average()
+                .orElse(3.0); // 기본값 3 (적당함)
+        // 3이 최적이므로 3에서 멀수록 낮은 점수
+        double difficultyScore = 1.0 - Math.abs(avgDifficulty - 3.0) / 2.0;
+        score += Math.max(0.0, difficultyScore) * 0.3;
+        
+        // 재선택 의향 점수 (30%)
+        long wouldRepeatCount = relevantFeedbacks.stream()
+                .filter(feedback -> feedback.getWouldRepeat() != null)
+                .mapToInt(feedback -> feedback.getWouldRepeat() ? 1 : 0)
+                .sum();
+        double wouldRepeatRatio = wouldRepeatCount / (double) relevantFeedbacks.size();
+        score += wouldRepeatRatio * 0.3;
+        
+        return Math.max(0.0, Math.min(1.0, score));
+    }
+
+    /**
+     * 운동별 진행도 계산 - 최신 성과를 더 반영
      */
     private ExerciseProgress getExerciseProgress(User user, String exerciseName) {
         LocalDateTime fromDate = LocalDateTime.now().minusDays(21); // 최근 3주
@@ -273,16 +423,28 @@ public class AdaptiveWorkoutRecommendationService {
             return new ExerciseProgress(0.8, 3.0, 0); // 기본값
         }
         
-        double avgCompletionRate = executions.stream()
-                .mapToDouble(ExerciseExecution::getCompletionRate)
-                .average()
-                .orElse(0.8);
+        // 최신 실행을 더 높은 가중치로 반영
+        executions.sort((e1, e2) -> e2.getSession().getSessionDate().compareTo(e1.getSession().getSessionDate()));
         
-        double avgDifficulty = executions.stream()
-                .filter(e -> e.getPerceivedExertion() != null)
-                .mapToDouble(e -> e.getPerceivedExertion() / 2.0) // RPE를 1-5 스케일로 변환
-                .average()
-                .orElse(3.0);
+        double weightedCompletionRate = 0.0;
+        double weightedDifficulty = 0.0;
+        double totalWeight = 0.0;
+        
+        for (int i = 0; i < executions.size(); i++) {
+            ExerciseExecution execution = executions.get(i);
+            double weight = 1.0 / (1.0 + i * 0.15); // 최신일수록 높은 가중치
+            
+            weightedCompletionRate += execution.getCompletionRate() * weight;
+            
+            if (execution.getPerceivedExertion() != null) {
+                weightedDifficulty += (execution.getPerceivedExertion() / 2.0) * weight;
+            }
+            
+            totalWeight += weight;
+        }
+        
+        double avgCompletionRate = totalWeight > 0 ? weightedCompletionRate / totalWeight : 0.8;
+        double avgDifficulty = totalWeight > 0 ? weightedDifficulty / totalWeight : 3.0;
         
         return new ExerciseProgress(avgCompletionRate, avgDifficulty, executions.size());
     }
@@ -290,16 +452,16 @@ public class AdaptiveWorkoutRecommendationService {
     // Helper 클래스들과 메서드들 계속...
     
     /**
-     * 목표별 운동 풀 구성
+     * 목표별 운동 풀 구성 - MotionCoach 지원 운동 우선 선택
      */
     private List<String> buildExercisePool(String goal) {
         return switch (goal) {
-            case "diet" -> List.of("스쿼트", "푸시업", "플랭크", "마운틴 클라이머", "런지", "버피 테스트", "점핑잭");
-            case "strength" -> List.of("스쿼트", "푸시업", "플랭크", "턱걸이", "딥스", "런지", "데드리프트");
-            case "body" -> List.of("스쿼트", "푸시업", "플랭크", "마운틴 클라이머", "런지", "크런치", "사이드 플랭크");
-            case "fitness" -> List.of("버피 테스트", "점프 스쿼트", "마운틴 클라이머", "하이 니즈", "점핑잭", "스쿼트", "푸시업");
-            case "stamina" -> List.of("제자리 뛰기", "마운틴 클라이머", "버피 테스트", "줄넘기", "계단 오르기", "스쿼트", "런지");
-            default -> List.of("스쿼트", "푸시업", "플랭크", "마운틴 클라이머", "런지");
+            case "diet" -> List.of("squat", "pushup", "plank", "lunge", "calf_raise", "점핑잭", "마운틴 클라이머");
+            case "strength" -> List.of("squat", "pushup", "plank", "lunge", "턱걸이", "딥스", "데드리프트");
+            case "body" -> List.of("squat", "pushup", "plank", "lunge", "calf_raise", "크런치", "사이드 플랭크");
+            case "fitness" -> List.of("squat", "pushup", "lunge", "plank", "calf_raise", "점핑잭", "마운틴 클라이머");
+            case "stamina" -> List.of("squat", "lunge", "calf_raise", "제자리 뛰기", "마운틴 클라이머", "버피 테스트");
+            default -> List.of("squat", "pushup", "plank", "lunge", "calf_raise");
         };
     }
     
@@ -318,10 +480,14 @@ public class AdaptiveWorkoutRecommendationService {
     }
     
     /**
-     * 개인화된 팁 생성
+     * 개인화된 팁 생성 (MotionCoach 데이터 반영)
      */
     private List<String> generatePersonalizedTips(User user, UserFitnessProfile profile) {
         List<String> tips = new ArrayList<>();
+        
+        // MotionCoach 데이터 기반 팁 추가
+        List<String> motionCoachTips = generateMotionCoachTips(user);
+        tips.addAll(motionCoachTips);
         
         // 피트니스 레벨 기반 팁
         if (profile.getCurrentFitnessLevel() < 0.4) {
@@ -352,7 +518,102 @@ public class AdaptiveWorkoutRecommendationService {
             tips.add("💧 운동 후 스트레칭과 수분 보충을 잊지 마세요");
         }
         
+        tips.add("🤖 모션 코치와 함께 운동하면 더 정확한 자세 피드백을 받을 수 있어요");
         tips.add("📊 운동 후 피드백을 남겨주시면 더 정확한 추천이 가능합니다");
+        
+        return tips;
+    }
+    
+    /**
+     * MotionCoach 데이터 기반 팁 생성
+     */
+    private List<String> generateMotionCoachTips(User user) {
+        List<String> tips = new ArrayList<>();
+        
+        // 최근 30일간의 MotionCoach 데이터 분석
+        LocalDateTime fromDate = LocalDateTime.now().minusDays(30);
+        List<WorkoutSession> motionCoachSessions = workoutSessionRepository.findByUserAndSessionDateAfter(user, fromDate)
+                .stream()
+                .filter(session -> {
+                    SessionFeedback feedback = session.getFeedback();
+                    return feedback != null && feedback.getComments() != null && 
+                           feedback.getComments().contains("모션 코치");
+                })
+                .collect(Collectors.toList());
+        
+        if (motionCoachSessions.isEmpty()) {
+            return tips; // MotionCoach 데이터가 없으면 빈 목록 반환
+        }
+        
+        // 전반적인 자세 정확도 분석
+        double avgFormAccuracy = motionCoachSessions.stream()
+                .map(WorkoutSession::getFeedback)
+                .filter(feedback -> feedback != null && feedback.getCompletionRate() != null)
+                .mapToDouble(feedback -> feedback.getCompletionRate().doubleValue())
+                .average()
+                .orElse(0.8);
+        
+        if (avgFormAccuracy < 0.7) {
+            tips.add("🎯 자세 교정에 집중해보세요! 모션 코치의 피드백을 잘 들어보시면 도움이 될 거예요");
+            tips.add("📹 거울 앞에서 운동하거나 영상을 찍어보며 자세를 점검해보세요");
+        } else if (avgFormAccuracy > 0.9) {
+            tips.add("✨ 완벽한 자세! 이제 강도를 조금 더 높여볼 시간이에요");
+        }
+        
+        // 자주 교정받는 운동 분석
+        Map<String, Long> formCorrectionCount = new HashMap<>();
+        for (WorkoutSession session : motionCoachSessions) {
+            SessionFeedback feedback = session.getFeedback();
+            if (feedback != null && feedback.getComments() != null && 
+                feedback.getComments().contains("자세 교정 포인트")) {
+                
+                for (ExerciseExecution execution : session.getExerciseExecutions()) {
+                    String exerciseName = execution.getExerciseName();
+                    formCorrectionCount.put(exerciseName, 
+                        formCorrectionCount.getOrDefault(exerciseName, 0L) + 1);
+                }
+            }
+        }
+        
+        // 가장 교정이 많이 필요한 운동에 대한 팁
+        String mostCorrectedExercise = formCorrectionCount.entrySet().stream()
+                .max(Map.Entry.comparingByValue())
+                .map(Map.Entry::getKey)
+                .orElse(null);
+        
+        if (mostCorrectedExercise != null && formCorrectionCount.get(mostCorrectedExercise) >= 3) {
+            tips.add("💡 " + mostCorrectedExercise + " 자세에 특별히 신경써보세요. 천천히 정확하게!");
+            tips.add("📚 " + mostCorrectedExercise + " 운동 영상을 다시 확인해보시는 것을 추천해요");
+        }
+        
+        // 개선 추세 분석
+        List<WorkoutSession> sortedSessions = motionCoachSessions.stream()
+                .sorted((a, b) -> a.getSessionDate().compareTo(b.getSessionDate()))
+                .collect(Collectors.toList());
+        
+        if (sortedSessions.size() >= 4) {
+            int midPoint = sortedSessions.size() / 2;
+            double oldAvg = sortedSessions.subList(0, midPoint).stream()
+                    .map(WorkoutSession::getFeedback)
+                    .filter(feedback -> feedback != null && feedback.getCompletionRate() != null)
+                    .mapToDouble(feedback -> feedback.getCompletionRate().doubleValue())
+                    .average()
+                    .orElse(0.8);
+            double newAvg = sortedSessions.subList(midPoint, sortedSessions.size()).stream()
+                    .map(WorkoutSession::getFeedback)
+                    .filter(feedback -> feedback != null && feedback.getCompletionRate() != null)
+                    .mapToDouble(feedback -> feedback.getCompletionRate().doubleValue())
+                    .average()
+                    .orElse(0.8);
+            
+            double improvement = newAvg - oldAvg;
+            
+            if (improvement > 0.1) {
+                tips.add("🚀 모션 코치와 함께 하니 자세가 많이 개선되고 있어요! 계속 화이팅!");
+            } else if (improvement < -0.1) {
+                tips.add("🤔 최근 자세가 조금 흐트러진 것 같아요. 집중력을 더 높여보세요!");
+            }
+        }
         
         return tips;
     }
@@ -497,4 +758,5 @@ public class AdaptiveWorkoutRecommendationService {
     // 내부 클래스들
     private record ScoredExercise(String exerciseName, double score) {}
     private record ExerciseProgress(double averageCompletionRate, double averageDifficulty, int dataPoints) {}
+    private record MotionCoachMetrics(double avgCompletionRate, double avgFormAccuracy, double improvementTrend, int dataPoints) {}
 }
