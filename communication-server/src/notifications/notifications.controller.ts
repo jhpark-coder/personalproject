@@ -87,4 +87,13 @@ export class NotificationsController {
       notification: savedNotification,
     };
   }
+
+  // 캘린더 업데이트 알림 (Spring Boot에서 호출)
+  @Post('calendar-update')
+  async handleCalendarUpdate(@Body() payload: { userId: number; message: string; eventsCount?: number }) {
+    console.log(`Received calendar update for user ${payload.userId}: ${payload.message}`);
+    // 특정 사용자에게 캘린더 업데이트 이벤트 전송
+    this.communicationGateway.sendCalendarUpdateToUser(payload.userId.toString(), payload.message, payload.eventsCount);
+    return { success: true, message: 'Calendar update notification sent' };
+  }
 }

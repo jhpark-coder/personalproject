@@ -1,6 +1,7 @@
 package backend.fitmate.config;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Optional;
@@ -155,16 +156,27 @@ public class DataLoader {
                 System.out.println("✅ 테스트 데이터가 이미 존재합니다. (운동 기록: " + workoutCount + "개, 신체 기록: " + bodyRecordCount + "개)");
             }
 
-            // 항상 최근 5일 신체 데이터는 보정해서 채운다
-            ensureRecentBodyRecords(existingUser);
-            // 운동 기록은 생성 로직에서 일별 생성되므로 별도 보정 불필요
+            // test@fitmate.com 유저에 대해서만 최근 5일 데이터 보장 (데모 목적)
+            if ("test@fitmate.com".equals(existingUser.getEmail())) {
+                ensureRecentBodyRecords(existingUser);
+                ensureRecentWorkoutRecords(existingUser);
+                
+                // test 유저는 항상 최근 90일 운동 기록도 보장 (데모 목적)
+                ensureRecentWorkoutRecords90Days(existingUser);
+            }
         } else {
             System.out.println("👤 테스트 사용자가 없습니다. 생성합니다...");
             User testUser = createTestUser();
             createWorkoutRecords(testUser);
             createBodyRecords(testUser);
-            // 생성 직후에도 최근 5일은 반드시 채워준다
-            ensureRecentBodyRecords(testUser);
+            // test@fitmate.com 유저에 대해서만 최근 5일 데이터 보장 (데모 목적)
+            if ("test@fitmate.com".equals(testUser.getEmail())) {
+                ensureRecentBodyRecords(testUser);
+                ensureRecentWorkoutRecords(testUser);
+                
+                // test 유저는 항상 최근 90일 운동 기록도 보장 (데모 목적)
+                ensureRecentWorkoutRecords90Days(testUser);
+            }
             System.out.println("✅ 테스트 사용자 및 데이터 생성 완료! ID: " + testUser.getId());
         }
         
@@ -194,8 +206,8 @@ public class DataLoader {
     }
 
     private void createWorkoutRecords(User user) {
-        LocalDate startDate = LocalDate.now().minusDays(90); // 3개월치
-        LocalDate endDate = LocalDate.now();
+        LocalDate startDate = LocalDate.now(ZoneId.of("Asia/Seoul")).minusDays(90); // 3개월치
+        LocalDate endDate = LocalDate.now(ZoneId.of("Asia/Seoul"));
 
         List<Exercise> metExercises = exerciseRepository.findByMetsIsNotNull();
         if (metExercises.isEmpty()) {
@@ -267,8 +279,8 @@ public class DataLoader {
     }
 
     private void createBodyRecords(User user) {
-        LocalDate startDate = LocalDate.now().minusDays(90); // 3개월치 데이터
-        LocalDate endDate = LocalDate.now();
+        LocalDate startDate = LocalDate.now(ZoneId.of("Asia/Seoul")).minusDays(90); // 3개월치 데이터
+        LocalDate endDate = LocalDate.now(ZoneId.of("Asia/Seoul"));
         
         // 초기 신체 데이터
         double initialWeight = 72.0;
@@ -313,7 +325,7 @@ public class DataLoader {
      * 최근 5일 신체 기록이 비어 있으면 채웁니다(중복 생성 방지).
      */
     private void ensureRecentBodyRecords(User user) {
-        LocalDate endDate = LocalDate.now();
+        LocalDate endDate = LocalDate.now(ZoneId.of("Asia/Seoul"));
         LocalDate mandatoryStart = endDate.minusDays(4); // 최근 5일
         LocalDate startDateForProgress = endDate.minusDays(90);
 
@@ -351,6 +363,174 @@ public class DataLoader {
                 System.out.println("🧩 최근 5일 보정: " + date + " 데이터 생성 완료");
             }
             date = date.plusDays(1);
+        }
+    }
+
+    /**
+     * 최근 5일 운동 기록이 비어 있으면 채웁니다(중복 생성 방지).
+     */
+    private void ensureRecentWorkoutRecords(User user) {
+        LocalDate endDate = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        LocalDate mandatoryStart = endDate.minusDays(4); // 최근 5일
+
+        List<Exercise> metExercises = exerciseRepository.findByMetsIsNotNull();
+        if (metExercises.isEmpty()) {
+            System.out.println("⚠️ MET 값이 있는 운동이 DB 에 없습니다. 최근 5일 운동 기록 보정을 건너뜁니다.");
+            return;
+        }
+
+        LocalDate date = mandatoryStart;
+        while (!date.isAfter(endDate)) {
+            // 해당 날짜에 운동 기록이 있는지 확인
+            List<WorkoutRecord> existingWorkouts = workoutRecordService.getUserWorkoutRecordsByDate(user.getId(), date);
+            
+            if (existingWorkouts.isEmpty()) {
+                // 해당 날짜에 운동 기록이 없으면 생성
+                int dailyWorkouts = random.nextInt(2) + 1; // 1-2개 운동 기록
+                
+                for (int i = 0; i < dailyWorkouts; i++) {
+                    Exercise ex = metExercises.get(random.nextInt(metExercises.size()));
+                    
+                    WorkoutRecord record = new WorkoutRecord();
+                    record.setUser(user);
+                    record.setWorkoutDate(date);
+                    record.setWorkoutType(ex.getName());
+                    record.setDuration(30 + random.nextInt(90)); // 30-120분
+
+                    double weight = 70.0;
+                    if (user.getWeight() != null) {
+                        try {
+                            weight = Double.parseDouble(user.getWeight());
+                        } catch (NumberFormatException ignored) {}
+                    }
+
+                    double durationHours = record.getDuration() / 60.0;
+                    double mets = ex.getMets();
+                    int calculatedCalories = (int) Math.round(mets * weight * durationHours);
+                    record.setCalories(calculatedCalories);
+
+                    // MET 값에 따른 강도 설정
+                    int intensity;
+                    if (mets < 3.0) intensity = 1 + random.nextInt(3);
+                    else if (mets < 6.0) intensity = 4 + random.nextInt(3);
+                    else intensity = 7 + random.nextInt(4);
+                    record.setIntensity(intensity);
+                    
+                    // 난이도 설정 (강도에 따라)
+                    WorkoutRecord.WorkoutDifficulty difficulty;
+                    if (intensity <= 3) {
+                        difficulty = WorkoutRecord.WorkoutDifficulty.EASY;
+                    } else if (intensity <= 6) {
+                        difficulty = WorkoutRecord.WorkoutDifficulty.MODERATE;
+                    } else {
+                        difficulty = WorkoutRecord.WorkoutDifficulty.HARD;
+                    }
+                    record.setDifficulty(difficulty);
+                    
+                    // 웨이트 운동인 경우 추가 정보
+                    if (ex.getName().contains("바벨") || ex.getName().contains("덤벨") ||
+                        ex.getName().contains("레그") || ex.getName().contains("벤치")) {
+                        record.setSets(3 + random.nextInt(5)); // 3-7세트
+                        record.setReps(8 + random.nextInt(12)); // 8-19회
+                        record.setWeight(roundTo1Decimal(20.0 + random.nextDouble() * 80.0)); // 20-100kg
+                    }
+                    
+                    record.setNotes("최근 5일 보정 자동 생성 - MET: " + roundTo1Decimal(mets) + ", 계산된 칼로리: " + calculatedCalories + " kcal");
+                    
+                    workoutRecordService.saveWorkoutRecord(user.getId(), record);
+                }
+                System.out.println("🏋️ 최근 5일 보정: " + date + " 운동 기록 " + dailyWorkouts + "개 생성 완료");
+            }
+            date = date.plusDays(1);
+        }
+    }
+
+    /**
+     * test 유저의 최근 90일 운동 기록을 보장합니다 (데모 목적).
+     */
+    private void ensureRecentWorkoutRecords90Days(User user) {
+        LocalDate endDate = LocalDate.now(ZoneId.of("Asia/Seoul"));
+        LocalDate startDate = endDate.minusDays(89); // 최근 90일
+
+        List<Exercise> metExercises = exerciseRepository.findByMetsIsNotNull();
+        if (metExercises.isEmpty()) {
+            System.out.println("⚠️ MET 값이 있는 운동이 DB 에 없습니다. 최근 90일 운동 기록 보정을 건너뜁니다.");
+            return;
+        }
+
+        int createdCount = 0;
+        LocalDate date = startDate;
+        while (!date.isAfter(endDate)) {
+            // 해당 날짜에 운동 기록이 있는지 확인
+            List<WorkoutRecord> existingWorkouts = workoutRecordService.getUserWorkoutRecordsByDate(user.getId(), date);
+            
+            if (existingWorkouts.isEmpty()) {
+                // 해당 날짜에 운동 기록이 없으면 생성 (과거는 주 2-3회, 최근 5일은 매일)
+                boolean isRecent5Days = date.isAfter(endDate.minusDays(5));
+                boolean shouldCreate = isRecent5Days || random.nextInt(7) < 3; // 최근 5일은 무조건, 과거는 3/7 확률
+                
+                if (shouldCreate) {
+                    int dailyWorkouts = random.nextInt(2) + 1; // 1-2개 운동 기록
+                    
+                    for (int i = 0; i < dailyWorkouts; i++) {
+                        Exercise ex = metExercises.get(random.nextInt(metExercises.size()));
+                        
+                        WorkoutRecord record = new WorkoutRecord();
+                        record.setUser(user);
+                        record.setWorkoutDate(date);
+                        record.setWorkoutType(ex.getName());
+                        record.setDuration(30 + random.nextInt(90)); // 30-120분
+
+                        double weight = 70.0;
+                        if (user.getWeight() != null) {
+                            try {
+                                weight = Double.parseDouble(user.getWeight());
+                            } catch (NumberFormatException ignored) {}
+                        }
+
+                        double durationHours = record.getDuration() / 60.0;
+                        double mets = ex.getMets();
+                        int calculatedCalories = (int) Math.round(mets * weight * durationHours);
+                        record.setCalories(calculatedCalories);
+
+                        // MET 값에 따른 강도 설정
+                        int intensity;
+                        if (mets < 3.0) intensity = 1 + random.nextInt(3);
+                        else if (mets < 6.0) intensity = 4 + random.nextInt(3);
+                        else intensity = 7 + random.nextInt(4);
+                        record.setIntensity(intensity);
+                        
+                        // 난이도 설정 (강도에 따라)
+                        WorkoutRecord.WorkoutDifficulty difficulty;
+                        if (intensity <= 3) {
+                            difficulty = WorkoutRecord.WorkoutDifficulty.EASY;
+                        } else if (intensity <= 6) {
+                            difficulty = WorkoutRecord.WorkoutDifficulty.MODERATE;
+                        } else {
+                            difficulty = WorkoutRecord.WorkoutDifficulty.HARD;
+                        }
+                        record.setDifficulty(difficulty);
+                        
+                        // 웨이트 운동인 경우 추가 정보
+                        if (ex.getName().contains("바벨") || ex.getName().contains("덤벨") ||
+                            ex.getName().contains("레그") || ex.getName().contains("벤치")) {
+                            record.setSets(3 + random.nextInt(5)); // 3-7세트
+                            record.setReps(8 + random.nextInt(12)); // 8-19회
+                            record.setWeight(roundTo1Decimal(20.0 + random.nextDouble() * 80.0)); // 20-100kg
+                        }
+                        
+                        record.setNotes("90일 보정 자동 생성 - MET: " + roundTo1Decimal(mets) + ", 계산된 칼로리: " + calculatedCalories + " kcal");
+                        
+                        workoutRecordService.saveWorkoutRecord(user.getId(), record);
+                        createdCount++;
+                    }
+                }
+            }
+            date = date.plusDays(1);
+        }
+        
+        if (createdCount > 0) {
+            System.out.println("🏋️ test 유저 최근 90일 운동 기록 보정 완료: " + createdCount + "개 생성");
         }
     }
 

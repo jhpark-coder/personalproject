@@ -67,12 +67,13 @@ FitMate is a **microservices architecture** with three main components:
 
 ### 1. Frontend (React + TypeScript)
 - **Framework**: React 19 with TypeScript, built with Vite
-- **Styling**: CSS modules with responsive design
+- **Styling**: CSS modules with responsive design, mobile-first approach
 - **State Management**: Context API for user state
 - **Real-time**: Socket.IO client for WebSocket communication
-- **Key Features**: Pose detection, OAuth2 login, real-time chat/notifications
+- **Key Features**: Pose detection, OAuth2 login, real-time chat/notifications, calendar integration, workout analytics, mobile-optimized UI
 - **Entry Point**: `frontend/src/main.tsx`
 - **Routing**: React Router with HashRouter
+- **Mobile Support**: Responsive design with mobile tunnel (localtunnel) for development testing
 
 ### 2. Main Backend (Spring Boot)
 - **Framework**: Spring Boot 3 with Java 21
@@ -141,12 +142,16 @@ Configured in `SecurityConfig.java`:
 src/components/
 ├── authentication/     # OAuth2, signup, login forms
 ├── chat/              # Real-time chat interface
-├── analytics/         # Workout stats, body data charts
+├── analytics/         # Workout stats, body data charts (BodyData, WorkoutStats)
 ├── onboarding/        # Multi-step user onboarding
-├── workout/           # Exercise information, workout details
+├── workout/           # Exercise information with search/filter, workout details
 ├── profile/           # User profile, body records
 ├── pose-detection/    # MediaPipe pose detection
-└── settings/          # User preferences
+├── settings/          # User preferences
+├── Calendar.tsx       # Workout calendar with data consistency
+├── Dashboard.tsx      # Main dashboard with mobile optimization
+├── NavigationBar.tsx  # Mobile-responsive bottom navigation
+└── Modal.tsx          # Reusable modal component
 ```
 
 ### Backend Service Layer
@@ -173,8 +178,8 @@ communication-server/src/
 
 ### MySQL (Spring Boot)
 - **Users**: Authentication, profile data, OAuth2 accounts
-- **Exercises**: Exercise library with MET values
-- **WorkoutRecords**: User workout history
+- **Exercises**: Exercise library with MET values, categories, muscles, equipment, intensity levels
+- **WorkoutRecords**: User workout history with calendar integration
 - **BodyRecords**: Physical measurements tracking
 
 ### MongoDB (NestJS)
@@ -185,6 +190,30 @@ communication-server/src/
 - **Sessions**: JWT token validation cache
 - **Rate Limiting**: Request throttling data
 - **General Cache**: Application-level caching
+
+## 🏋️ Exercise Information System
+
+### Exercise Features
+- **Comprehensive Database**: Exercise library with detailed information including MET values, muscle groups, equipment
+- **Advanced Search**: Multi-modal search by name, muscle group, intensity, and body part
+- **Calorie Calculation**: Real-time calorie burn calculation based on user profile and exercise MET values
+- **Detailed Information**: Exercise instructions, muscle targeting, equipment requirements
+- **Infinite Scroll**: Paginated loading for large exercise datasets
+- **Mobile Optimization**: Touch-friendly scroll controls and responsive design
+
+### Exercise API Endpoints
+- `GET /api/exercises` - Paginated exercise list with filtering
+- `GET /api/exercises/{id}` - Detailed exercise information
+- `GET /api/exercises/categories` - Available exercise categories
+- `GET /api/exercises/muscles` - Available muscle groups
+- `POST /api/exercises/load-data` - Load exercise data from external sources
+
+### Search & Filter Capabilities
+- **Name Search**: Keyword-based exercise name search
+- **Muscle Targeting**: Filter by primary/secondary muscle groups
+- **Body Part Categories**: Filter by exercise categories (한글 지원)
+- **Intensity Levels**: Filter by LOW/MEDIUM/HIGH intensity
+- **Combined Filters**: Multiple filter combinations for precise results
 
 ## 🔄 Real-time Communication
 
@@ -237,3 +266,54 @@ communication-server/src/
 - **WebSocket Problems**: Verify Socket.IO client/server version compatibility
 - **Database Connection**: Check environment variables and container networking
 - **OAuth2 Redirect**: Verify redirect URIs in provider configurations
+- **Mobile UI Issues**: Check CSS media queries and navigation bar padding calculations
+- **Data Inconsistency**: Verify API endpoint consistency between components (use MYPAGE_DASHBOARD)
+- **Scroll Issues**: Ensure proper mobile navigation bar height calculations with CSS variables
+
+## 📱 Mobile UI & Responsive Design
+
+### Key Mobile Features
+- **Responsive Design**: Mobile-first approach with breakpoints at 768px and 480px
+- **Navigation Bar**: Fixed bottom navigation with proper safe area handling
+- **Scroll Optimization**: Enhanced scroll behavior for mobile devices with proper padding calculations
+- **Touch Support**: Optimized touch interactions and scroll controls
+- **Mobile Tunnel**: Development testing with localtunnel for real device testing
+
+### CSS Architecture
+- **CSS Variables**: Consistent spacing with `--bottom-nav-height: 56px`
+- **Safe Area**: Proper handling of device safe areas with `env(safe-area-inset-bottom)`
+- **Media Queries**: Progressive enhancement for different screen sizes
+- **Scroll Controls**: Enhanced horizontal scroll with touch support for filter buttons
+
+### Common Mobile Issues & Solutions
+- **Navigation Overlap**: Use `calc(env(safe-area-inset-bottom) + var(--bottom-nav-height) + padding)`
+- **Hover Effects**: Disabled on mobile to prevent layout shifts
+- **Scroll Buttons**: Responsive sizing instead of hiding on mobile
+- **Data Consistency**: Unified API endpoints between calendar and analytics components
+
+## 📦 Dependencies & Technologies
+
+### Frontend Dependencies
+- **React 19.1.1** with **TypeScript 5.5.0**
+- **Vite 7.0.6** for build tooling
+- **@mediapipe/pose 0.5.1675469404** for pose detection
+- **Firebase 12.0.0** for additional services
+- **Socket.IO Client 4.8.1** for WebSocket communication
+- **Recharts 3.1.0** for data visualization
+- **Lucide React 0.535.0** for icons
+- **Localtunnel 2.0.2** for mobile development testing
+
+### Communication Server Dependencies
+- **NestJS 11.0.1** framework with full ecosystem
+- **MongoDB** integration via **Mongoose 8.0.0**
+- **Socket.IO 4.8.1** for WebSocket server
+- **Twilio 5.8.0** for SMS services
+- **Redis** integration via **ioredis 5.7.0**
+- **Cross-env 10.0.0** for environment management
+
+### Key Development Features
+- **Hot Reload**: Both frontend (Vite) and backend (NestJS) support hot reload
+- **TypeScript**: Full TypeScript support across frontend and communication server
+- **ESLint & Prettier**: Code quality and formatting tools
+- **Testing**: Jest for NestJS, Vite test runner for frontend
+- **Docker Integration**: Full containerization with docker-compose

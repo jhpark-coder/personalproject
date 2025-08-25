@@ -30,7 +30,12 @@ export class NotificationsService {
   // 사용자의 알림 목록 조회
   async getUserNotifications(userId: number): Promise<Notification[]> {
     return this.notificationModel
-      .find({ targetUserId: userId })
+      .find({
+        $or: [
+          { targetUserId: userId },        // 특정 사용자에게 보낸 알림
+          { targetUserId: 0 }              // 전체 사용자 대상 알림
+        ]
+      })
       .sort({ createdAt: -1 })
       .exec();
   }
@@ -45,8 +50,15 @@ export class NotificationsService {
   // 읽지 않은 알림 개수 조회
   async getUnreadCount(userId: number): Promise<number> {
     return this.notificationModel.countDocuments({
-      targetUserId: userId,
-      isRead: false,
+      $and: [
+        {
+          $or: [
+            { targetUserId: userId },        // 특정 사용자에게 보낸 알림
+            { targetUserId: 0 }              // 전체 사용자 대상 알림
+          ]
+        },
+        { isRead: false }                    // 읽지 않은 알림
+      ]
     });
   }
 }

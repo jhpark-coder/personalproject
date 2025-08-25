@@ -72,6 +72,7 @@ docker compose up -d --build
 *   **Backend (`src/main/java/backend/`):** A Spring Boot application handling core business logic, user management, AI exercise recommendations, and integration with various databases.
 *   **Communication Server (`communication-server/`):** A NestJS application managing real-time chat, notifications (via Socket.IO and Twilio SMS), and scheduling.
 *   **Nginx (`nginx/`):** Acts as a reverse proxy, serving frontend static files and routing specific API requests to the communication server.
+*   **Speech Synthesis Test (`frontend/src/components/SpeechSynthesisTest.tsx`):** A component for testing the Web Speech API to develop real-time voice guidance features.
 
 ## 5. Databases and Services
 
@@ -96,8 +97,10 @@ docker compose up -d --build
 *   `PUT /api/notifications/:id/read`
 *   `GET /api/notifications/user/:userId/unread-count`
 
-## 7. Recent Changes/Improvements (as of 2025-08-08)
+## 7. Recent Changes/Improvements (as of 2025-08-13)
 
+*   **Data Loader Timezone Fix:** Corrected a bug in `DataLoader.java` where workout records for the current day were omitted. The logic now explicitly uses the "Asia/Seoul" timezone to prevent issues related to server time.
+*   **Voice Guidance Feature Added:** Implemented a new test page (`SpeechSynthesisTest.tsx`) for the Web Speech API. Added a navigation button on the `MotionCoach.tsx` page and configured routing in `App.tsx` to access it.
 *   **CORS Improvement:** `communication-server/src/main.ts` now reflects request origin when `*` is in allowed origins for development.
 *   **Nginx Proxy Addition:** `nginx/nginx.conf` proxies `location /sms/` to `communication-server:3000` for frontend access.
 *   **Frontend Communication Server URL Fallback:** `frontend/src/config/api.ts` defaults `CHAT_SERVER_URL` to `http://localhost:3000` if not set.

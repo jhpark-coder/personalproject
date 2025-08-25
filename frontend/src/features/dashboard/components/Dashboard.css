@@ -1,0 +1,744 @@
+/* 로딩 스피너 */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  background-color: var(--white);
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid var(--gray-200);
+  border-top: 4px solid var(--primary);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: var(--spacing-md);
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading-container p {
+  color: var(--gray-600);
+  font-size: var(--text-base);
+}
+
+/* 기존 스타일들... */
+ .dashboard-container {
+   min-height: 100vh;
+   background-color: var(--gray-50);
+   padding-bottom: calc(env(safe-area-inset-bottom) + var(--bottom-nav-height) + 12px);
+   width: 100%;
+   display: flex;
+   flex-direction: column;
+   align-items: center;
+ }
+
+/* PC 이외의 모든 화면에서 전체 폭 사용 */
+@media (max-width: 1023px) {
+  .dashboard-container {
+    width: 100vw;
+    max-width: 100vw;
+    align-items: stretch;
+    margin: 0;
+    padding-left: 0;
+    padding-right: 0;
+  }
+}
+
+.dashboard-content {
+  padding: var(--spacing-md) var(--spacing-md) 0.5rem;
+  width: 100%;
+  max-width: 100%; /* 기본적으로 가득 채움 */
+  margin: 0 auto;
+}
+
+/* PC 화면에서만 최대폭 제한 */
+@media (min-width: 1024px) {
+  .dashboard-container {
+    width: 100%; /* PC에서는 컨테이너 시스템 따름 */
+    max-width: none;
+    align-items: center; /* PC에서만 중앙 정렬 */
+  }
+  
+  .dashboard-content {
+    max-width: var(--content-max);
+  }
+}
+
+/* 대시보드에서는 공통 카드 마진 제거 */
+.dashboard-container .card {
+  margin: 0;
+}
+
+/* 대시보드 카드 하단 여백 완전 제거 */
+.dashboard-container .goal-card,
+.dashboard-container .stats-card {
+  margin-bottom: 0;
+}
+
+/* 대시보드 콘텐츠의 마지막 요소는 여백 제거 */
+.dashboard-content > :last-child {
+  margin-bottom: 0 !important;
+}
+
+/* 헤더 스타일 */
+.app-title {
+  font-size: var(--text-2xl);
+  font-weight: 800;
+  color: var(--gray-900);
+  letter-spacing: -0.5px;
+}
+
+/* 대시보드 헤더만 특정하게 타겟 */
+.dashboard-container .header {
+  background: var(--brand-primary);
+  padding: var(--spacing-xl) var(--spacing-lg);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+  position: relative; /* sticky 제거 */
+  width: 100%;
+  box-shadow: var(--shadow-sm);
+}
+
+.app-title {
+  color: #fff;
+}
+
+.dashboard-container .header .header-actions .settings-button {
+  background-color: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #fff;
+}
+
+.dashboard-container .header .header-actions .settings-button:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+.upgrade-button {
+  background-color: var(--accent-energy);
+  color: var(--white);
+  border: none;
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.upgrade-button:hover {
+  background-color: #E85C5C;
+  transform: translateY(-1px);
+}
+
+.settings-button {
+  background-color: var(--gray-100);
+  border: 1px solid var(--gray-200);
+  font-size: var(--text-lg);
+  cursor: pointer;
+  padding: var(--spacing-sm);
+  border-radius: var(--radius-lg);
+  transition: all 0.2s ease;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow-sm);
+}
+
+.settings-button:hover {
+  background-color: var(--gray-200);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.settings-button:active {
+  transform: translateY(0);
+  box-shadow: var(--shadow-sm);
+}
+
+/* 목표 카드 */
+.goal-card {
+  margin-bottom: calc(var(--spacing-lg) + 6px); /* 첫 카드와 두번째 카드 간격 조금 벌림 */
+  width: 100%;
+}
+
+.goal-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.goal-icon {
+  width: 48px;
+  height: 48px;
+  background-color: var(--accent-success);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-xl);
+  color: var(--white);
+}
+
+.goal-text {
+  flex: 1;
+}
+
+.goal-title {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--gray-900);
+  margin-bottom: var(--spacing-xs);
+}
+
+.goal-subtitle {
+  font-size: var(--text-sm);
+  color: var(--gray-600);
+}
+
+.menu-button {
+  background: none;
+  border: none;
+  font-size: var(--text-lg);
+  color: var(--gray-500);
+  cursor: pointer;
+  padding: var(--spacing-sm);
+  border-radius: var(--radius-md);
+  transition: background-color 0.2s;
+}
+
+.menu-button:hover {
+  background-color: var(--gray-100);
+}
+
+.progress-section {
+  margin: var(--spacing-lg) 0;
+}
+
+.progress-text {
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--gray-600);
+  margin-top: var(--spacing-sm);
+}
+
+/* 통계 카드 */
+.stats-card {
+  margin-bottom: var(--spacing-lg);
+  width: 100%;
+}
+
+.arrow-button {
+  background: none;
+  border: none;
+  font-size: var(--text-lg);
+  color: var(--gray-500);
+  cursor: pointer;
+  padding: var(--spacing-sm);
+  border-radius: var(--radius-md);
+  transition: background-color 0.2s;
+}
+
+.arrow-button:hover {
+  background-color: var(--gray-100);
+}
+
+.stats-tabs {
+  display: flex;
+  gap: var(--spacing-sm);
+  margin-bottom: var(--spacing-lg);
+}
+
+.tab-button {
+  background: none;
+  border: 1px solid var(--gray-300);
+  padding: var(--spacing-sm) var(--spacing-md);
+  border-radius: var(--radius-md);
+  font-size: var(--text-sm);
+  color: var(--gray-600);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tab-button.active {
+  background-color: var(--primary);
+  color: var(--white);
+  border-color: var(--primary);
+}
+
+.tab-button:hover:not(.active) {
+  background-color: var(--gray-100);
+}
+
+.stats-content {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  width: 100%;
+}
+
+.stats-summary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-lg);
+  width: 100%;
+}
+
+.stats-item {
+  text-align: center;
+}
+
+.stats-summary p {
+  font-size: var(--text-sm);
+  color: var(--gray-600);
+  margin-bottom: var(--spacing-xs);
+}
+
+.stats-value {
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  color: var(--gray-900);
+  margin-bottom: var(--spacing-xs);
+}
+
+.stats-value.calories-value {
+  color: var(--secondary-orange);
+}
+
+.stats-comparison {
+  font-size: var(--text-sm);
+  color: var(--accent-success);
+  font-weight: 600;
+}
+
+.stats-chart {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--spacing-sm);
+  width: 100%;
+  padding: 0;
+}
+
+/* 오늘의 체크리스트 카드 */
+.today-card {
+  margin-top: var(--spacing-sm);
+  margin-bottom: var(--spacing-sm);
+  padding: 12px; /* 기본 카드보다 컴팩트 */
+}
+
+.today-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.today-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--gray-50);
+  border-radius: var(--radius-md);
+  padding: 8px 10px;
+  border: 1px solid var(--gray-200);
+  cursor: pointer;
+}
+
+.today-item.done {
+  opacity: 0.7;
+}
+
+.today-icon { font-size: 1.1rem; margin-right: 8px; }
+.today-text { flex: 1; }
+.today-title { font-weight: 600; color: var(--gray-900); font-size: 0.95rem; }
+.today-sub { font-size: 0.75rem; color: var(--gray-600); }
+
+.today-all-done {
+  margin-top: 6px;
+  text-align: center;
+  color: var(--accent-success);
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.chart-placeholder {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--spacing-xs);
+  height: 120px;
+  width: 100%;
+  position: relative;
+}
+
+.chart-bar {
+  flex: 1;
+  background-color: var(--gray-300);
+  border-radius: var(--radius-sm);
+  transition: all 0.3s ease;
+  min-width: 0;
+  position: relative;
+}
+
+.chart-bar.active {
+  background-color: var(--primary);
+}
+
+/* 운동 타입별 차트 색상 */
+.chart-bar.cardio {
+  background-color: var(--cardio);
+}
+
+.chart-bar.strength {
+  background-color: var(--strength);
+}
+
+.chart-bar.flexibility {
+  background-color: var(--flexibility);
+}
+
+.chart-bar.recovery {
+  background-color: var(--recovery);
+}
+
+.chart-labels {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+  font-size: var(--text-xs);
+  color: var(--gray-500);
+  margin-top: var(--spacing-xs);
+}
+
+.chart-labels span {
+  flex: 1;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 0 var(--spacing-xs);
+}
+
+/* 추천 루틴 팝업 */
+.recommendation-overlay {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
+  padding: var(--spacing-lg) 0; /* 실제 좌우 패딩은 inner에서 처리 */
+}
+
+/* 오버레이 내부 래퍼: 상단 대시보드와 동일한 content-wrapper 규칙 적용 */
+.recommendation-inner {
+  margin: 0 auto;
+  width: 100%;
+  max-width: var(--content-max);
+  padding: 0; /* 대시보드 카드와 동일 정렬: 패딩 제거 */
+}
+
+@media (min-width: 1024px) {
+  /* PC화면에서 추천루틴 모달을 화면 정중앙에 표시 */
+  .recommendation-overlay {
+    /* 전체 화면을 덮는 오버레이 */
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    transform: none;
+    width: 100%;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+  }
+  
+  .recommendation-inner {
+    /* 화면 중앙에 모달 배치 */
+    margin: 0;
+    width: auto;
+    max-width: 500px; /* 적당한 모달 크기 */
+    padding: 0;
+  }
+  
+  .recommendation-card {
+    /* 중앙 정렬된 모달 카드 */
+    margin: 0;
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
+/* 모바일에서는 content-wrapper 기본 규칙 그대로 사용 */
+@media (max-width: 480px) {
+  .recommendation-inner { padding-left: 12px; padding-right: 12px; }
+}
+
+.recommendation-card {
+  background-color: var(--white);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  box-shadow: var(--shadow-xl);
+  width: auto;                 /* 내용 폭 자동 */
+  margin: 0 var(--spacing-lg); /* 대시보드 .card와 동일한 좌우 마진 */
+  max-width: calc(var(--content-max) - (var(--spacing-lg) * 2));
+}
+
+@media (min-width: 1024px) {
+  .recommendation-card {
+    /* PC화면에서 컨테이너에 맞춤 */
+    margin: 0;
+    max-width: 100%;
+  }
+}
+
+.recommendation-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-md);
+}
+
+.recommendation-header h3 {
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--gray-900);
+}
+
+.close-button {
+  background: none;
+  border: none;
+  font-size: var(--text-lg);
+  color: var(--gray-500);
+  cursor: pointer;
+  padding: var(--spacing-sm);
+  border-radius: var(--radius-md);
+  transition: background-color 0.2s;
+}
+
+.close-button:hover {
+  background-color: var(--gray-100);
+}
+
+.routine-card {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  background-color: var(--gray-50);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--spacing-md);
+}
+
+.routine-icon {
+  width: 40px;
+  height: 40px;
+  background-color: var(--primary);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--text-lg);
+  color: var(--white);
+}
+
+.routine-info {
+  flex: 1;
+}
+
+.routine-title {
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--gray-900);
+  margin-bottom: var(--spacing-xs);
+}
+
+.routine-details {
+  font-size: var(--text-sm);
+  color: var(--gray-600);
+}
+
+.recommendation-tooltip {
+  position: relative;
+  background-color: rgba(32, 201, 151, 0.08);
+  border: 1px solid rgba(32, 201, 151, 0.35);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+  margin-top: var(--spacing-md);
+}
+
+.tooltip-arrow {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 8px solid rgba(32, 201, 151, 0.35);
+}
+
+.recommendation-tooltip p {
+  font-size: var(--text-sm);
+  color: var(--gray-700);
+  text-align: center;
+  margin: 0;
+}
+
+/* 태블릿에서도 화면 가득 채우기 */
+@media (min-width: 481px) and (max-width: 1023px) {
+  .dashboard-container {
+    width: 100vw; /* 뷰포트 전체 폭 */
+    max-width: 100vw;
+    align-items: stretch;
+  }
+  
+  .dashboard-content {
+    padding: var(--spacing-md) var(--spacing-sm) 0; /* 태블릿에서 좌우 패딩 줄임 */
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
+/* 실외 사용을 위한 개선사항 */
+@media (max-width: 480px) {
+  .dashboard-container {
+    padding-bottom: calc(env(safe-area-inset-bottom) + var(--bottom-nav-height) + 20px); /* 네비바 높이 + 추가 여백 */
+    width: 100vw; /* 뷰포트 전체 폭 */
+    max-width: 100vw;
+    align-items: stretch;
+    margin: 0;
+    padding-left: 0;
+    padding-right: 0;
+  }
+  
+  .dashboard-content {
+    padding: var(--spacing-sm) var(--spacing-xs) 0; /* 좌우 패딩 더 줄여서 가득 찬 느낌 */
+    width: 100%;
+    max-width: 100%; /* 모바일에서도 강제로 가득 채움 */
+  }
+
+  /* 모바일에서 헤더 스타일 조정 */
+  .app-title {
+    font-size: var(--text-xl);
+    font-weight: 700;
+  }
+
+  .settings-button {
+    width: 36px;
+    height: 36px;
+    font-size: var(--text-base);
+  }
+
+  /* 모바일에서도 카드 마진 제거 유지 */
+  .dashboard-container .card {
+    margin: 0;
+  }
+  
+  .goal-title {
+    font-size: var(--text-base);
+  }
+  
+  .stats-value {
+    font-size: var(--text-xl);
+  }
+  
+  .chart-placeholder {
+    height: 100px;
+    gap: var(--spacing-xs);
+  }
+  
+  .chart-labels {
+    font-size: 10px;
+  }
+  
+  .chart-labels span {
+    padding: 0 2px;
+  }
+}
+
+/* 고대비 모드 */
+@media (prefers-contrast: high) {
+  .goal-card,
+  .stats-card {
+    border-width: 2px;
+  }
+  
+  .tab-button {
+    border-width: 2px;
+  }
+} 
+
+@media (min-width: 1024px) {
+  .dashboard-container .header .app-title {
+    display: none;
+  }
+  
+  /* PC화면에서 메인화면 글씨 크기 증가 */
+  .dashboard-container .card-header h3,
+  .dashboard-container .card-title {
+    font-size: var(--text-2xl);
+  }
+  
+  .dashboard-container .goal-title {
+    font-size: var(--text-xl);
+  }
+  
+  .dashboard-container .goal-subtitle {
+    font-size: var(--text-lg);
+  }
+  
+  .dashboard-container .stats-value {
+    font-size: var(--text-3xl);
+  }
+  
+  .dashboard-container .stats-item p {
+    font-size: var(--text-base);
+  }
+  
+  .dashboard-container .stats-comparison {
+    font-size: var(--text-base);
+  }
+  
+  .dashboard-container .today-title {
+    font-size: var(--text-lg);
+  }
+  
+  .dashboard-container .today-sub {
+    font-size: var(--text-base);
+  }
+  
+  .dashboard-container .recommendation-header h3 {
+    font-size: var(--text-xl);
+  }
+  
+  .dashboard-container .routine-title {
+    font-size: var(--text-lg);
+  }
+  
+  .dashboard-container .routine-details {
+    font-size: var(--text-base);
+  }
+  
+  .dashboard-container .button {
+    font-size: var(--text-lg);
+  }
+  
+  .dashboard-container .progress-text {
+    font-size: var(--text-lg);
+  }
+} 
