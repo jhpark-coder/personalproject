@@ -32,6 +32,100 @@
   pointer-events: none;
 }
 
+.camera-controls {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  align-items: center;
+  margin-top: 1rem;
+}
+
+.tts-toggle {
+  background: rgba(44, 62, 80, 0.95);
+  color: #fff;
+  border: 1px solid rgba(255,255,255,0.1);
+  padding: 0.5rem 1rem;
+  border-radius: 1.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 0.25rem 0.6rem rgba(0, 0, 0, 0.2);
+}
+
+.tts-toggle.enabled {
+  background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+  border-color: rgba(76, 175, 80, 0.3);
+}
+
+.tts-toggle.disabled {
+  background: linear-gradient(135deg, #9E9E9E 0%, #757575 100%);
+  border-color: rgba(158, 158, 158, 0.3);
+}
+
+.tts-toggle:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.3);
+}
+
+.session-controls {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 1rem;
+  padding: 1rem;
+}
+
+.session-start-button,
+.session-end-button {
+  background: linear-gradient(135deg, #2196F3 0%, #1976D2 100%);
+  color: #fff;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 2rem;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 0.25rem 0.6rem rgba(33, 150, 243, 0.3);
+}
+
+.session-end-button {
+  background: linear-gradient(135deg, #FF5722 0%, #D84315 100%);
+  box-shadow: 0 0.25rem 0.6rem rgba(255, 87, 34, 0.3);
+}
+
+.session-start-button:disabled {
+  background: linear-gradient(135deg, #9E9E9E 0%, #757575 100%);
+  cursor: not-allowed;
+  box-shadow: 0 0.25rem 0.6rem rgba(158, 158, 158, 0.3);
+}
+
+.session-start-button:hover:not(:disabled),
+.session-end-button:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.3);
+}
+
+.session-info {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: linear-gradient(135deg, #E3F2FD 0%, #BBDEFB 100%);
+  border-radius: 0.5rem;
+  border-left: 4px solid #2196F3;
+}
+
+.session-info h4 {
+  margin: 0 0 0.5rem 0;
+  color: #1976D2;
+  font-weight: 700;
+}
+
+.session-info p {
+  margin: 0.25rem 0;
+  font-size: 0.9rem;
+}
+
 .controls {
   margin-bottom: 2rem;
 }

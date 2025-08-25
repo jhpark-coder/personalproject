@@ -355,21 +355,38 @@ const OnboardingBasicInfo: React.FC = () => {
     try {
       const token = localStorage.getItem('token');
       if (token) {
-        // 기본 정보를 서버에 저장
-        const response = await apiClient.put(API_ENDPOINTS.UPDATE_BASIC_INFO, formData);
+        // localStorage에서 온보딩 데이터 수집
+        const goal = localStorage.getItem('userGoal') || '';
+        const experience = localStorage.getItem('userExperience') || '';
+        
+        // 전체 온보딩 프로필 데이터 구성
+        const onboardingProfileData = {
+          ...formData,
+          goal: goal,
+          experience: experience
+        };
+        
+        console.log('온보딩 프로필 전송 데이터:', onboardingProfileData);
+        
+        // 새로운 통합 온보딩 API 호출
+        const response = await apiClient.post(API_ENDPOINTS.SAVE_ONBOARDING_PROFILE, onboardingProfileData);
 
         if (response.data.success) {
+          // 온보딩 완료 후 localStorage 데이터 정리
+          localStorage.removeItem('userGoal');
+          localStorage.removeItem('userExperience');
+          
           // 다음 단계: 완료 화면
           navigate('/onboarding/complete');
         } else {
-          showModal('저장 실패', response.data.message || '기본 정보 저장에 실패했습니다.', 'error');
+          showModal('저장 실패', response.data.message || '온보딩 프로필 저장에 실패했습니다.', 'error');
         }
       } else {
         showModal('인증 오류', '로그인이 필요합니다.', 'error');
       }
     } catch (error) {
       const errorMessage = handleApiError(error);
-      console.error('기본 정보 저장 중 오류:', errorMessage);
+      console.error('온보딩 프로필 저장 중 오류:', errorMessage);
       showModal('저장 실패', errorMessage, 'error');
     }
   };
