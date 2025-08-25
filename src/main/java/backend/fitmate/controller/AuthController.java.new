@@ -610,96 +610,6 @@ public class AuthController {
         }
     }
 
-    @PostMapping("/save-onboarding-profile")
-    @RateLimit(bucketName = "profileUpdateBucket", keyType = RateLimit.KeyType.USER_ID)
-    public ResponseEntity<?> saveOnboardingProfile(@RequestBody Map<String, String> onboardingRequest) {
-        try {
-            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-            if (authentication == null || !authentication.isAuthenticated()) {
-                Map<String, Object> response = new HashMap<>();
-                response.put("success", false);
-                response.put("message", "인증되지 않은 사용자입니다.");
-                return ResponseEntity.status(401).body(response);
-            }
-
-            // 사용자 찾기
-            User user = null;
-            String authName = authentication.getName();
-            System.out.println("Authentication name: " + authName);
-
-            // OAuth2 사용자의 경우 "provider:oauthId" 형태일 수 있음
-            if (authName.contains(":")) {
-                String[] parts = authName.split(":");
-                if (parts.length == 2) {
-                    String authProvider = parts[0];
-                    String authOAuthId = parts[1];
-                    System.out.println("OAuth2 식별자 분해: provider=" + authProvider + ", oauthId=" + authOAuthId);
-                    
-                    user = userService.findByOAuth2ProviderAndOAuth2Id(authProvider, authOAuthId)
-                            .orElse(null);
-                }
-            } else {
-                // 숫자인 경우 user ID로 시도
-                try {
-                    Long userId = Long.parseLong(authName);
-                    user = userService.findById(userId).orElse(null);
-                } catch (NumberFormatException e) {
-                    System.out.println("Authentication name이 숫자가 아님");
-                }
-            }
-
-            if (user == null) {
-                Map<String, Object> response = new HashMap<>();
-                response.put("success", false);
-                response.put("message", "사용자를 찾을 수 없습니다.");
-                return ResponseEntity.status(404).body(response);
-            }
-
-            // 온보딩 데이터 전체 업데이트
-            String goal = onboardingRequest.get("goal");
-            String experience = onboardingRequest.get("experience");
-            String height = onboardingRequest.get("height");
-            String weight = onboardingRequest.get("weight");
-            String age = onboardingRequest.get("age");
-            String gender = onboardingRequest.get("gender");
-            String phoneNumber = onboardingRequest.get("phoneNumber");
-
-            if (goal != null) user.setGoal(goal);
-            if (experience != null) user.setExperience(experience);
-            if (height != null) user.setHeight(height);
-            if (weight != null) user.setWeight(weight);
-            if (age != null) user.setAge(age);
-            if (gender != null) user.setGender(gender);
-            if (phoneNumber != null) user.setPhoneNumber(phoneNumber);
-
-            // 사용자 정보 저장
-            userService.save(user);
-
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", true);
-            response.put("message", "온보딩 프로필이 완전히 저장되었습니다.");
-            response.put("user", Map.of(
-                "id", user.getId(),
-                "goal", user.getGoal() != null ? user.getGoal() : "",
-                "experience", user.getExperience() != null ? user.getExperience() : "",
-                "height", user.getHeight() != null ? user.getHeight() : "",
-                "weight", user.getWeight() != null ? user.getWeight() : "",
-                "age", user.getAge() != null ? user.getAge() : "",
-                "gender", user.getGender() != null ? user.getGender() : "",
-                "phoneNumber", user.getPhoneNumber() != null ? user.getPhoneNumber() : ""
-            ));
-            
-            return ResponseEntity.ok(response);
-
-        } catch (Exception e) {
-            System.err.println("온보딩 프로필 저장 중 오류: " + e.getMessage());
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", false);
-            response.put("message", "온보딩 프로필 저장에 실패했습니다: " + e.getMessage());
-            return ResponseEntity.status(500).body(response);
-        }
-    }
-
     @PutMapping("/update-basic-info")
     @RateLimit(bucketName = "profileUpdateBucket", keyType = RateLimit.KeyType.USER_ID)
     public ResponseEntity<?> updateBasicInfo(@RequestBody Map<String, String> basicInfoRequest) {
@@ -745,7 +655,7 @@ public class AuthController {
                 return ResponseEntity.status(404).body(response);
             }
 
-            // 기본 정보 업데이트 (기존 로직 유지 - 하위 호환성)
+            // 기본 정보 업데이트
             String height = basicInfoRequest.get("height");
             String weight = basicInfoRequest.get("weight");
             String age = basicInfoRequest.get("age");

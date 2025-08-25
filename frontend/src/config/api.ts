@@ -99,6 +99,7 @@ export const API_ENDPOINTS = {
   },
   
   // 온보딩 관련
+  SAVE_ONBOARDING_PROFILE: `${backendUrl}/api/auth/save-onboarding-profile`,
   UPDATE_BASIC_INFO: `${backendUrl}/api/auth/update-basic-info`,
 
   
@@ -148,5 +149,10 @@ export const API_ENDPOINTS = {
   CALENDAR_UPDATE_EVENT: (id: string) => `${backendUrl}/api/calendar/events/${id}`,
   CALENDAR_DELETE_EVENT: (id: string) => `${backendUrl}/api/calendar/events/${id}`,
   CALENDAR_WORKOUT: `${backendUrl}/api/calendar/workout`,
+  
+  // 통합 운동 시스템 관련 엔드포인트 추가
+  ADAPTIVE_WORKOUT_GENERATE: `${backendUrl}/api/adaptive-workout/generate`,
+  WORKOUT_SESSION_FEEDBACK: `${backendUrl}/api/workout/session-feedback`,
+  
   BASE_URL: backendUrl
 } as const; 
