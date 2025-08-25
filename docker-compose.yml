@@ -16,15 +16,16 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-      cache_from:
-        - fitmate-backend:latest
     image: fitmate-backend:latest
     container_name: fitmate_backend
+    ports:
+      - "8080:8080"
     env_file:
       - ./.env
     environment:
       - SPRING_DATA_REDIS_HOST=redis
       - SPRING_DATA_REDIS_PORT=6379
+      - NODE_ENV=development
     depends_on:
       - mysql
       - redis
@@ -35,8 +36,6 @@ services:
     build:
       context: ./communication-server
       dockerfile: Dockerfile
-      cache_from:
-        - fitmate-communication:latest
     image: fitmate-communication:latest
     container_name: fitmate_communication_server
     env_file:
@@ -89,6 +88,19 @@ services:
       - redis_data:/data
     networks:
       - fitmate-network
+
+  mongo-express:
+    image: mongo-express
+    container_name: fitmate-mongo-express
+    restart: always
+    ports:
+      - "18081:8081"
+    environment:
+      - ME_CONFIG_MONGODB_SERVER=mongo
+    networks:
+      - fitmate-network
+    depends_on:
+      - mongo
 
 volumes:
   mysql_data:

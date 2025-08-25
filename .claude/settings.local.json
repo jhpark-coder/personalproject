@@ -2,9 +2,16 @@
   "permissions": {
     "allow": [
       "WebFetch(domain:www.exercisedb.dev)",
-      "Bash(docker compose exec:*)"
+      "Bash(docker compose exec:*)",
+      "Bash(curl:*)",
+      "Bash(docker compose:*)",
+      "Bash(./mvnw clean:*)",
+      "Bash(rm:*)"
     ],
     "deny": [],
-    "ask": []
+    "ask": [],
+    "additionalDirectories": [
+      "C:\\c\\nodeWork\\fitmate"
+    ]
   }
 }

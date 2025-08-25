@@ -349,6 +349,39 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 
+    // Quick Tunnel 동적 OAuth 리다이렉트 URL 업데이트
+    @PostMapping("/update-oauth-redirect")
+    public ResponseEntity<?> updateOAuthRedirectUrl(@RequestBody Map<String, String> request) {
+        try {
+            String baseUrl = request.get("baseUrl");
+            String provider = request.get("provider");
+            
+            if (baseUrl == null || provider == null) {
+                Map<String, Object> response = new HashMap<>();
+                response.put("success", false);
+                response.put("message", "baseUrl과 provider가 필요합니다.");
+                return ResponseEntity.badRequest().body(response);
+            }
+            
+            // 현재 요청의 baseUrl 정보를 HTTP 세션에 저장
+            HttpServletRequest httpRequest = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
+            httpRequest.getSession().setAttribute("dynamicBaseUrl", baseUrl);
+            httpRequest.getSession().setAttribute("requestedProvider", provider);
+            
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", true);
+            response.put("message", "OAuth 리다이렉트 URL이 업데이트되었습니다.");
+            response.put("redirectUrl", baseUrl + "/login/oauth2/code/" + provider);
+            
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            Map<String, Object> response = new HashMap<>();
+            response.put("success", false);
+            response.put("message", "OAuth 리다이렉트 URL 업데이트 실패: " + e.getMessage());
+            return ResponseEntity.status(500).body(response);
+        }
+    }
+
 
 
     @GetMapping("/profile")
@@ -510,6 +543,9 @@ public class AuthController {
             userData.put("phoneNumber", user.getPhoneNumber());
             userData.put("birthDate", user.getBirthDate());
 
+            // 닉네임 포함
+            userData.put("nickname", user.getNickname() != null ? user.getNickname() : "");
+
             // 프로필 사진 우선순위: JWT 토큰 > DB 저장된 이미지 > null
             String profileImage = pictureFromToken != null ? pictureFromToken : user.getProfileImage();
             userData.put("picture", profileImage);
@@ -646,6 +682,139 @@ public class AuthController {
             response.put("success", false);
             response.put("message", "기본 정보 업데이트에 실패했습니다.");
             return ResponseEntity.status(500).body(response);
+        }
+    }
+
+    // 신규: 비밀번호 검증 (프로필 수정 진입 시)
+    @PostMapping("/verify-password")
+    @RateLimit(bucketName = "profileUpdateBucket", keyType = RateLimit.KeyType.USER_ID)
+    public ResponseEntity<?> verifyPassword(@RequestBody Map<String, String> request) {
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication == null || !authentication.isAuthenticated()) {
+                return ResponseEntity.status(401).body(Map.of("success", false, "message", "인증 필요"));
+            }
+            String authName = authentication.getName();
+            User user = null;
+            if (authName.contains(":")) {
+                String[] parts = authName.split(":");
+                if (parts.length == 2) {
+                    user = userService.findByOAuth2ProviderAndOAuth2Id(parts[0], parts[1]).orElse(null);
+                }
+            } else {
+                try { user = userService.findById(Long.parseLong(authName)).orElse(null);} catch (NumberFormatException ignored) {}
+            }
+            if (user == null) {
+                return ResponseEntity.status(404).body(Map.of("success", false, "message", "사용자를 찾을 수 없습니다."));
+            }
+            if (user.getPassword() == null) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "소셜 로그인 계정은 비밀번호가 없습니다."));
+            }
+            String password = request.get("password");
+            if (password == null || password.isBlank()) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "비밀번호를 입력해주세요."));
+            }
+            boolean matches = passwordEncoder.matches(password, user.getPassword());
+            if (!matches) {
+                return ResponseEntity.ok(Map.of("success", false, "message", "비밀번호가 일치하지 않습니다."));
+            }
+            return ResponseEntity.ok(Map.of("success", true, "message", "검증 성공"));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("success", false, "message", "검증 중 오류: " + e.getMessage()));
+        }
+    }
+
+    // 신규: 프로필 업데이트 (허용 필드만)
+    @PutMapping("/update-profile")
+    @RateLimit(bucketName = "profileUpdateBucket", keyType = RateLimit.KeyType.USER_ID)
+    public ResponseEntity<?> updateProfile(@RequestBody Map<String, String> req) {
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication == null || !authentication.isAuthenticated()) {
+                return ResponseEntity.status(401).body(Map.of("success", false, "message", "인증 필요"));
+            }
+            String authName = authentication.getName();
+            User user = null;
+            if (authName.contains(":")) {
+                String[] parts = authName.split(":");
+                if (parts.length == 2) {
+                    user = userService.findByOAuth2ProviderAndOAuth2Id(parts[0], parts[1]).orElse(null);
+                }
+            } else {
+                try { user = userService.findById(Long.parseLong(authName)).orElse(null);} catch (NumberFormatException ignored) {}
+            }
+            if (user == null) {
+                return ResponseEntity.status(404).body(Map.of("success", false, "message", "사용자를 찾을 수 없습니다."));
+            }
+
+            // 고유키/권한 관련 필드 제외하고 갱신
+            if (req.containsKey("name")) user.setName(req.get("name"));
+            if (req.containsKey("nickname")) user.setNickname(req.get("nickname"));
+            if (req.containsKey("phoneNumber")) user.setPhoneNumber(req.get("phoneNumber"));
+            if (req.containsKey("birthDate")) user.setBirthDate(req.get("birthDate"));
+            if (req.containsKey("height")) user.setHeight(req.get("height"));
+            if (req.containsKey("weight")) user.setWeight(req.get("weight"));
+            if (req.containsKey("age")) user.setAge(req.get("age"));
+            if (req.containsKey("gender")) user.setGender(req.get("gender"));
+
+            userService.save(user);
+            return ResponseEntity.ok(Map.of("success", true, "message", "프로필이 업데이트되었습니다."));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("success", false, "message", "프로필 업데이트 실패: " + e.getMessage()));
+        }
+    }
+
+    // 신규: 비밀번호 변경
+    @PostMapping("/change-password")
+    @RateLimit(bucketName = "profileUpdateBucket", keyType = RateLimit.KeyType.USER_ID)
+    public ResponseEntity<?> changePassword(@RequestBody Map<String, String> req) {
+        try {
+            Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+            if (authentication == null || !authentication.isAuthenticated()) {
+                return ResponseEntity.status(401).body(Map.of("success", false, "message", "인증 필요"));
+            }
+            String authName = authentication.getName();
+            User user = null;
+            if (authName.contains(":")) {
+                String[] parts = authName.split(":");
+                if (parts.length == 2) {
+                    user = userService.findByOAuth2ProviderAndOAuth2Id(parts[0], parts[1]).orElse(null);
+                }
+            } else {
+                try { user = userService.findById(Long.parseLong(authName)).orElse(null);} catch (NumberFormatException ignored) {}
+            }
+            if (user == null) {
+                return ResponseEntity.status(404).body(Map.of("success", false, "message", "사용자를 찾을 수 없습니다."));
+            }
+            if (user.getPassword() == null) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "소셜 로그인 계정은 비밀번호가 없습니다."));
+            }
+            String currentPassword = req.get("currentPassword");
+            String newPassword = req.get("newPassword");
+            if (currentPassword == null || currentPassword.isBlank() || newPassword == null || newPassword.isBlank()) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "현재/새 비밀번호를 입력해주세요."));
+            }
+            if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "현재 비밀번호가 올바르지 않습니다."));
+            }
+            if (currentPassword.equals(newPassword)) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "새 비밀번호는 현재 비밀번호와 달라야 합니다."));
+            }
+            // 제약조건: 8자 이상, 특수문자/대문자/숫자 포함
+            if (newPassword.length() < 8 || !newPassword.matches(".*[^a-zA-Z0-9].*") || !newPassword.matches(".*[A-Z].*") || !newPassword.matches(".*[0-9].*")) {
+                return ResponseEntity.badRequest().body(Map.of("success", false, "message", "비밀번호는 8자 이상이며 특수문자, 대문자, 숫자를 포함해야 합니다."));
+            }
+            if (user.getEmail() != null) {
+                String local = user.getEmail().split("@")[0];
+                if (newPassword.contains(local)) {
+                    return ResponseEntity.badRequest().body(Map.of("success", false, "message", "이메일과 유사한 비밀번호는 사용할 수 없습니다."));
+                }
+            }
+            user.setPassword(passwordEncoder.encode(newPassword));
+            userService.save(user);
+            return ResponseEntity.ok(Map.of("success", true, "message", "비밀번호가 변경되었습니다."));
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(Map.of("success", false, "message", "비밀번호 변경 실패: " + e.getMessage()));
         }
     }
 

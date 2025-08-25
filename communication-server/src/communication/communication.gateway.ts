@@ -253,6 +253,11 @@ export class CommunicationGateway
     this.server.emit('broadcastNotification', notification);
   }
 
+  public sendCalendarUpdateToUser(userId: string, message: string, eventsCount?: number) {
+    this.logger.log(`📢 Sending calendar update to user ${userId}: ${message}`);
+    this.server.to(userId).emit('calendarUpdate', { message, eventsCount });
+  }
+
   // ===== Helper Functions =====
   private getUserIdFromSocket(client: Socket): string | null {
     return client.handshake.auth?.userId || null;
