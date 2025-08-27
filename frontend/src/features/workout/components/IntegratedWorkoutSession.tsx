@@ -1,355 +1,477 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '@hooks/useAuth';
-import { apiClient, API_ENDPOINTS } from '@config/api';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { WorkoutProgram, WorkoutExercise, ExerciseType } from './WorkoutProgramSelector';
 import MotionCoach from './MotionCoach';
+import WorkoutProgramSelector from './WorkoutProgramSelector';
+import RestTimer from './RestTimer';
+import WorkoutSessionSummary from './WorkoutSessionSummary';
+import { apiClient } from '@utils/axiosConfig';
 import './IntegratedWorkoutSession.css';
 
-interface WorkoutRecommendation {
-  userProfile: {
-    goal: string;
-    experience: string;
-    fitnessLevel: string;
-    adaptationInfo: string;
-    confidenceScore: string;
-  };
-  workoutPlan: {
-    warmup: {
-      name: string;
-      exercises: any[];
-      duration: number;
-    };
-    main: {
-      name: string;
-      exercises: any[];
-      duration: number;
-    };
-    cooldown: {
-      name: string;
-      exercises: any[];
-      duration: number;
-    };
-  };
-  estimatedCalories: number;
+interface ExerciseResult {
+  exerciseType: ExerciseType;
+  completedSets: number;
+  targetSets: number;
+  completedReps: number;
+  targetReps: number;
+  averageFormScore: number;
+  formCorrections: string[];
+  duration: number; // 실제 소요시간 (초)
+}
+
+interface SessionSummary {
   totalDuration: number;
-  recommendations: string[];
-  adaptationInfo: {
-    adaptationFactor: number;
-    confidenceLevel: string;
-    recommendationType: string;
-    learningStatus: string;
-  };
+  totalExercises: number;
+  totalSets: number;
+  totalReps: number;
+  caloriesBurned: number;
+  averageFormScore: number;
+  improvements: string[];
+  nextRecommendations: string[];
+  exerciseResults: ExerciseResult[];
 }
 
-interface IntegratedWorkoutSessionProps {
-  onSessionComplete?: (sessionData: any) => void;
+type SessionPhase = 'program_selection' | 'warmup' | 'exercise_active' | 'exercise_rest' | 
+                   'exercise_complete' | 'session_complete' | 'summary';
+
+interface WorkoutSessionState {
+  selectedProgram: WorkoutProgram | null;
+  currentPhase: SessionPhase;
+  currentExerciseIndex: number;
+  currentSet: number;
+  sessionStartTime: Date | null;
+  exerciseStartTime: Date | null;
+  exerciseResults: ExerciseResult[];
+  currentExerciseResult: Partial<ExerciseResult>;
 }
 
-const IntegratedWorkoutSession: React.FC<IntegratedWorkoutSessionProps> = ({ onSessionComplete }) => {
-  const { user } = useAuth();
-  const [sessionPhase, setSessionPhase] = useState<'loading' | 'recommendations' | 'exercise-selection' | 'motion-coach' | 'completed'>('loading');
-  const [workoutRecommendation, setWorkoutRecommendation] = useState<WorkoutRecommendation | null>(null);
-  const [selectedExercise, setSelectedExercise] = useState<any>(null);
-  const [sessionData, setSessionData] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
+const IntegratedWorkoutSession: React.FC = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  
+  // 라우터 state에서 선택된 프로그램 가져오기
+  const initialProgram = location.state?.selectedProgram as WorkoutProgram | undefined;
 
-  /**
-   * 1단계: 적응형 운동 추천 가져오기
-   */
-  const fetchWorkoutRecommendations = useCallback(async () => {
-    if (!user) return;
+  const [sessionState, setSessionState] = useState<WorkoutSessionState>({
+    selectedProgram: initialProgram || null,
+    currentPhase: initialProgram ? 'warmup' : 'program_selection',
+    currentExerciseIndex: 0,
+    currentSet: 1,
+    sessionStartTime: null,
+    exerciseStartTime: null,
+    exerciseResults: [],
+    currentExerciseResult: {}
+  });
 
-    try {
-      setIsLoading(true);
-      setError(null);
+  const [restTimeLeft, setRestTimeLeft] = useState(0);
+  const [sessionSummary, setSesssionSummary] = useState<SessionSummary | null>(null);
+  const [showProgramSelector, setShowProgramSelector] = useState(!initialProgram);
+  
+  // TTS 피드백을 위한 ref
+  const lastAnnouncementRef = useRef<string>('');
 
-      const response = await apiClient.post('/api/adaptive-workout/generate', {
-        goal: user.goal || 'fitness',
-        targetDuration: 45
-      });
+  // 현재 운동 정보 계산
+  const currentExercise = sessionState.selectedProgram?.exercises[sessionState.currentExerciseIndex];
+  const totalExercises = sessionState.selectedProgram?.exercises.length || 0;
+  const isLastExercise = sessionState.currentExerciseIndex >= totalExercises - 1;
+  const isLastSet = currentExercise && sessionState.currentSet >= currentExercise.targetSets;
 
-      if (response.data.success) {
-        setWorkoutRecommendation(response.data.data);
-        setSessionPhase('recommendations');
-      } else {
-        setError('운동 추천을 가져오는데 실패했습니다.');
+  // 프로그램 선택 처리
+  const handleProgramSelect = useCallback((program: WorkoutProgram) => {
+    setSessionState(prev => ({
+      ...prev,
+      selectedProgram: program,
+      currentPhase: 'warmup',
+      sessionStartTime: new Date(),
+      currentExerciseIndex: 0,
+      currentSet: 1,
+      exerciseResults: [],
+      currentExerciseResult: {
+        exerciseType: program.exercises[0]?.exerciseType,
+        completedSets: 0,
+        targetSets: program.exercises[0]?.targetSets || 0,
+        completedReps: 0,
+        targetReps: program.exercises[0]?.targetReps || 0,
+        averageFormScore: 0,
+        formCorrections: [],
+        duration: 0
       }
-    } catch (error: any) {
-      console.error('추천 가져오기 실패:', error);
-      setError('운동 추천 서비스에 문제가 발생했습니다.');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [user]);
-
-  /**
-   * 2단계: 운동 선택
-   */
-  const selectExercise = useCallback((exercise: any) => {
-    setSelectedExercise(exercise);
-    setSessionPhase('motion-coach');
+    }));
+    setShowProgramSelector(false);
+    
+    // TTS 안내
+    playTTSFeedback(`${program.title} 프로그램을 시작합니다! 준비되셨나요?`);
   }, []);
 
-  /**
-   * 3단계: MotionCoach 세션 완료 처리
-   */
-  const handleMotionCoachComplete = useCallback((motionCoachSessionData: any) => {
-    setSessionData(motionCoachSessionData);
-    setSessionPhase('completed');
+  // TTS 피드백 재생 (중복 방지)
+  const playTTSFeedback = useCallback((message: string) => {
+    if (lastAnnouncementRef.current === message) return;
     
-    if (onSessionComplete) {
-      onSessionComplete({
-        ...motionCoachSessionData,
-        recommendationData: workoutRecommendation,
-        selectedExercise: selectedExercise
-      });
+    lastAnnouncementRef.current = message;
+    
+    // TTS 재생 로직 (MotionCoach의 TTS 서비스 활용)
+    if ('speechSynthesis' in window) {
+      const utterance = new SpeechSynthesisUtterance(message);
+      utterance.lang = 'ko-KR';
+      utterance.rate = 0.9;
+      window.speechSynthesis.speak(utterance);
     }
-  }, [workoutRecommendation, selectedExercise, onSessionComplete]);
+  }, []);
 
-  /**
-   * 새로운 운동 세션 시작
-   */
-  const startNewSession = useCallback(() => {
-    setSessionPhase('loading');
-    setWorkoutRecommendation(null);
-    setSelectedExercise(null);
-    setSessionData(null);
-    setError(null);
-    fetchWorkoutRecommendations();
-  }, [fetchWorkoutRecommendations]);
+  // 워밍업 완료 → 첫 번째 운동 시작
+  const handleWarmupComplete = useCallback(() => {
+    if (!currentExercise) return;
+    
+    setSessionState(prev => ({
+      ...prev,
+      currentPhase: 'exercise_active',
+      exerciseStartTime: new Date()
+    }));
+    
+    playTTSFeedback(`첫 번째 운동, ${getExerciseDisplayName(currentExercise.exerciseType)}을 시작합니다!`);
+  }, [currentExercise]);
 
-  // 컴포넌트 마운트 시 추천 가져오기
+  // 세트 완료 처리
+  const handleSetComplete = useCallback((repsCompleted: number, formScore: number, corrections: string[]) => {
+    if (!currentExercise) return;
+    
+    const now = new Date();
+    const exerciseStartTime = sessionState.exerciseStartTime || now;
+    const setDuration = Math.floor((now.getTime() - exerciseStartTime.getTime()) / 1000);
+    
+    // 현재 운동 결과 업데이트
+    setSessionState(prev => ({
+      ...prev,
+      currentExerciseResult: {
+        ...prev.currentExerciseResult,
+        completedSets: sessionState.currentSet,
+        completedReps: (prev.currentExerciseResult.completedReps || 0) + repsCompleted,
+        averageFormScore: formScore,
+        formCorrections: [...(prev.currentExerciseResult.formCorrections || []), ...corrections],
+        duration: (prev.currentExerciseResult.duration || 0) + setDuration
+      }
+    }));
+
+    if (sessionState.currentSet < currentExercise.targetSets) {
+      // 다음 세트로 → 휴식 시간
+      setRestTimeLeft(currentExercise.restSeconds);
+      setSessionState(prev => ({ ...prev, currentPhase: 'exercise_rest' }));
+      
+      playTTSFeedback(`${sessionState.currentSet}세트 완료! ${currentExercise.restSeconds}초 휴식합니다.`);
+    } else {
+      // 운동 완료 → 다음 운동 또는 세션 완료
+      handleExerciseComplete();
+    }
+  }, [currentExercise, sessionState.currentSet, sessionState.exerciseStartTime]);
+
+  // 운동 완료 처리
+  const handleExerciseComplete = useCallback(() => {
+    if (!currentExercise) return;
+
+    // 운동 결과를 exerciseResults에 추가
+    setSessionState(prev => {
+      const completedResult: ExerciseResult = {
+        exerciseType: currentExercise.exerciseType,
+        completedSets: prev.currentExerciseResult.completedSets || 0,
+        targetSets: currentExercise.targetSets,
+        completedReps: prev.currentExerciseResult.completedReps || 0,
+        targetReps: currentExercise.targetReps * currentExercise.targetSets,
+        averageFormScore: prev.currentExerciseResult.averageFormScore || 0,
+        formCorrections: prev.currentExerciseResult.formCorrections || [],
+        duration: prev.currentExerciseResult.duration || 0
+      };
+
+      if (isLastExercise) {
+        // 전체 세션 완료
+        return {
+          ...prev,
+          currentPhase: 'session_complete',
+          exerciseResults: [...prev.exerciseResults, completedResult]
+        };
+      } else {
+        // 다음 운동으로
+        const nextExercise = prev.selectedProgram!.exercises[prev.currentExerciseIndex + 1];
+        return {
+          ...prev,
+          currentPhase: 'exercise_active',
+          currentExerciseIndex: prev.currentExerciseIndex + 1,
+          currentSet: 1,
+          exerciseStartTime: new Date(),
+          exerciseResults: [...prev.exerciseResults, completedResult],
+          currentExerciseResult: {
+            exerciseType: nextExercise.exerciseType,
+            completedSets: 0,
+            targetSets: nextExercise.targetSets,
+            completedReps: 0,
+            targetReps: nextExercise.targetReps,
+            averageFormScore: 0,
+            formCorrections: [],
+            duration: 0
+          }
+        };
+      }
+    });
+
+    if (!isLastExercise) {
+      const nextExercise = sessionState.selectedProgram!.exercises[sessionState.currentExerciseIndex + 1];
+      playTTSFeedback(`다음 운동! ${getExerciseDisplayName(nextExercise.exerciseType)}을 시작합니다!`);
+    } else {
+      playTTSFeedback('모든 운동을 완료했습니다! 수고하셨어요!');
+    }
+  }, [currentExercise, isLastExercise, sessionState.selectedProgram, sessionState.currentExerciseIndex]);
+
+  // 휴식 완료 → 다음 세트 시작
+  const handleRestComplete = useCallback(() => {
+    setSessionState(prev => ({
+      ...prev,
+      currentPhase: 'exercise_active',
+      currentSet: prev.currentSet + 1,
+      exerciseStartTime: new Date()
+    }));
+    
+    playTTSFeedback(`${sessionState.currentSet + 1}세트 시작합니다!`);
+  }, [sessionState.currentSet]);
+
+  // 세션 완료 → 결과 분석
   useEffect(() => {
-    if (user && sessionPhase === 'loading') {
-      fetchWorkoutRecommendations();
+    if (sessionState.currentPhase === 'session_complete') {
+      generateSessionSummary();
     }
-  }, [user, sessionPhase, fetchWorkoutRecommendations]);
+  }, [sessionState.currentPhase]);
 
-  // 로딩 중
-  if (isLoading || sessionPhase === 'loading') {
+  // 세션 결과 분석 생성
+  const generateSessionSummary = useCallback(async () => {
+    if (!sessionState.selectedProgram || !sessionState.sessionStartTime) return;
+
+    const now = new Date();
+    const totalDuration = Math.floor((now.getTime() - sessionState.sessionStartTime.getTime()) / 1000);
+    
+    const totalReps = sessionState.exerciseResults.reduce((sum, result) => sum + result.completedReps, 0);
+    const totalSets = sessionState.exerciseResults.reduce((sum, result) => sum + result.completedSets, 0);
+    const averageFormScore = sessionState.exerciseResults.length > 0 
+      ? sessionState.exerciseResults.reduce((sum, result) => sum + result.averageFormScore, 0) / sessionState.exerciseResults.length
+      : 0;
+
+    // 칼로리 계산 (간단한 추정)
+    const estimatedCalories = Math.round(totalDuration / 60 * 5 * (averageFormScore + 0.5)); // 대략적인 계산
+
+    // 개선 포인트 생성
+    const improvements: string[] = [];
+    const allCorrections = sessionState.exerciseResults.flatMap(result => result.formCorrections);
+    const uniqueCorrections = [...new Set(allCorrections)];
+    if (uniqueCorrections.length > 0) {
+      improvements.push(...uniqueCorrections.slice(0, 3));
+    }
+    if (averageFormScore < 0.7) {
+      improvements.push('자세 정확도를 더 높여보세요');
+    }
+
+    const summary: SessionSummary = {
+      totalDuration,
+      totalExercises: sessionState.exerciseResults.length,
+      totalSets,
+      totalReps,
+      caloriesBurned: estimatedCalories,
+      averageFormScore,
+      improvements,
+      nextRecommendations: [
+        '꾸준한 운동으로 체력을 더 키워보세요',
+        '다음에는 강도를 조금 높여보는 것이 어떨까요?'
+      ],
+      exerciseResults: sessionState.exerciseResults
+    };
+
+    setSesssionSummary(summary);
+    
+    // 백엔드로 세션 결과 전송
+    try {
+      await sendSessionResultToBackend(summary);
+    } catch (error) {
+      console.error('세션 결과 전송 실패:', error);
+    }
+
+    // 요약 화면으로 전환
+    setTimeout(() => {
+      setSessionState(prev => ({ ...prev, currentPhase: 'summary' }));
+    }, 1000);
+  }, [sessionState.selectedProgram, sessionState.sessionStartTime, sessionState.exerciseResults]);
+
+  // 백엔드로 세션 결과 전송
+  const sendSessionResultToBackend = useCallback(async (summary: SessionSummary) => {
+    if (!sessionState.selectedProgram || !sessionState.sessionStartTime) return;
+
+    const sessionData = {
+      programId: sessionState.selectedProgram.id,
+      programTitle: sessionState.selectedProgram.title,
+      startTime: sessionState.sessionStartTime.toISOString(),
+      endTime: new Date().toISOString(),
+      totalDuration: summary.totalDuration,
+      totalReps: summary.totalReps,
+      totalSets: summary.totalSets,
+      averageFormScore: summary.averageFormScore,
+      caloriesBurned: summary.caloriesBurned,
+      exerciseResults: summary.exerciseResults,
+      formCorrections: summary.improvements
+    };
+
+    const response = await apiClient.post('/api/workout/complete-integrated-session', sessionData);
+    
+    if (response.data.success) {
+      console.log('세션 결과 전송 성공:', response.data.sessionId);
+    }
+  }, [sessionState.selectedProgram, sessionState.sessionStartTime]);
+
+  // 운동 이름 한글 변환
+  const getExerciseDisplayName = (exerciseType: ExerciseType): string => {
+    const displayNames: { [key in ExerciseType]: string } = {
+      squat: '스쿼트',
+      lunge: '런지', 
+      pushup: '푸시업',
+      plank: '플랭크',
+      calf_raise: '카프 레이즈',
+      burpee: '버피',
+      mountain_climber: '마운틴 클라이머'
+    };
+    return displayNames[exerciseType] || exerciseType;
+  };
+
+  // UI 렌더링
+  if (showProgramSelector || sessionState.currentPhase === 'program_selection') {
     return (
-      <div className="integrated-workout-loading">
-        <div className="loading-content">
-          <div className="loading-spinner"></div>
-          <h2>🤖 AI가 당신을 위한 맞춤 운동을 준비하고 있어요...</h2>
-          <p>잠시만 기다려주세요</p>
-        </div>
-      </div>
+      <WorkoutProgramSelector 
+        onSelectProgram={handleProgramSelect}
+        isModal={false}
+      />
     );
   }
 
-  // 에러 상태
-  if (error) {
+  if (sessionState.currentPhase === 'summary' && sessionSummary) {
     return (
-      <div className="integrated-workout-error">
-        <div className="error-content">
-          <h2>😓 문제가 발생했습니다</h2>
-          <p>{error}</p>
-          <button onClick={startNewSession} className="retry-button">
-            다시 시도
-          </button>
-        </div>
-      </div>
+      <WorkoutSessionSummary 
+        summary={sessionSummary}
+        onClose={() => navigate('/dashboard')}
+        onNewWorkout={() => {
+          setSessionState({
+            selectedProgram: null,
+            currentPhase: 'program_selection',
+            currentExerciseIndex: 0,
+            currentSet: 1,
+            sessionStartTime: null,
+            exerciseStartTime: null,
+            exerciseResults: [],
+            currentExerciseResult: {}
+          });
+          setShowProgramSelector(true);
+          setSesssionSummary(null);
+        }}
+      />
     );
   }
 
-  // 1단계: 운동 추천 표시
-  if (sessionPhase === 'recommendations' && workoutRecommendation) {
-    return (
-      <div className="integrated-workout-recommendations">
-        <div className="recommendations-header">
-          <h1>🎯 맞춤 운동 추천</h1>
-          <div className="user-profile-summary">
-            <div className="profile-item">
-              <span className="label">목표:</span>
-              <span className="value">{workoutRecommendation.userProfile.goal}</span>
-            </div>
-            <div className="profile-item">
-              <span className="label">경험:</span>
-              <span className="value">{workoutRecommendation.userProfile.experience}</span>
-            </div>
-            <div className="profile-item">
-              <span className="label">피트니스 레벨:</span>
-              <span className="value">{workoutRecommendation.userProfile.fitnessLevel}</span>
-            </div>
-            <div className="profile-item">
-              <span className="label">추천 신뢰도:</span>
-              <span className="value confidence">{workoutRecommendation.userProfile.confidenceScore}</span>
-            </div>
+  return (
+    <div className="integrated-workout-session">
+      {/* 상단 진행 표시 */}
+      <div className="session-header">
+        <div className="session-progress">
+          <div className="progress-info">
+            <h2>{sessionState.selectedProgram?.title}</h2>
+            <p>
+              {sessionState.currentPhase === 'warmup' 
+                ? '워밍업' 
+                : `${sessionState.currentExerciseIndex + 1}/${totalExercises} - ${getExerciseDisplayName(currentExercise?.exerciseType || 'squat')}`
+              }
+            </p>
           </div>
-        </div>
-
-        <div className="workout-plan">
-          <div className="plan-overview">
-            <div className="overview-item">
-              <span className="icon">⏱️</span>
-              <span className="text">총 {workoutRecommendation.totalDuration}분</span>
-            </div>
-            <div className="overview-item">
-              <span className="icon">🔥</span>
-              <span className="text">약 {workoutRecommendation.estimatedCalories} kcal</span>
-            </div>
-            <div className="overview-item">
-              <span className="icon">🤖</span>
-              <span className="text">{workoutRecommendation.adaptationInfo.recommendationType}</span>
-            </div>
+          
+          <div className="progress-bar">
+            <div 
+              className="progress-fill" 
+              style={{ 
+                width: sessionState.currentPhase === 'warmup' 
+                  ? '5%' 
+                  : `${((sessionState.currentExerciseIndex + (sessionState.currentSet / (currentExercise?.targetSets || 1))) / totalExercises) * 100}%`
+              }}
+            />
           </div>
-
-          <div className="exercise-selection">
-            <h3>💪 AI 추천 운동 (모션 코치 지원)</h3>
-            <div className="exercise-grid">
-              {workoutRecommendation.workoutPlan.main.exercises
-                .filter(exercise => exercise.hasAICoaching)
-                .map((exercise, index) => (
-                <div key={index} className="exercise-card" onClick={() => selectExercise(exercise)}>
-                  <div className="exercise-header">
-                    <h4>{exercise.name}</h4>
-                    <span className="ai-badge">🤖 AI 코칭</span>
-                  </div>
-                  <div className="exercise-details">
-                    <div className="detail">
-                      <span className="label">타겟:</span>
-                      <span className="value">{exercise.target}</span>
-                    </div>
-                    <div className="detail">
-                      <span className="label">세트:</span>
-                      <span className="value">{exercise.sets}세트</span>
-                    </div>
-                    <div className="detail">
-                      <span className="label">횟수:</span>
-                      <span className="value">{exercise.reps}회</span>
-                    </div>
-                    <div className="detail">
-                      <span className="label">적응 점수:</span>
-                      <span className="value adaptation-score">
-                        {(exercise.adaptationScore * 100).toFixed(0)}%
-                      </span>
-                    </div>
-                  </div>
-                  {exercise.personalizedTip && (
-                    <div className="personalized-tip">
-                      💡 {exercise.personalizedTip}
-                    </div>
-                  )}
-                </div>
-              ))}
+          
+          {sessionState.currentPhase === 'exercise_active' && currentExercise && (
+            <div className="current-exercise-info">
+              <span>세트: {sessionState.currentSet}/{currentExercise.targetSets}</span>
+              <span>목표: {currentExercise.targetReps}회</span>
             </div>
-          </div>
-
-          <div className="recommendations-section">
-            <h3>💡 개인화된 팁</h3>
-            <div className="recommendations-list">
-              {workoutRecommendation.recommendations.map((tip, index) => (
-                <div key={index} className="recommendation-item">
-                  {tip}
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="action-buttons">
-            <button onClick={startNewSession} className="secondary-button">
-              새로운 추천 받기
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // 2단계: MotionCoach 실행
-  if (sessionPhase === 'motion-coach' && selectedExercise) {
-    return (
-      <div className="integrated-workout-motion-coach">
-        <div className="motion-coach-header">
-          <h2>🤖 모션 코치: {selectedExercise.name}</h2>
-          <div className="exercise-info">
-            <span>{selectedExercise.sets}세트 × {selectedExercise.reps}회</span>
-            <span>타겟: {selectedExercise.target}</span>
-          </div>
-          <button 
-            onClick={() => setSessionPhase('exercise-selection')} 
-            className="back-button"
-          >
-            ← 운동 선택으로 돌아가기
-          </button>
+          )}
         </div>
         
-        <div className="motion-coach-wrapper">
-          <MotionCoach 
-            exerciseType={selectedExercise.name.toLowerCase().replace(/ /g, '_')}
-            onSessionComplete={handleMotionCoachComplete}
+        <button 
+          className="exit-button"
+          onClick={() => navigate('/dashboard')}
+        >
+          ✕
+        </button>
+      </div>
+
+      {/* 메인 컨텐츠 영역 */}
+      <div className="session-content">
+        {sessionState.currentPhase === 'warmup' && (
+          <div className="warmup-screen">
+            <div className="warmup-content">
+              <h1>🔥 준비 운동</h1>
+              <p>본격적인 운동을 위해 몸을 풀어볼까요?</p>
+              
+              <div className="warmup-exercises">
+                <div className="warmup-item">⭕ 목 돌리기 (10회)</div>
+                <div className="warmup-item">⭕ 어깨 돌리기 (10회)</div>
+                <div className="warmup-item">⭕ 팔 벌려 뛰기 (20회)</div>
+                <div className="warmup-item">⭕ 무릎 높이 뛰기 (10회)</div>
+              </div>
+              
+              <button 
+                className="warmup-complete-button"
+                onClick={handleWarmupComplete}
+              >
+                준비운동 완료, 시작하기!
+              </button>
+            </div>
+          </div>
+        )}
+
+        {sessionState.currentPhase === 'exercise_active' && currentExercise && (
+          <MotionCoach
+            exerciseType={currentExercise.exerciseType}
+            targetSets={currentExercise.targetSets}
+            targetReps={currentExercise.targetReps}
+            currentSet={sessionState.currentSet}
+            onSetComplete={handleSetComplete}
+            autoMode={true}
           />
-        </div>
+        )}
+
+        {sessionState.currentPhase === 'exercise_rest' && currentExercise && (
+          <RestTimer
+            duration={restTimeLeft}
+            onComplete={handleRestComplete}
+            onSkip={handleRestComplete}
+            nextExercise={
+              sessionState.currentSet < currentExercise.targetSets 
+                ? { name: getExerciseDisplayName(currentExercise.exerciseType), set: sessionState.currentSet + 1 }
+                : { name: getExerciseDisplayName(sessionState.selectedProgram!.exercises[sessionState.currentExerciseIndex + 1]?.exerciseType || 'squat'), set: 1 }
+            }
+          />
+        )}
+
+        {sessionState.currentPhase === 'session_complete' && (
+          <div className="completion-screen">
+            <div className="completion-content">
+              <h1>🎉 운동 완료!</h1>
+              <p>모든 운동을 성공적으로 완료했습니다!</p>
+              <div className="loading-spinner"></div>
+              <p>운동 결과를 분석하고 있습니다...</p>
+            </div>
+          </div>
+        )}
       </div>
-    );
-  }
-
-  // 3단계: 세션 완료
-  if (sessionPhase === 'completed' && sessionData) {
-    return (
-      <div className="integrated-workout-completed">
-        <div className="completion-content">
-          <div className="completion-header">
-            <h1>🎉 운동 세션 완료!</h1>
-            <p>훌륭한 운동이었어요!</p>
-          </div>
-
-          <div className="session-summary">
-            <div className="summary-item">
-              <span className="icon">🏋️</span>
-              <span className="label">운동:</span>
-              <span className="value">{selectedExercise?.name}</span>
-            </div>
-            <div className="summary-item">
-              <span className="icon">🔢</span>
-              <span className="label">총 횟수:</span>
-              <span className="value">{sessionData.totalReps}회</span>
-            </div>
-            <div className="summary-item">
-              <span className="icon">⏱️</span>
-              <span className="label">소요 시간:</span>
-              <span className="value">{Math.floor(sessionData.duration / 60)}분 {sessionData.duration % 60}초</span>
-            </div>
-            <div className="summary-item">
-              <span className="icon">🔥</span>
-              <span className="label">소모 칼로리:</span>
-              <span className="value">{sessionData.caloriesBurned} kcal</span>
-            </div>
-            <div className="summary-item">
-              <span className="icon">🎯</span>
-              <span className="label">평균 정확도:</span>
-              <span className="value">{(sessionData.averageFormScore * 100).toFixed(1)}%</span>
-            </div>
-            <div className="summary-item">
-              <span className="icon">💡</span>
-              <span className="label">자세 교정:</span>
-              <span className="value">{sessionData.formCorrectionsCount}회</span>
-            </div>
-          </div>
-
-          <div className="next-actions">
-            <button onClick={startNewSession} className="primary-button">
-              🚀 다음 운동 추천받기
-            </button>
-            <button 
-              onClick={() => setSessionPhase('recommendations')} 
-              className="secondary-button"
-            >
-              📊 운동 추천 다시보기
-            </button>
-          </div>
-
-          <div className="motivation-message">
-            <p>💪 꾸준한 운동으로 더 건강한 내일을 만들어가세요!</p>
-            <p>🤖 AI가 당신의 발전을 기록하고 있으니 계속 화이팅!</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return null;
+    </div>
+  );
 };
 
 export default IntegratedWorkoutSession;
