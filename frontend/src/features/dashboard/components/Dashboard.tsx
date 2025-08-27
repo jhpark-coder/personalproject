@@ -304,6 +304,44 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
+        {/* 통합 운동 시스템 진입점 */}
+        <div className="card integrated-workout-card">
+          <div className="card-header">
+            <h3 className="card-title">🚀 자동 운동 시작</h3>
+            <div className="card-subtitle">AI 가이드와 함께하는 완전 자동화 운동</div>
+          </div>
+          <div className="integrated-workout-content">
+            <div className="workout-features">
+              <div className="feature-item">
+                <span className="feature-icon">🎯</span>
+                <span className="feature-text">개인 맞춤 추천</span>
+              </div>
+              <div className="feature-item">
+                <span className="feature-icon">🤖</span>
+                <span className="feature-text">AI 실시간 코칭</span>
+              </div>
+              <div className="feature-item">
+                <span className="feature-icon">📊</span>
+                <span className="feature-text">자동 결과 분석</span>
+              </div>
+            </div>
+            <div className="integrated-workout-actions">
+              <Link 
+                to="/workout/integrated" 
+                className="integrated-workout-button primary"
+              >
+                🏋️‍♂️ 바로 시작하기
+              </Link>
+              <Link 
+                to="/workout/selector" 
+                className="integrated-workout-button secondary"
+              >
+                📋 프로그램 선택
+              </Link>
+            </div>
+          </div>
+        </div>
+
         {/* 오늘의 체크리스트 카드 (간결) */}
         <TodayChecklist onStart={() => navigate('/motion')} />
 
