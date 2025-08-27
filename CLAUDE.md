@@ -144,7 +144,7 @@ src/components/
 ├── chat/              # Real-time chat interface
 ├── analytics/         # Workout stats, body data charts (BodyData, WorkoutStats)
 ├── onboarding/        # Multi-step user onboarding
-├── workout/           # Exercise information with search/filter, workout details
+├── workout/           # Exercise information, workout details, automated workout system
 ├── profile/           # User profile, body records
 ├── pose-detection/    # MediaPipe pose detection
 ├── settings/          # User preferences
@@ -215,6 +215,143 @@ communication-server/src/
 - **Intensity Levels**: Filter by LOW/MEDIUM/HIGH intensity
 - **Combined Filters**: Multiple filter combinations for precise results
 
+## 🤖 Automated Workout System
+
+### System Overview
+The **Automated Workout System** provides a comprehensive, guided workout experience from program selection through completion analysis. The system integrates pose detection, TTS feedback, and real-time coaching for a seamless user experience.
+
+### Core Components
+
+#### 1. WorkoutProgramSelector (`WorkoutProgramSelector.tsx`)
+- **Purpose**: Onboarding-style workout program selection interface
+- **Modes**: Both modal and full-page implementations
+- **Features**: 
+  - Dynamic recommendation loading from API (`/api/workout/recommend`)
+  - 4 pre-built programs: Recommended, Upper Body, Cardio, Lower Body
+  - Real-time difficulty adaptation based on user experience
+  - Exercise preview with set/rep information
+- **Integration**: Seamless styling consistency with existing onboarding system
+- **Usage**: Can be used as modal overlay or standalone page
+
+#### 2. IntegratedWorkoutSession (`IntegratedWorkoutSession.tsx`)
+- **Purpose**: Main controller for the complete automated workout experience
+- **State Management**: Comprehensive session state machine with 6 phases:
+  - `program_selection`: Initial program selection
+  - `warmup`: Pre-workout preparation with countdown
+  - `exercise_active`: Active exercise with motion detection
+  - `exercise_rest`: Rest periods between sets/exercises
+  - `session_complete`: Completion celebration
+  - `summary`: Detailed results analysis
+- **Features**:
+  - Real-time progress tracking and session timing
+  - TTS (Text-to-Speech) voice guidance throughout workout
+  - Automatic progression through exercises and sets
+  - Integration with MotionCoach for pose detection
+  - Session data collection for analysis
+- **API Integration**: 
+  - POST `/api/workout/complete-integrated-session` for session saving
+  - Real-time notifications via WebSocket
+
+#### 3. RestTimer (`RestTimer.tsx`)
+- **Purpose**: Interactive rest period component with visual countdown
+- **Features**:
+  - Circular progress indicator with customizable duration
+  - Play/pause controls for rest management
+  - Skip functionality for advanced users
+  - Motivational messaging during rest periods
+- **Design**: Full-screen overlay with engaging animations
+- **Accessibility**: Large touch targets and clear time display
+
+#### 4. WorkoutSessionSummary (`WorkoutSessionSummary.tsx`)
+- **Purpose**: Comprehensive post-workout analysis and results display
+- **Analytics Features**:
+  - Performance grading system (S/A/B/C/D grades)
+  - Completion rate and accuracy metrics
+  - Exercise-by-exercise breakdown with individual scores
+  - Personalized improvement suggestions
+  - Session statistics (time, calories, sets completed)
+- **Actions**:
+  - Save workout session to database
+  - Navigate to dashboard or start new workout
+  - Social sharing capabilities (planned)
+
+### Workflow Documentation
+- **Implementation Guide**: `AUTOMATED_WORKOUT_WORKFLOW.md`
+- **Technical Roadmap**: 5-phase development plan with API specifications
+- **Architecture Diagrams**: Data flow and component interaction maps
+
+### API Endpoints
+
+#### Workout Recommendation System
+```bash
+POST /api/workout/recommend
+# Request: User profile data (goal, experience, weight, height, age)
+# Response: Personalized workout program with exercises and parameters
+```
+
+#### Session Management
+```bash
+POST /api/workout/complete-integrated-session
+# Request: Complete session data with exercise results and performance metrics
+# Response: Saved session ID and updated user progress
+```
+
+### Routing Structure
+```bash
+/workout/selector          # Program selection (standalone page)
+/workout/integrated        # Complete automated workout session
+```
+
+### Exercise Type System
+```typescript
+type ExerciseType = 'squat' | 'lunge' | 'pushup' | 'plank' | 
+                   'calf_raise' | 'burpee' | 'mountain_climber';
+
+interface WorkoutExercise {
+  exerciseType: ExerciseType;
+  targetSets: number;
+  targetReps: number;
+  restSeconds: number;
+  estimatedDuration: number;
+}
+
+interface WorkoutProgram {
+  id: 'recommended' | 'upper_body' | 'cardio' | 'lower_body';
+  title: string;
+  description: string;
+  difficulty: 'beginner' | 'intermediate' | 'advanced';
+  estimatedDuration: number;
+  estimatedCalories: number;
+  exercises: WorkoutExercise[];
+}
+```
+
+### Integration Points
+
+#### With Existing Systems
+- **MotionCoach**: Pose detection and real-time feedback during exercises
+- **Dashboard**: Session history and progress tracking integration
+- **Calendar**: Workout scheduling and completion tracking
+- **Notifications**: Real-time updates and achievement alerts
+- **Analytics**: Performance metrics and long-term trend analysis
+
+#### TTS Integration
+- Voice guidance for exercise transitions
+- Form correction prompts
+- Motivational feedback during workouts
+- Rest period countdown announcements
+
+### Mobile Optimization
+- **Responsive Design**: Optimized layouts for all screen sizes
+- **Touch Interactions**: Large, accessible touch targets for workout controls
+- **Performance**: Efficient rendering during active exercise sessions
+- **Battery Optimization**: Minimal background processing during workouts
+
+### Development Status
+✅ **Completed**: All core components and basic workflow
+🔄 **Integration**: Backend API endpoints implementation needed
+📋 **Future**: Advanced analytics, social features, custom program builder
+
 ## 🔄 Real-time Communication
 
 ### WebSocket Events (Socket.IO)
@@ -238,6 +375,13 @@ communication-server/src/
 2. **Start backend**: `./mvnw spring-boot:run`
 3. **Start communication server**: `cd communication-server && npm run start:dev`
 4. **Start frontend**: `cd frontend && npm run dev`
+
+### Testing Automated Workout System
+1. **Access Program Selection**: Navigate to `http://localhost:5173/#/workout/selector`
+2. **Test Integrated Workflow**: Navigate to `http://localhost:5173/#/workout/integrated`
+3. **Required Backend Endpoints**: 
+   - `POST /api/workout/recommend` - For personalized recommendations
+   - `POST /api/workout/complete-integrated-session` - For session saving
 
 ### Production Deployment
 1. **Build frontend**: `cd frontend && npm run build`
@@ -269,6 +413,11 @@ communication-server/src/
 - **Mobile UI Issues**: Check CSS media queries and navigation bar padding calculations
 - **Data Inconsistency**: Verify API endpoint consistency between components (use MYPAGE_DASHBOARD)
 - **Scroll Issues**: Ensure proper mobile navigation bar height calculations with CSS variables
+- **Automated Workout Issues**: 
+  - Check MotionCoach integration props (targetSets, targetReps, currentSet, onSetComplete)
+  - Verify TTS functionality in browser settings (speech synthesis permissions)
+  - Confirm workout recommendation API response format matches expected interfaces
+  - Check session state persistence during component transitions
 
 ## 📱 Mobile UI & Responsive Design
 
