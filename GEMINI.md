@@ -2,110 +2,115 @@
 
 This `GEMINI.md` file provides a comprehensive overview of the FitMate project, designed to serve as instructional context for future interactions with the Gemini CLI.
 
+**Last Updated: 2025-08-27**
+
 ## 1. Project Overview
 
 FitMate is an AI-based personalized exercise platform that leverages AI technology to provide optimal exercise programs tailored to users' physical information, exercise experience, and goals. It aims to foster consistent exercise habits through real-time notifications and social features.
 
 ### Architecture
 
-The project follows a microservices-like architecture with three main components:
-*   **Frontend (React):** User interface.
-*   **Backend (Spring Boot):** Main backend for business logic, authentication, and data management.
-*   **Communication Server (NestJS):** Handles real-time communication (chat, notifications) and SMS services.
+The project follows a microservices-like architecture with three main components orchestrated by Docker Compose:
+*   **Frontend (React + Vite):** A modern, client-side rendered user interface responsible for user interaction, pose detection via MediaPipe, and real-time communication.
+*   **Backend (Spring Boot):** The core backend service handling main business logic, user management, authentication/authorization (JWT, OAuth2), AI exercise recommendations, and data persistence.
+*   **Communication Server (NestJS):** A dedicated server for real-time functionalities (chat, notifications via Socket.IO) and external communication services (SMS via Twilio).
 
-These components interact with various databases and external services:
-*   **Databases:** MongoDB (chat, notifications, exercise data), MySQL/PostgreSQL (user, exercise records), Redis (session, cache).
-*   **External Services:** Twilio (SMS notifications).
+These components are fronted by an **Nginx** container acting as a reverse proxy and API gateway, routing requests to the appropriate backend service.
+
+### Data Stores
+*   **MySQL:** Primary relational database for core user data, exercise records, etc.
+*   **MongoDB:** Document database for semi-structured data like chat logs and notifications.
+*   **Redis:** In-memory data store for session and caching, enhancing performance.
 
 ## 2. Building and Running
 
-The project utilizes Docker and Docker Compose for containerization and multi-container management, enabling a streamlined setup and execution process.
+The project utilizes Docker and Docker Compose for a streamlined setup and execution process.
 
 ### Setup and Dependency Installation
+1.  **Environment Variables:** Create `.env` files for each service based on `.env.example` files.
+2.  **Install Dependencies:** Run `npm install` in `frontend/` and `communication-server/`, and `./mvnw install` in the root directory for the backend.
+3.  **Run with Docker:** Execute `docker compose up -d --build` from the root directory.
+    *   **Access:** `http://localhost`
 
-1.  **Environment Variables:**
-    *   Create `.env.development` (or similar) files in `communication-server/` by copying `.env.example`.
-    *   Configure Twilio credentials, Redis, MongoDB, and proxy targets.
+---
 
-2.  **Install Dependencies:**
-    ```bash
-    # Frontend
-    cd frontend
-    npm install
+## 3. Comprehensive Analysis Report (as of 2025-08-27)
 
-    # Backend (Spring Boot)
-    cd ..
-    ./mvnw install
+This report provides a multi-domain analysis from the perspectives of System Architecture, Security, Performance, and Quality.
 
-    # Communication Server (NestJS)
-    cd communication-server
-    npm install
-    ```
+### 3.1. Executive Summary
+FitMate is a well-architected application built on a robust and modern technology stack. The microservices-like pattern provides a strong foundation for scalability and separation of concerns. Key strengths include clear service boundaries, use of containerization, and adoption of modern security practices like JWT/OAuth2 and rate limiting.
 
-### Building Frontend for Nginx
+Primary risks and opportunities lie in configuration management, proactive performance tuning for scalability, and deepening the testing strategy to cover inter-service interactions. Addressing these areas will ensure long-term stability and maintainability as the platform grows.
 
-```bash
-cd frontend
-npm run build
-```
+### 3.2. Architecture Assessment
+*   **Strengths:**
+    *   **Clear Separation of Concerns:** The division into three distinct services (Frontend, Backend, Communication) is logical and promotes independent development and deployment.
+    *   **Effective Orchestration:** `docker-compose.yml` effectively defines the multi-container environment, service dependencies, and networking, simplifying the development setup.
+    *   **Centralized Routing:** `nginx.conf` demonstrates a well-defined API gateway pattern, correctly routing traffic to the appropriate backend services based on URL paths. This simplifies the frontend configuration and secures the backend services.
+    *   **Polyglot Persistence:** The use of MySQL, MongoDB, and Redis is well-aligned with their respective strengths, demonstrating a mature data management strategy.
 
-### Running the Entire Stack with Docker
+*   **Risks & Recommendations:**
+    *   **Single Point of Failure (SPOF):** For 10x growth, the current single-instance setup for Nginx, MySQL, MongoDB, and Redis will become a bottleneck.
+        *   **Recommendation:** Plan for a high-availability (HA) architecture using load balancers (e.g., AWS ALB/NLB), database replicas (read/write splitting), and a Redis cluster.
+    *   **Configuration Management:** Managing environment variables across multiple `.env` files can lead to configuration drift.
+        *   **Recommendation:** Centralize configuration using a tool like HashiCorp Consul, AWS Parameter Store, or at a minimum, a shared, version-controlled configuration system.
 
-```bash
-cd ..
-docker compose up -d --build
-```
-*   **Access:** `http://localhost`
-*   The frontend is served as static files from `frontend/dist` by the Nginx container.
-*   Requests to `/sms/*` are proxied by Nginx to the Communication Server (`communication-server:3000`).
+### 3.3. Security Audit
+*   **Strengths:**
+    *   **Modern Authentication:** Implementation of Spring Security with JWT and OAuth2 provides a robust foundation for authentication.
+    *   **Proactive Rate Limiting:** The use of `bucket4j` in the Spring Boot backend is an excellent measure to prevent abuse and mitigate certain DoS attacks.
+    *   **Secret Management:** The use of `.env` files avoids hardcoding secrets in the source code, which is a critical security practice.
 
-## 3. Development Conventions
+*   **Vulnerabilities & Recommendations:**
+    *   **A05:2021 - Security Misconfiguration:** The dynamic CORS policy in the communication server needs rigorous auditing to prevent potential abuse in production environments.
+        *   **Recommendation:** Implement a strict, whitelist-based CORS policy for production builds.
+    *   **A01:2021 - Broken Access Control:** While authentication is solid, the analysis of authorization logic (ensuring a user can only access their own data) requires deeper code review.
+        *   **Recommendation:** Systematically review all data-accessing endpoints to ensure they have robust authorization checks based on the authenticated principal.
+    *   **Dependency Vulnerabilities:** The `pom.xml` and `package.json` files list numerous third-party dependencies, which are a common attack vector.
+        *   **Recommendation (Critical):** Integrate automated dependency scanning tools like `npm audit`, Snyk, or Maven's `dependency-check-plugin` into the CI/CD pipeline.
 
-*   **Technology Stack:** The project uses modern technologies like React 18, TypeScript, Spring Boot 3, NestJS, Socket.IO, and Docker, implying a focus on robust, scalable, and maintainable code.
-*   **Security:** Emphasizes JWT for token-based authentication, OAuth2 for social logins, CORS configuration for allowed domains, and rate limiting for sensitive APIs.
-*   **Environment Variables:** Sensitive information (Twilio credentials, DB passwords) must be managed via `.env` files and *not* committed to Git. Wildcard CORS (`*`) should be avoided in production.
-*   **Code Quality:** Implied through the use of TypeScript and frameworks like Spring Boot and NestJS, which promote structured and testable code.
+### 3.4. Performance Profile
+*   **Strengths:**
+    *   **Efficient Frontend:** Using React with Vite ensures a fast development experience and an optimized production build.
+    *   **Effective Caching:** Leveraging Redis for session and (potentially) data caching significantly reduces database load and improves response times.
+    *   **Real-time Efficiency:** Using WebSockets (Socket.IO) for notifications and chat is far more efficient than traditional HTTP polling.
 
-## 4. Key Components/Modules
+*   **Bottlenecks & Recommendations:**
+    *   **Database Performance:** Complex queries, especially with JPA, can lead to N+1 problems or slow performance without proper indexing.
+        *   **Recommendation:** Proactively analyze query performance using tools like Spring Data's query logging or a dedicated APM solution. Add indexes to MySQL and MongoDB for frequently queried fields.
+    *   **WebSocket Scalability:** The single NestJS instance will be a bottleneck with a high number of concurrent WebSocket connections.
+        *   **Recommendation:** Implement the Socket.IO Redis Adapter. This allows broadcasting events across multiple NestJS instances, enabling horizontal scaling.
+    *   **Client-Side Performance:** Pose detection with `@mediapipe/pose` is computationally intensive and its performance is highly dependent on the user's device.
+        *   **Recommendation:** Clearly document the minimum hardware requirements. Implement performance monitoring on the frontend to identify devices that struggle and potentially offer a lower-fidelity mode.
 
-*   **Frontend (`frontend/`):** Developed with React and TypeScript, responsible for the user interface, pose detection, and real-time communication via Socket.IO Client.
-*   **Backend (`src/main/java/backend/`):** A Spring Boot application handling core business logic, user management, AI exercise recommendations, and integration with various databases.
-*   **Communication Server (`communication-server/`):** A NestJS application managing real-time chat, notifications (via Socket.IO and Twilio SMS), and scheduling.
-*   **Nginx (`nginx/`):** Acts as a reverse proxy, serving frontend static files and routing specific API requests to the communication server.
-*   **Speech Synthesis Test (`frontend/src/components/SpeechSynthesisTest.tsx`):** A component for testing the Web Speech API to develop real-time voice guidance features.
+### 3.5. Quality & Maintainability
+*   **Strengths:**
+    *   **Strongly-Typed Codebase:** The use of TypeScript (Frontend, Comms Server) and Java (Backend) enhances code quality, reduces runtime errors, and improves developer experience.
+    *   **Organized Structure:** The project follows standard conventions for each framework, with a logical feature-based organization of files.
+    *   **Code Quality Tooling:** The presence of ESLint, Prettier, and testing frameworks (`jest`, `junit`) indicates a commitment to code quality.
 
-## 5. Databases and Services
+*   **Gaps & Recommendations:**
+    *   **Testing Strategy:** While unit test frameworks are present, their coverage is unknown. More importantly, integration and end-to-end (E2E) tests are crucial for a multi-service architecture.
+        *   **Recommendation:** Prioritize writing integration tests for critical user flows (e.g., signup, login, creating a workout). These tests should span all three services.
+    *   **API Documentation:** There is no automated API documentation generation.
+        *   **Recommendation:** Integrate Swagger (OpenAPI) with the Spring Boot and NestJS backends to provide clear, interactive API documentation.
 
-*   **MongoDB:** Used for chat, notification, and exercise data.
-*   **MySQL/PostgreSQL:** Used for user and exercise record data (implied by Spring Data JPA usage).
-*   **Redis:** Utilized for session caching.
-*   **Twilio:** Integrated for SMS notification services.
+---
 
-## 6. API Endpoints (Communication Server Examples)
+## 4. Prioritized Action Plan
 
-### SMS API
-*   `POST /sms/send`
-*   `POST /sms/workout-recommendation`
-*   `POST /sms/custom`
-*   `POST /sms/health`
-*   `POST /sms/request-otp`
-*   `POST /sms/verify-otp`
+### Critical (Act Immediately)
+1.  **Run Dependency Vulnerability Scans:** Execute `npm audit --production` and a Maven dependency checker (e.g., `dependency-check-plugin`) to find and patch known vulnerabilities.
+2.  **Implement Secret Scanning:** Add a pre-commit hook or a CI job (e.g., with `git-secrets` or `gitleaks`) to prevent accidental commits of sensitive information.
+3.  **Review Production CORS Policy:** Ensure the production environment has a strict, non-wildcard CORS whitelist.
 
-### Notification API
-*   `POST /api/notifications/create`
-*   `GET /api/notifications/user/:userId`
-*   `PUT /api/notifications/:id/read`
-*   `GET /api/notifications/user/:userId/unread-count`
+### High (Plan for Next Sprint)
+1.  **Add Database Indexing:** Analyze common query patterns and add indexes to critical tables/collections in MySQL and MongoDB.
+2.  **Implement Socket.IO Redis Adapter:** Configure the Redis adapter in the NestJS communication server to enable stateless, scalable WebSocket handling.
+3.  **Expand Test Coverage:** Write integration tests for the authentication flow and core workout creation/retrieval logic.
 
-## 7. Recent Changes/Improvements (as of 2025-08-13)
-
-*   **Data Loader Timezone Fix:** Corrected a bug in `DataLoader.java` where workout records for the current day were omitted. The logic now explicitly uses the "Asia/Seoul" timezone to prevent issues related to server time.
-*   **Voice Guidance Feature Added:** Implemented a new test page (`SpeechSynthesisTest.tsx`) for the Web Speech API. Added a navigation button on the `MotionCoach.tsx` page and configured routing in `App.tsx` to access it.
-*   **CORS Improvement:** `communication-server/src/main.ts` now reflects request origin when `*` is in allowed origins for development.
-*   **Nginx Proxy Addition:** `nginx/nginx.conf` proxies `location /sms/` to `communication-server:3000` for frontend access.
-*   **Frontend Communication Server URL Fallback:** `frontend/src/config/api.ts` defaults `CHAT_SERVER_URL` to `http://localhost:3000` if not set.
-*   **Twilio OTP Request Stability:** `frontend/src/components/SignupForm.tsx` includes robust error handling for OTP requests.
-
-## 8. Future Development Plans
-
-The project has clear short-term, mid-term, and long-term plans, including user database integration, real exercise data-based notifications, mobile app development, advanced analytics, and machine learning-based personalization.
+### Medium (Consider for Roadmap)
+1.  **Centralize Configuration:** Evaluate and implement a centralized configuration solution (e.g., HashiCorp Consul, AWS Parameter Store).
+2.  **Generate API Documentation:** Integrate Swagger/OpenAPI into both backend services.
+3.  **Develop a High-Availability Plan:** Create a technical roadmap for evolving the infrastructure to support load balancing and data replication for key services.

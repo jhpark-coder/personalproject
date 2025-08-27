@@ -40,6 +40,8 @@ const BodyRecordForm = lazy(() => import('@features/profile/components/BodyRecor
 const ProfileEdit = lazy(() => import('@features/profile/components/ProfileEdit'));
 import ScrollToTop from '@components/ui/ScrollToTop';
 const NotificationCenter = lazy(() => import('@features/notifications/components/NotificationCenter'));
+const WorkoutProgramSelector = lazy(() => import('@features/workout/components/WorkoutProgramSelector'));
+const IntegratedWorkoutSession = lazy(() => import('@features/workout/components/IntegratedWorkoutSession'));
 
 const Loading = <div>Loading...</div>;
 
@@ -180,6 +182,17 @@ function AppRoutes() {
         <Route path="/notifications" element={
           <AuthGuard requireAuth={true}>
             <NotificationCenter />
+          </AuthGuard>
+        } />
+        {/* 통합 워크아웃 시스템 라우트 */}
+        <Route path="/workout/selector" element={
+          <AuthGuard requireAuth={true}>
+            <WorkoutProgramSelector />
+          </AuthGuard>
+        } />
+        <Route path="/workout/integrated" element={
+          <AuthGuard requireAuth={true}>
+            <IntegratedWorkoutSession />
           </AuthGuard>
         } />
         {/* 개발용 테스트 페이지 */}

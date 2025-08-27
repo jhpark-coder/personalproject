@@ -69,9 +69,23 @@ const RIGHT_FOOT_INDEX = 32;
 interface MotionCoachProps {
   exerciseType?: ExerciseType;
   onSessionComplete?: (sessionData: any) => void;
+  // Integrated workout mode props
+  targetSets?: number;
+  targetReps?: number;
+  currentSet?: number;
+  onSetComplete?: (reps: number, formScore: number, corrections: string[]) => void;
+  autoMode?: boolean;
 }
 
-const MotionCoach: React.FC<MotionCoachProps> = ({ exerciseType = 'squat', onSessionComplete }) => {
+const MotionCoach: React.FC<MotionCoachProps> = ({ 
+  exerciseType = 'squat', 
+  onSessionComplete,
+  targetSets = 3,
+  targetReps = 10,
+  currentSet = 1,
+  onSetComplete,
+  autoMode = false
+}) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafId = useRef<number | null>(null);
@@ -253,7 +267,30 @@ const MotionCoach: React.FC<MotionCoachProps> = ({ exerciseType = 'squat', onSes
         !formCorrections.includes(analysis.feedback)) {
       setFormCorrections(prev => [...prev, analysis.feedback]);
     }
-  }, [isSessionActive, formCorrections]);
+
+    // 통합 운동 모드: 세트 완료 감지
+    if (autoMode && onSetComplete && analysis.currentCount >= targetReps) {
+      // 세트 완료 - 폼 점수와 교정사항 계산
+      const setFormScores = performanceHistory
+        .filter(p => p.timestamp > sessionStartTime!)
+        .map(p => p.formScore);
+      const averageFormScore = setFormScores.length > 0 
+        ? (setFormScores.reduce((sum, score) => sum + score, 0) / setFormScores.length) * 100
+        : 0;
+      
+      const setCorrections = [...formCorrections];
+      
+      // 세트 완료 피드백
+      playTTSFeedback(`${currentSet}세트 완료! 잠시 휴식하세요.`);
+      
+      // IntegratedWorkoutSession에 세트 완료 알림
+      onSetComplete(analysis.currentCount, averageFormScore, setCorrections);
+      
+      // 다음 세트 준비
+      setPerformanceHistory([]);
+      setFormCorrections([]);
+    }
+  }, [isSessionActive, formCorrections, autoMode, onSetComplete, targetReps, currentSet, performanceHistory, sessionStartTime, playTTSFeedback]);
 
   // 칼로리 추정 함수 - 사용자 체중 반영 개선
   const estimateCalories = useCallback((exerciseType: string, reps: number, duration: number): number => {
@@ -785,6 +822,22 @@ const MotionCoach: React.FC<MotionCoachProps> = ({ exerciseType = 'squat', onSes
     setExerciseAnalysis(a => ({ ...a, exerciseType: selectedExercise, currentCount: 0 }));
   }, [selectedExercise]);
 
+  // 통합 운동 모드에서 자동 카메라 시작
+  useEffect(() => {
+    if (autoMode && !isDetecting) {
+      // 통합 모드에서 자동으로 카메라 시작
+      startCamera();
+    }
+  }, [autoMode, isDetecting]);
+
+  // 통합 운동 모드에서 자동 세션 시작
+  useEffect(() => {
+    if (autoMode && isDetecting && !isSessionActive) {
+      // 카메라가 준비되면 자동으로 세션 시작
+      startWorkoutSession();
+    }
+  }, [autoMode, isDetecting, isSessionActive, startWorkoutSession]);
+
   return (
     <div className="motion-coach">
       <div className="camera-container" onClick={() => { if (!isDetecting) startCamera(); }}>
@@ -860,6 +913,31 @@ const MotionCoach: React.FC<MotionCoachProps> = ({ exerciseType = 'squat', onSes
                 <p><strong>평균 정확도:</strong> 
                   {(performanceHistory.reduce((sum, p) => sum + p.formScore, 0) / performanceHistory.length * 100).toFixed(1)}%
                 </p>
+              )}
+              
+              {/* 통합 운동 모드 정보 */}
+              {autoMode && (
+                <div className="integrated-mode-info" style={{ marginTop: '10px', padding: '10px', backgroundColor: '#e8f5e8', borderRadius: '8px' }}>
+                  <h5>🎯 자동 운동 모드</h5>
+                  <p><strong>현재 세트:</strong> {currentSet} / {targetSets}</p>
+                  <p><strong>목표 횟수:</strong> {targetReps}회</p>
+                  <p><strong>현재 진행:</strong> {exerciseAnalysis.currentCount} / {targetReps}회</p>
+                  <div style={{ 
+                    width: '100%', 
+                    height: '8px', 
+                    backgroundColor: '#ddd', 
+                    borderRadius: '4px', 
+                    overflow: 'hidden',
+                    marginTop: '5px'
+                  }}>
+                    <div style={{ 
+                      width: `${Math.min((exerciseAnalysis.currentCount / targetReps) * 100, 100)}%`,
+                      height: '100%',
+                      backgroundColor: '#4CAF50',
+                      transition: 'width 0.3s ease'
+                    }}></div>
+                  </div>
+                </div>
               )}
             </div>
           )}
