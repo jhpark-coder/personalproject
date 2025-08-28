@@ -25,7 +25,9 @@
       "Bash(npm install:*)",
       "Bash(docker system prune:*)",
       "Bash(docker pull:*)",
-      "Bash(cloudflared tunnel:*)"
+      "Bash(cloudflared tunnel:*)",
+      "Bash(git checkout:*)",
+      "Bash(git stash:*)"
     ],
     "deny": [],
     "ask": [],

@@ -111,6 +111,9 @@ public class User implements Serializable {
 	@Column
 	private String experience; // 운동 경험: "beginner", "intermediate", "advanced"
 	
+	@Column
+	private Double fitnessLevel; // 적응형 운동을 위한 피트니스 레벨 (0.1 ~ 1.0)
+	
 	// 인바디 상세 정보 필드 제거
 
 	@Column
