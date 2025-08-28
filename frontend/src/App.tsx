@@ -33,6 +33,7 @@ const Calendar = lazy(() => import('@features/calendar/components/Calendar'));
 const ExerciseTest = lazy(() => import('@features/workout/components/ExerciseTest'));
 const SpeechSynthesisTest = lazy(() => import('@features/dev-test/components/SpeechSynthesisTest')); // 음성 합성 테스트 페이지 임포트
 const OAuthEnvironmentTest = lazy(() => import('@features/dev-test/components/OAuthEnvironmentTest')); // OAuth 환경 테스트 페이지 임포트
+const MediaPipeTest = lazy(() => import('@features/dev-test/components/MediaPipeTest')); // MediaPipe 테스트 페이지 임포트
 const ExerciseInformation = lazy(() => import('@features/workout/components/ExerciseInformation'));
 const Analytics = lazy(() => import('@features/analytics/components/WorkoutStats'));
 const RecordsRoom = lazy(() => import('@features/profile/components/RecordsRoom'));
@@ -199,6 +200,7 @@ function AppRoutes() {
         <Route path="/exercise-test" element={<ExerciseTest />} />
         <Route path="/speech-test" element={<AuthGuard requireAuth={true}><SpeechSynthesisTest /></AuthGuard>} />
         <Route path="/oauth-test" element={<OAuthEnvironmentTest />} />
+        <Route path="/mediapipe-test" element={<AuthGuard requireAuth={true}><MediaPipeTest /></AuthGuard>} />
         {/* 기본 리다이렉트 */}
         <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

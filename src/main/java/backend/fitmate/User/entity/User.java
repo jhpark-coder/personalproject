@@ -16,8 +16,10 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.AccessLevel;
 
 @Entity
 @Table(name = "users", uniqueConstraints = {
@@ -121,6 +123,32 @@ public class User implements Serializable {
 	@LastModifiedDate
 	@Column
 	private LocalDateTime updatedAt;
+
+	// Builder를 위한 private 생성자
+	@Builder(access = AccessLevel.PUBLIC)
+	private User(
+		String oauthProvider,
+		String oauthId,
+		String name,
+		String email,
+		String goal,
+		String experience,
+		String height,
+		String weight,
+		String age,
+		String gender
+	) {
+		this.oauthProvider = oauthProvider;
+		this.oauthId = oauthId;
+		this.name = name;
+		this.email = email;
+		this.goal = goal;
+		this.experience = experience;
+		this.height = height;
+		this.weight = weight;
+		this.age = age;
+		this.gender = gender;
+	}
 
 	public User update(String name, String picture) {
 		this.name = name;

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { WorkoutProgram, ExerciseResult } from './IntegratedWorkoutSession';
+import type { ExerciseResult } from './IntegratedWorkoutSession';
 import './WorkoutSessionSummary.css';
 
 // Import SessionSummary interface from IntegratedWorkoutSession

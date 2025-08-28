@@ -47,8 +47,8 @@ public class DashboardController {
             
             // 목표 데이터
             Map<String, Object> goalData = Map.of(
-                "title", "신체 능력 향상 시키기",
-                "subtitle", "건강한 몸매와 운동수행능력 UP",
+                "title", "🚀 자동 운동 시작",
+                "subtitle", "AI 가이드와 함께하는 완전 자동화 운동",
                 "current", 1,
                 "total", 3,
                 "progress", 33.33

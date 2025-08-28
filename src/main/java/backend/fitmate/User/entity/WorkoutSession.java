@@ -51,6 +51,9 @@ public class WorkoutSession {
     @Column(nullable = false, length = 50)
     private String goal; // 운동 목표: diet, strength, body, fitness, stamina
     
+    @Column(length = 100)
+    private String exerciseType; // 통합 운동 세션의 주요 운동 타입
+    
     @Column
     private Integer plannedDuration; // 계획된 시간(분)
     

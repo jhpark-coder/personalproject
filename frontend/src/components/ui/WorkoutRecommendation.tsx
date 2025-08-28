@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { API_ENDPOINTS } from '@config/api';
 import { apiClient } from '@utils/axiosConfig';
+import { getUserData } from '@utils/userProfile';
 import WorkoutFeedback from './WorkoutFeedback';
 import './WorkoutRecommendation.css';
 
@@ -47,6 +50,14 @@ interface WorkoutRecommendation {
   info?: string;
   learningLevel?: string;
   adaptationInfo?: any;
+  feedbackInsights?: {
+    recentSatisfaction?: string;
+    difficultyTrend?: string;
+    completionTrend?: string;
+    motivationLevel?: string;
+    bestPerformingExercise?: string;
+    message?: string;
+  };
 }
 
 const WorkoutRecommendation: React.FC = () => {
@@ -76,19 +87,16 @@ const WorkoutRecommendation: React.FC = () => {
     setError(null);
 
     try {
-      // 사용자 정보 가져오기 (localStorage 또는 API에서)
-      const userData = {
-        goal: localStorage.getItem('userGoal') || 'diet',
-        experience: localStorage.getItem('userExperience') || 'beginner',
-        weight: localStorage.getItem('userWeight') || '70',
-        height: localStorage.getItem('userHeight') || '170',
-        age: localStorage.getItem('userAge') || '25'
-      };
+      // 백엔드에서 사용자 프로필 가져오기 (우선순위: 백엔드 > localStorage > 기본값)
+      const userData = await getUserData();
+      
+      console.log('🎯 WorkoutRecommendation - 사용자 데이터:', userData);
 
       const response = await apiClient.post('/api/workout/recommend', userData);
 
       if (response.data.success) {
         setRecommendation(response.data.data);
+        console.log('✅ WorkoutRecommendation - 추천 운동 로드 완료:', response.data.data);
       } else {
         setError(response.data.message || '운동 추천을 가져올 수 없습니다.');
       }
@@ -304,6 +312,49 @@ const WorkoutRecommendation: React.FC = () => {
         {renderWorkoutPhase(recommendation.workoutPlan.main)}
         {renderWorkoutPhase(recommendation.workoutPlan.cooldown)}
       </div>
+
+      {/* 피드백 기반 인사이트 섹션 */}
+      {recommendation.feedbackInsights && (
+        <div className="feedback-insights">
+          <h3>📊 최근 운동 분석</h3>
+          {recommendation.feedbackInsights.message ? (
+            <p className="insights-message">{recommendation.feedbackInsights.message}</p>
+          ) : (
+            <div className="insights-grid">
+              {recommendation.feedbackInsights.recentSatisfaction && (
+                <div className="insight-item">
+                  <span className="insight-label">만족도</span>
+                  <span className="insight-value">{recommendation.feedbackInsights.recentSatisfaction}</span>
+                </div>
+              )}
+              {recommendation.feedbackInsights.difficultyTrend && (
+                <div className="insight-item">
+                  <span className="insight-label">난이도</span>
+                  <span className="insight-value">{recommendation.feedbackInsights.difficultyTrend}</span>
+                </div>
+              )}
+              {recommendation.feedbackInsights.completionTrend && (
+                <div className="insight-item">
+                  <span className="insight-label">완주율</span>
+                  <span className="insight-value">{recommendation.feedbackInsights.completionTrend}</span>
+                </div>
+              )}
+              {recommendation.feedbackInsights.motivationLevel && (
+                <div className="insight-item">
+                  <span className="insight-label">동기</span>
+                  <span className="insight-value">{recommendation.feedbackInsights.motivationLevel}</span>
+                </div>
+              )}
+              {recommendation.feedbackInsights.bestPerformingExercise && (
+                <div className="insight-item">
+                  <span className="insight-label">베스트 운동</span>
+                  <span className="insight-value">{recommendation.feedbackInsights.bestPerformingExercise}</span>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="recommendations">
         <h3>💡 맞춤 조언</h3>

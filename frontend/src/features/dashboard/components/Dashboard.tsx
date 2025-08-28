@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { API_ENDPOINTS } from '@config/api';
 import { apiClient, handleApiError } from '@utils/axiosConfig';
@@ -9,8 +9,9 @@ import './Dashboard.css';
 import TodayChecklist from '@features/workout/components/TodayChecklist';
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Cell } from 'recharts';
 import type { DashboardData } from '../../../types/api';
+import { logger } from '@utils/logger';
 
-// JWT 토큰에서 role을 추출하는 함수
+// JWT 토큰에서 role을 추출하는 함수 (메모이제이션 적용)
 const getRoleFromToken = (): string => {
   try {
     const token = localStorage.getItem('token');
@@ -20,7 +21,7 @@ const getRoleFromToken = (): string => {
     const payload = JSON.parse(atob(token.split('.')[1]));
     return payload.role || 'ROLE_USER';
   } catch (error) {
-    console.error('토큰에서 role 추출 실패:', error);
+    logger.error('토큰에서 role 추출 실패', error);
     return 'ROLE_USER';
   }
 };
@@ -58,8 +59,8 @@ const Dashboard: React.FC = () => {
   const [recommendationData, setRecommendationData] = useState<RecommendationData | null>(null);
   const [showRecommendation, setShowRecommendation] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
-  // 최근 5일간의 날짜 라벨 생성
-  const generateWeekLabels = () => {
+  // 최근 5일간의 날짜 라벨 생성 (메모이제이션)
+  const generateWeekLabels = useCallback(() => {
     const labels = [];
     const today = new Date();
     
@@ -72,10 +73,10 @@ const Dashboard: React.FC = () => {
     }
     
     return labels;
-  };
+  }, []);
 
-  // YYYYWW 형태를 'M월 N째주'로 변환
-  const formatYearWeekToMonthNthWeek = (yearWeek: string): string => {
+  // YYYYWW 형태를 'M월 N째주'로 변환 (메모이제이션)
+  const formatYearWeekToMonthNthWeek = useCallback((yearWeek: string): string => {
     const match = /^\s*(\d{4})(\d{2,3})\s*$/.exec(String(yearWeek));
     if (!match) return yearWeek;
     const year = Number(match[1]);
@@ -91,7 +92,7 @@ const Dashboard: React.FC = () => {
     const weekOfMonth = Math.ceil((approxDate.getDate() + firstOfMonth.getDay()) / 7);
 
     return `${monthIndex + 1}월 ${weekOfMonth}째주`;
-  };
+  }, []);
 
   // 온보딩 완료 여부 확인
   useEffect(() => {
@@ -100,7 +101,7 @@ const Dashboard: React.FC = () => {
     
     // 관리자는 온보딩 체크를 건너뛰고 바로 대시보드 데이터 로드
     if (isAdmin) {
-      console.log('👨‍💼 관리자: 온보딩 체크 건너뛰고 대시보드 데이터 로드');
+      logger.info('관리자: 온보딩 체크 건너뛰고 대시보드 데이터 로드');
       loadDashboardData();
       return;
     }
@@ -158,9 +159,7 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  const handleStartWorkout = () => {
-    navigate('/motion');
-  };
+
 
   const handleCloseRecommendation = () => {
     setShowRecommendation(false);
@@ -219,12 +218,12 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
           
-          <button 
+          <Link 
+            to="/workout/integrated" 
             className="button button-primary button-full"
-            onClick={handleStartWorkout}
           >
             운동 시작하기
-          </button>
+          </Link>
         </div>
 
         {/* 운동량 변화 카드 */}
@@ -304,43 +303,7 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        {/* 통합 운동 시스템 진입점 */}
-        <div className="card integrated-workout-card">
-          <div className="card-header">
-            <h3 className="card-title">🚀 자동 운동 시작</h3>
-            <div className="card-subtitle">AI 가이드와 함께하는 완전 자동화 운동</div>
-          </div>
-          <div className="integrated-workout-content">
-            <div className="workout-features">
-              <div className="feature-item">
-                <span className="feature-icon">🎯</span>
-                <span className="feature-text">개인 맞춤 추천</span>
-              </div>
-              <div className="feature-item">
-                <span className="feature-icon">🤖</span>
-                <span className="feature-text">AI 실시간 코칭</span>
-              </div>
-              <div className="feature-item">
-                <span className="feature-icon">📊</span>
-                <span className="feature-text">자동 결과 분석</span>
-              </div>
-            </div>
-            <div className="integrated-workout-actions">
-              <Link 
-                to="/workout/integrated" 
-                className="integrated-workout-button primary"
-              >
-                🏋️‍♂️ 바로 시작하기
-              </Link>
-              <Link 
-                to="/workout/selector" 
-                className="integrated-workout-button secondary"
-              >
-                📋 프로그램 선택
-              </Link>
-            </div>
-          </div>
-        </div>
+       
 
         {/* 오늘의 체크리스트 카드 (간결) */}
         <TodayChecklist onStart={() => navigate('/motion')} />

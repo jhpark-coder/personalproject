@@ -6,13 +6,35 @@ import NavigationBar from '@components/ui/NavigationBar';
 import ChatButton from '@features/chat/components/ChatButton';
 import './Settings.css';
 
+// TTS 설정 타입 정의
+interface TTSSettings {
+  method: 'google-cloud' | 'browser-fallback';
+  voice: string;
+  language: string;
+  rate: number;
+  pitch: number;
+  volume: number;
+}
+
 const Settings: React.FC = () => {
   const navigate = useNavigate();
   const [calendarStatus, setCalendarStatus] = useState<any>(null);
   const [isConnecting, setIsConnecting] = useState(false);
+  const [ttsSettings, setTtsSettings] = useState<TTSSettings>({
+    method: 'google-cloud',
+    voice: 'ko-KR-Standard-A',
+    language: 'ko-KR',
+    rate: 1.0,
+    pitch: 1.0,
+    volume: 1.0
+  });
+  const [availableVoices, setAvailableVoices] = useState<string[]>([]);
+  const [isLoadingVoices, setIsLoadingVoices] = useState(false);
 
   useEffect(() => {
     checkCalendarStatus();
+    loadTTSSettings();
+    loadAvailableVoices();
   }, []);
 
   const [loading, setLoading] = useState<boolean>(true);
@@ -41,6 +63,107 @@ const Settings: React.FC = () => {
       setCalendarStatus({ connected: false, provider: 'google', message: '네트워크 오류' });
     } finally {
       setLoading(false);
+    }
+  };
+
+  // TTS 설정 로드
+  const loadTTSSettings = () => {
+    const saved = localStorage.getItem('ttsSettings');
+    if (saved) {
+      try {
+        setTtsSettings(JSON.parse(saved));
+      } catch (error) {
+        console.error('TTS 설정 로드 실패:', error);
+        // 기본값 설정
+        const defaultSettings: TTSSettings = {
+          method: 'google-cloud',
+          voice: 'ko-KR-Standard-A',
+          language: 'ko-KR',
+          rate: 1.0,
+          pitch: 1.0,
+          volume: 1.0
+        };
+        setTtsSettings(defaultSettings);
+        localStorage.setItem('ttsSettings', JSON.stringify(defaultSettings));
+      }
+    } else {
+      // 기본값 설정
+      const defaultSettings: TTSSettings = {
+        method: 'google-cloud',
+        voice: 'ko-KR-Standard-A',
+        language: 'ko-KR',
+        rate: 1.0,
+        pitch: 1.0,
+        volume: 1.0
+      };
+      setTtsSettings(defaultSettings);
+      localStorage.setItem('ttsSettings', JSON.stringify(defaultSettings));
+    }
+  };
+
+  // TTS 설정 저장
+  const saveTTSSettings = (settings: TTSSettings) => {
+    localStorage.setItem('ttsSettings', JSON.stringify(settings));
+    setTtsSettings(settings);
+  };
+
+  // 사용 가능한 음성 목록 로드
+  const loadAvailableVoices = async () => {
+    setIsLoadingVoices(true);
+    try {
+      const response = await apiClient.get('/api/tts/voices');
+      if (response.data.success) {
+        setAvailableVoices(response.data.voices || []);
+      }
+    } catch (error) {
+      console.error('음성 목록 로드 실패:', error);
+      // 기본 한국어 음성들
+      setAvailableVoices([
+        'ko-KR-Standard-A',
+        'ko-KR-Standard-B',
+        'ko-KR-Standard-C',
+        'ko-KR-Standard-D'
+      ]);
+    } finally {
+      setIsLoadingVoices(false);
+    }
+  };
+
+  // TTS 테스트
+  const testTTS = async () => {
+    try {
+      const testText = '안녕하세요, FitMate 음성 가이드입니다.';
+      if (ttsSettings.method === 'google-cloud') {
+        const response = await apiClient.post('/api/tts/synthesize', {
+          text: testText,
+          voice: ttsSettings.voice,
+          language: ttsSettings.language
+        }, {
+          responseType: 'blob'
+        });
+        
+        const audioBlob = response.data;
+        const audioUrl = URL.createObjectURL(audioBlob);
+        const audio = new Audio(audioUrl);
+        audio.play();
+        
+        audio.onended = () => {
+          URL.revokeObjectURL(audioUrl);
+        };
+      } else {
+        // 브라우저 TTS 테스트
+        if ('speechSynthesis' in window) {
+          const utterance = new SpeechSynthesisUtterance(testText);
+          utterance.lang = ttsSettings.language;
+          utterance.rate = ttsSettings.rate;
+          utterance.pitch = ttsSettings.pitch;
+          utterance.volume = ttsSettings.volume;
+          speechSynthesis.speak(utterance);
+        }
+      }
+    } catch (error) {
+      console.error('TTS 테스트 실패:', error);
+      alert('TTS 테스트에 실패했습니다.');
     }
   };
 
@@ -189,6 +312,115 @@ const Settings: React.FC = () => {
                   </button>
                 </div>
               )}
+            </div>
+
+            <div className="settings-section">
+              <h3>음성 설정 (TTS)</h3>
+              <div className="tts-settings">
+                <div className="tts-method-selection">
+                  <label className="tts-method-label">
+                    <input
+                      type="radio"
+                      name="ttsMethod"
+                      value="google-cloud"
+                      checked={ttsSettings.method === 'google-cloud'}
+                      onChange={(e) => saveTTSSettings({...ttsSettings, method: e.target.value as 'google-cloud' | 'browser-fallback'})}
+                    />
+                    <span className="method-info">
+                      <strong>Google Cloud TTS</strong>
+                      <small>고품질 음성, 빠른 속도</small>
+                    </span>
+                  </label>
+                  <label className="tts-method-label">
+                    <input
+                      type="radio"
+                      name="ttsMethod"
+                      value="browser-fallback"
+                      checked={ttsSettings.method === 'browser-fallback'}
+                      onChange={(e) => saveTTSSettings({...ttsSettings, method: e.target.value as 'google-cloud' | 'browser-fallback'})}
+                    />
+                    <span className="method-info">
+                      <strong>브라우저 기본 TTS</strong>
+                      <small>오프라인 사용 가능</small>
+                    </span>
+                  </label>
+                </div>
+
+                {ttsSettings.method === 'google-cloud' && (
+                  <div className="google-cloud-settings">
+                    <div className="setting-group">
+                      <label>음성 선택:</label>
+                      <select
+                        value={ttsSettings.voice}
+                        onChange={(e) => saveTTSSettings({...ttsSettings, voice: e.target.value})}
+                        disabled={isLoadingVoices}
+                      >
+                        {availableVoices.map(voice => (
+                          <option key={voice} value={voice}>
+                            {voice === 'ko-KR-Standard-A' ? '여성 음성 (기본)' : 
+                             voice === 'ko-KR-Standard-B' ? '남성 음성' :
+                             voice === 'ko-KR-Standard-C' ? '여성 음성 2' :
+                             voice === 'ko-KR-Standard-D' ? '남성 음성 2' : voice}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="setting-group">
+                      <label>언어:</label>
+                      <select
+                        value={ttsSettings.language}
+                        onChange={(e) => saveTTSSettings({...ttsSettings, language: e.target.value})}
+                      >
+                        <option value="ko-KR">한국어</option>
+                        <option value="en-US">영어</option>
+                        <option value="ja-JP">일본어</option>
+                      </select>
+                    </div>
+                  </div>
+                )}
+
+                {ttsSettings.method === 'browser-fallback' && (
+                  <div className="browser-settings">
+                    <div className="setting-group">
+                      <label>속도: {ttsSettings.rate.toFixed(1)}x</label>
+                      <input
+                        type="range"
+                        min="0.5"
+                        max="2.0"
+                        step="0.1"
+                        value={ttsSettings.rate}
+                        onChange={(e) => saveTTSSettings({...ttsSettings, rate: parseFloat(e.target.value)})}
+                      />
+                    </div>
+                    <div className="setting-group">
+                      <label>톤: {ttsSettings.pitch.toFixed(1)}</label>
+                      <input
+                        type="range"
+                        min="0.5"
+                        max="2.0"
+                        step="0.1"
+                        value={ttsSettings.pitch}
+                        onChange={(e) => saveTTSSettings({...ttsSettings, pitch: parseFloat(e.target.value)})}
+                      />
+                    </div>
+                    <div className="setting-group">
+                      <label>볼륨: {ttsSettings.volume.toFixed(1)}</label>
+                      <input
+                        type="range"
+                        min="0.0"
+                        max="1.0"
+                        step="0.1"
+                        value={ttsSettings.volume}
+                        onChange={(e) => saveTTSSettings({...ttsSettings, volume: parseFloat(e.target.value)})}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <button onClick={testTTS} className="test-tts-btn">
+                  🔊 음성 테스트
+                </button>
+              </div>
             </div>
 
             <div className="settings-section">
