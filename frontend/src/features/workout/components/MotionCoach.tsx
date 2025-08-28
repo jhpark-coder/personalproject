@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Pose } from '@mediapipe/pose';
+import { PoseLandmarker } from '@mediapipe/tasks-vision';
 import { useWorkout } from '../../../context/WorkoutContext';
 import { hybridTTSService } from '../../../services/hybridTTSService';
 import { apiClient } from '../../../utils/axiosConfig';
