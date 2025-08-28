@@ -21,6 +21,7 @@
   height: auto;
   display: block;
   background: #000;
+  z-index: 1;
 }
 
 .pose-canvas {
@@ -30,6 +31,7 @@
   width: 100%;
   height: 100%;
   pointer-events: none;
+  z-index: 2;
 }
 
 .camera-controls {
@@ -219,4 +221,94 @@
   .exercise-info h3 {
     font-size: 1.1rem;
   }
+} 
+
+/* 자동 운동 시작 모달 스타일 */
+.automated-workout-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.automated-workout-modal {
+  background: white;
+  border-radius: 20px;
+  padding: 2rem;
+  max-width: 500px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.automated-workout-header {
+  text-align: center;
+  margin-bottom: 2rem;
+}
+
+.automated-workout-header h2 {
+  color: #333;
+  font-size: 1.8rem;
+  margin: 0 0 0.5rem 0;
+}
+
+.automated-workout-subtitle {
+  color: #666;
+  font-size: 1rem;
+  margin: 0;
+}
+
+.workout-features {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.feature-item {
+  text-align: center;
+  padding: 1rem;
+}
+
+.feature-icon {
+  display: block;
+  font-size: 2rem;
+  margin-bottom: 0.5rem;
+}
+
+.feature-text {
+  color: #555;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.automated-workout-actions {
+  text-align: center;
+}
+
+.start-workout-button {
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 25px;
+  padding: 1rem 2rem;
+  font-size: 1.2rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(0, 123, 255, 0.3);
+  width: 100%;
+}
+
+.start-workout-button:hover {
+  background: #0056b3;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 123, 255, 0.4);
 } 

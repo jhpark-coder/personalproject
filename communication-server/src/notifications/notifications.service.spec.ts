@@ -79,7 +79,10 @@ describe('NotificationsService', () => {
 
       // then
       expect(mockNotificationModel.find).toHaveBeenCalledWith({
-        targetUserId: userId,
+        $or: [
+          { targetUserId: userId },
+          { targetUserId: 0 }
+        ]
       });
       expect(result).toEqual(mockNotifications);
     });
@@ -117,8 +120,15 @@ describe('NotificationsService', () => {
 
       // then
       expect(mockNotificationModel.countDocuments).toHaveBeenCalledWith({
-        targetUserId: userId,
-        isRead: false,
+        $and: [
+          {
+            $or: [
+              { targetUserId: userId },
+              { targetUserId: 0 }
+            ]
+          },
+          { isRead: false }
+        ]
       });
       expect(result).toBe(unreadCount);
     });

@@ -187,7 +187,12 @@ describe('ChatService', () => {
 
       // then
       expect(mockChatMessageModel.deleteMany).toHaveBeenCalledWith({
-        $or: [{ sender: user }, { recipient: user }],
+        $or: [
+          { sender: user },
+          { sender: `사용자_${user}` },
+          { recipient: user },
+          { recipient: `사용자_${user}` },
+        ],
       });
     });
   });
