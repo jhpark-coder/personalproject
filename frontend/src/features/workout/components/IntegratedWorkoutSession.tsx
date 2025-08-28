@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useAuth } from '@hooks/useAuth';
-import { apiClient, API_ENDPOINTS } from '@config/api';
+import { useUser } from '../../../context/UserContext';
+import { API_ENDPOINTS } from '../../../config/api';
+import { apiClient } from '../../../utils/axiosConfig';
 import MotionCoach from './MotionCoach';
 import './IntegratedWorkoutSession.css';
 
@@ -45,7 +46,7 @@ interface IntegratedWorkoutSessionProps {
 }
 
 const IntegratedWorkoutSession: React.FC<IntegratedWorkoutSessionProps> = ({ onSessionComplete }) => {
-  const { user } = useAuth();
+  const { user } = useUser();
   const [sessionPhase, setSessionPhase] = useState<'loading' | 'recommendations' | 'exercise-selection' | 'motion-coach' | 'completed'>('loading');
   const [workoutRecommendation, setWorkoutRecommendation] = useState<WorkoutRecommendation | null>(null);
   const [selectedExercise, setSelectedExercise] = useState<any>(null);
