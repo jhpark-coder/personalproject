@@ -1,14 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { WorkoutProgram, WorkoutExercise, ExerciseType } from './WorkoutProgramSelector';
-import MotionCoach from './MotionCoach';
+import type { WorkoutProgram, WorkoutExercise, ExerciseType } from './WorkoutProgramSelector';
+import MotionCoachTasks from './MotionCoachTasks';
 import WorkoutProgramSelector from './WorkoutProgramSelector';
 import RestTimer from './RestTimer';
 import WorkoutSessionSummary from './WorkoutSessionSummary';
 import { apiClient } from '@utils/axiosConfig';
+import hybridTTSService from '../../../services/hybridTTSService';
 import './IntegratedWorkoutSession.css';
 
-interface ExerciseResult {
+export interface ExerciseResult {
   exerciseType: ExerciseType;
   completedSets: number;
   targetSets: number;
@@ -104,17 +105,23 @@ const IntegratedWorkoutSession: React.FC = () => {
   }, []);
 
   // TTS 피드백 재생 (중복 방지)
-  const playTTSFeedback = useCallback((message: string) => {
+  const playTTSFeedback = useCallback(async (message: string) => {
     if (lastAnnouncementRef.current === message) return;
     
     lastAnnouncementRef.current = message;
     
-    // TTS 재생 로직 (MotionCoach의 TTS 서비스 활용)
-    if ('speechSynthesis' in window) {
-      const utterance = new SpeechSynthesisUtterance(message);
-      utterance.lang = 'ko-KR';
-      utterance.rate = 0.9;
-      window.speechSynthesis.speak(utterance);
+    // hybridTTSService를 사용하여 고품질 TTS 재생
+    try {
+      const result = await hybridTTSService.synthesizeExerciseGuide(message);
+      if (result.success && result.audioUrl) {
+        const audio = new Audio(result.audioUrl);
+        audio.onended = () => {
+          URL.revokeObjectURL(result.audioUrl!);
+        };
+        await audio.play();
+      }
+    } catch (error) {
+      console.error('TTS 재생 실패:', error);
     }
   }, []);
 
@@ -170,55 +177,82 @@ const IntegratedWorkoutSession: React.FC = () => {
 
     // 운동 결과를 exerciseResults에 추가
     setSessionState(prev => {
-      const completedResult: ExerciseResult = {
-        exerciseType: currentExercise.exerciseType,
-        completedSets: prev.currentExerciseResult.completedSets || 0,
-        targetSets: currentExercise.targetSets,
-        completedReps: prev.currentExerciseResult.completedReps || 0,
-        targetReps: currentExercise.targetReps * currentExercise.targetSets,
-        averageFormScore: prev.currentExerciseResult.averageFormScore || 0,
-        formCorrections: prev.currentExerciseResult.formCorrections || [],
-        duration: prev.currentExerciseResult.duration || 0
+      const updatedResults = [...prev.exerciseResults, prev.currentExerciseResult];
+      
+      // 체크리스트 자동 업데이트
+      updateTodayChecklist(currentExercise.exerciseType);
+      
+      return {
+        ...prev,
+        exerciseResults: updatedResults,
+        currentExerciseIndex: prev.currentExerciseIndex + 1,
+        currentSet: 1,
+        currentExerciseResult: {
+          exerciseType: prev.selectedProgram?.exercises[prev.currentExerciseIndex + 1]?.exerciseType,
+          completedSets: 0,
+          targetSets: prev.selectedProgram?.exercises[prev.currentExerciseIndex + 1]?.targetSets || 0,
+          completedReps: 0,
+          targetReps: prev.selectedProgram?.exercises[prev.currentExerciseIndex + 1]?.targetReps || 0,
+          averageFormScore: 0,
+          formCorrections: [],
+          duration: 0
+        }
       };
-
-      if (isLastExercise) {
-        // 전체 세션 완료
-        return {
-          ...prev,
-          currentPhase: 'session_complete',
-          exerciseResults: [...prev.exerciseResults, completedResult]
-        };
-      } else {
-        // 다음 운동으로
-        const nextExercise = prev.selectedProgram!.exercises[prev.currentExerciseIndex + 1];
-        return {
-          ...prev,
-          currentPhase: 'exercise_active',
-          currentExerciseIndex: prev.currentExerciseIndex + 1,
-          currentSet: 1,
-          exerciseStartTime: new Date(),
-          exerciseResults: [...prev.exerciseResults, completedResult],
-          currentExerciseResult: {
-            exerciseType: nextExercise.exerciseType,
-            completedSets: 0,
-            targetSets: nextExercise.targetSets,
-            completedReps: 0,
-            targetReps: nextExercise.targetReps,
-            averageFormScore: 0,
-            formCorrections: [],
-            duration: 0
-          }
-        };
-      }
     });
 
-    if (!isLastExercise) {
-      const nextExercise = sessionState.selectedProgram!.exercises[sessionState.currentExerciseIndex + 1];
-      playTTSFeedback(`다음 운동! ${getExerciseDisplayName(nextExercise.exerciseType)}을 시작합니다!`);
+    // 다음 운동이 있으면 다음 운동으로, 없으면 세션 완료
+    if (sessionState.currentExerciseIndex + 1 < (sessionState.selectedProgram?.exercises.length || 0)) {
+      setSessionState(prev => ({ ...prev, currentPhase: 'exercise_transition' }));
+      playTTSFeedback(`다음 운동으로 넘어갑니다!`);
     } else {
-      playTTSFeedback('모든 운동을 완료했습니다! 수고하셨어요!');
+      // 모든 운동 완료
+      setSessionState(prev => ({ ...prev, currentPhase: 'cooldown' }));
+      playTTSFeedback(`모든 운동을 완료했습니다! 정리 운동을 시작합니다.`);
     }
-  }, [currentExercise, isLastExercise, sessionState.selectedProgram, sessionState.currentExerciseIndex]);
+  }, [currentExercise, sessionState.currentExerciseIndex, sessionState.selectedProgram, sessionState.exerciseResults, sessionState.currentExerciseResult]);
+
+  // 체크리스트 자동 업데이트 함수
+  const updateTodayChecklist = useCallback((completedExerciseType: string) => {
+    try {
+      const todayKey = getTodayKey();
+      const storageKey = `todayChecklist:${todayKey}`;
+      
+      // 현재 체크리스트 상태 가져오기
+      const currentChecklist = localStorage.getItem(storageKey);
+      if (currentChecklist) {
+        const checklistState = JSON.parse(currentChecklist);
+        
+        // 완료된 운동 찾아서 체크
+        Object.keys(checklistState).forEach(itemId => {
+          if (itemId.startsWith('exercise_')) {
+            // 해당 운동이 완료되었는지 확인하고 체크
+            checklistState[itemId] = true;
+          }
+        });
+        
+        // 업데이트된 상태 저장
+        localStorage.setItem(storageKey, JSON.stringify(checklistState));
+        
+        // 체크리스트 업데이트 이벤트 발생 (다른 컴포넌트에서 감지 가능)
+        window.dispatchEvent(new CustomEvent('checklistUpdated', {
+          detail: { exerciseType: completedExerciseType, checklistState }
+        }));
+        
+        console.log('✅ 체크리스트 자동 업데이트 완료', { exerciseType: completedExerciseType });
+      }
+    } catch (error) {
+      console.error('❌ 체크리스트 업데이트 실패', { error: String(error) });
+    }
+  }, []);
+
+  // 오늘 날짜 키 생성 함수
+  const getTodayKey = (): string => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
 
   // 휴식 완료 → 다음 세트 시작
   const handleRestComplete = useCallback(() => {
@@ -330,7 +364,10 @@ const IntegratedWorkoutSession: React.FC = () => {
       plank: '플랭크',
       calf_raise: '카프 레이즈',
       burpee: '버피',
-      mountain_climber: '마운틴 클라이머'
+      mountain_climber: '마운틴 클라이머',
+      bridge: '브릿지',
+      situp: '윗몸일으키기',
+      crunch: '크런치'
     };
     return displayNames[exerciseType] || exerciseType;
   };
@@ -436,14 +473,7 @@ const IntegratedWorkoutSession: React.FC = () => {
         )}
 
         {sessionState.currentPhase === 'exercise_active' && currentExercise && (
-          <MotionCoach
-            exerciseType={currentExercise.exerciseType}
-            targetSets={currentExercise.targetSets}
-            targetReps={currentExercise.targetReps}
-            currentSet={sessionState.currentSet}
-            onSetComplete={handleSetComplete}
-            autoMode={true}
-          />
+          <MotionCoachTasks exerciseType={currentExercise.exerciseType} />
         )}
 
         {sessionState.currentPhase === 'exercise_rest' && currentExercise && (

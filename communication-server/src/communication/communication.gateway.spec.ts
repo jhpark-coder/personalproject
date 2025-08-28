@@ -206,7 +206,7 @@ describe('CommunicationGateway', () => {
         recipient: null,
       };
 
-      const savedMessage = { ...data, id: 'msg-1', timestamp: new Date() };
+      const savedMessage = { ...data, id: 'msg-1', timestamp: new Date(), isAdmin: false };
       jest
         .spyOn(chatService, 'saveMessage')
         .mockResolvedValue(savedMessage as any);
@@ -231,7 +231,21 @@ describe('CommunicationGateway', () => {
         recipient: 'testUser',
       };
 
-      const savedMessage = { ...data, id: 'msg-1', timestamp: new Date() };
+      // Create a mock socket for an admin user
+      const mockAdminSocket = {
+        id: 'admin-socket-id',
+        handshake: {
+          auth: {
+            userId: 999, // Admin user ID
+            roles: ['ROLE_ADMIN'],
+          },
+        },
+        join: jest.fn(),
+        leave: jest.fn(),
+        emit: jest.fn(),
+      } as any;
+
+      const savedMessage = { ...data, id: 'msg-1', timestamp: new Date(), isAdmin: true };
       jest
         .spyOn(chatService, 'saveMessage')
         .mockResolvedValue(savedMessage as any);
@@ -239,7 +253,7 @@ describe('CommunicationGateway', () => {
       // when
       const result = await gateway.handleSendMessage(
         data,
-        mockSocket as Socket,
+        mockAdminSocket as Socket,
       );
 
       // then
@@ -277,7 +291,15 @@ describe('CommunicationGateway', () => {
     it('should send notification to user', () => {
       // given
       const userId = '1';
-      const notification = { id: '1', message: 'Test notification' };
+      const notification = {
+        id: '1',
+        message: 'Test notification',
+        senderUserId: 123,
+        targetUserId: 1,
+        type: 'TEST_TYPE',
+        category: 'ADMIN',
+        isRead: false,
+      };
 
       // when
       gateway.sendNotificationToUser(userId, notification);
@@ -288,7 +310,15 @@ describe('CommunicationGateway', () => {
 
     it('should send notification to admin group', () => {
       // given
-      const notification = { id: '1', message: 'Admin notification' };
+      const notification = {
+        id: '1',
+        message: 'Admin notification',
+        senderUserId: 123,
+        targetUserId: 1,
+        type: 'ADMIN_TYPE',
+        category: 'ADMIN',
+        isRead: false,
+      };
 
       // when
       gateway.sendNotificationToAdminGroup(notification);
@@ -299,7 +329,15 @@ describe('CommunicationGateway', () => {
 
     it('should broadcast notification', () => {
       // given
-      const notification = { id: '1', message: 'Broadcast notification' };
+      const notification = {
+        id: '1',
+        message: 'Broadcast notification',
+        senderUserId: 123,
+        targetUserId: 1,
+        type: 'BROADCAST_TYPE',
+        category: 'ADMIN',
+        isRead: false,
+      };
 
       // when
       gateway.broadcastNotification(notification);

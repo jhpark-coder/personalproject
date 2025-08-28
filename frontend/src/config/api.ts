@@ -101,7 +101,10 @@ export const API_ENDPOINTS = {
   // 온보딩 관련
   SAVE_ONBOARDING_PROFILE: `${backendUrl}/api/auth/save-onboarding-profile`,
   UPDATE_BASIC_INFO: `${backendUrl}/api/auth/update-basic-info`,
-
+  
+  // 사용자 프로필 관련
+  USER_PROFILE: (userId: string) => `${backendUrl}/api/users/${userId}/profile`,
+  CURRENT_USER_PROFILE: `${backendUrl}/api/users/profile`,
   
   // 알림 관련 (HTTPS에서는 상대 경로로 호출)
   NOTIFICATIONS: `${NOTIF_BASE_URL}/api/notifications`,

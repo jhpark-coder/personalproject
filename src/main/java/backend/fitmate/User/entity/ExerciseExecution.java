@@ -39,6 +39,9 @@ public class ExerciseExecution {
     @Column(nullable = false, length = 100)
     private String exerciseName;
     
+    @Column(length = 50)
+    private String exerciseType; // 운동 타입 (squat, pushup 등)
+    
     @Column
     private Integer plannedSets;
     

@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { API_ENDPOINTS } from '@config/api';
 import { apiClient } from '@utils/axiosConfig';
+import { getUserData } from '@utils/userProfile';
 import './WorkoutProgramSelector.css';
 
 export type ExerciseType = 'squat' | 'lunge' | 'pushup' | 'plank' | 'calf_raise' | 
-                          'burpee' | 'mountain_climber';
+                          'burpee' | 'mountain_climber' | 'bridge' | 'situp' | 'crunch';
 
 export interface WorkoutExercise {
   exerciseType: ExerciseType;
@@ -45,11 +47,12 @@ const WORKOUT_PROGRAMS: WorkoutProgram[] = [
     icon: '💪',
     color: '#FF3B30',
     difficulty: 'intermediate',
-    estimatedDuration: 20,
-    estimatedCalories: 160,
+    estimatedDuration: 22,
+    estimatedCalories: 180,
     exercises: [
       { exerciseType: 'pushup', targetSets: 3, targetReps: 12, restSeconds: 90, estimatedDuration: 300 },
       { exerciseType: 'plank', targetSets: 3, targetReps: 30, restSeconds: 60, estimatedDuration: 240 },
+      { exerciseType: 'situp', targetSets: 3, targetReps: 15, restSeconds: 90, estimatedDuration: 300 }, // Stage 4: 코어 운동 강화
       { exerciseType: 'burpee', targetSets: 3, targetReps: 8, restSeconds: 120, estimatedDuration: 360 },
     ]
   },
@@ -75,10 +78,12 @@ const WORKOUT_PROGRAMS: WorkoutProgram[] = [
     icon: '🦵',
     color: '#AF52DE',
     difficulty: 'beginner',
-    estimatedDuration: 18,
-    estimatedCalories: 140,
+    estimatedDuration: 25,
+    estimatedCalories: 190,
     exercises: [
       { exerciseType: 'squat', targetSets: 3, targetReps: 15, restSeconds: 90, estimatedDuration: 300 },
+      { exerciseType: 'bridge', targetSets: 3, targetReps: 12, restSeconds: 90, estimatedDuration: 300 },
+      { exerciseType: 'crunch', targetSets: 3, targetReps: 15, restSeconds: 90, estimatedDuration: 300 }, // Stage 4: 코어 운동 강화  
       { exerciseType: 'lunge', targetSets: 3, targetReps: 12, restSeconds: 90, estimatedDuration: 300 },
       { exerciseType: 'calf_raise', targetSets: 3, targetReps: 20, restSeconds: 60, estimatedDuration: 240 },
     ]
@@ -107,14 +112,10 @@ const WorkoutProgramSelector: React.FC<WorkoutProgramSelectorProps> = ({
       try {
         setLoading(true);
         
-        // 사용자 정보 가져오기 (localStorage 또는 API에서)
-        const userData = {
-          goal: localStorage.getItem('userGoal') || 'fitness',
-          experience: localStorage.getItem('userExperience') || 'beginner',
-          weight: localStorage.getItem('userWeight') || '70',
-          height: localStorage.getItem('userHeight') || '170',
-          age: localStorage.getItem('userAge') || '25'
-        };
+        // 백엔드에서 사용자 프로필 가져오기 (우선순위: 백엔드 > localStorage > 기본값)
+        const userData = await getUserData();
+        
+        console.log('🎯 WorkoutProgramSelector - 사용자 데이터:', userData);
 
         const response = await apiClient.post('/api/workout/recommend', userData);
 
@@ -152,6 +153,8 @@ const WorkoutProgramSelector: React.FC<WorkoutProgramSelectorProps> = ({
             }
             return program;
           }));
+          
+          console.log('✅ WorkoutProgramSelector - 추천 프로그램 로드 완료:', recommendedExercises);
         }
       } catch (error) {
         console.error('추천 프로그램 로드 실패:', error);
@@ -173,7 +176,10 @@ const WorkoutProgramSelector: React.FC<WorkoutProgramSelectorProps> = ({
       '플랭크': 'plank',
       '카프 레이즈': 'calf_raise',
       '버피': 'burpee',
-      '마운틴 클라이머': 'mountain_climber'
+      '마운틴 클라이머': 'mountain_climber',
+      '브릿지': 'bridge',
+      '윗몸일으키기': 'situp',
+      '크런치': 'crunch'
     };
     return nameMap[name] || 'squat';
   };
@@ -362,7 +368,10 @@ const getExerciseDisplayName = (exerciseType: ExerciseType): string => {
     plank: '플랭크',
     calf_raise: '카프 레이즈',
     burpee: '버피',
-    mountain_climber: '마운틴 클라이머'
+    mountain_climber: '마운틴 클라이머',
+    bridge: '브릿지',
+    situp: '윗몸일으키기',
+    crunch: '크런치'
   };
   return displayNames[exerciseType] || exerciseType;
 };
