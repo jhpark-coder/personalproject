@@ -269,7 +269,7 @@ public class WorkoutController {
     }
 
     /**
-     * 통합 운동 세션 완료 처리
+     * 통합 운동 세션 완료 처리 - 피드백 기반 학습 강화
      */
     @PostMapping("/complete-integrated-session")
     @RateLimit(bucketName = "workoutSessionBucket", keyType = RateLimit.KeyType.USER_ID)
@@ -315,13 +315,10 @@ public class WorkoutController {
             WorkoutSession session = WorkoutSession.builder()
                 .user(user)
                 .exerciseType("INTEGRATED_PROGRAM") // 통합 프로그램임을 표시
-                .startTime(startTime)
-                .endTime(endTime)
-                .totalReps(totalReps != null ? totalReps : 0)
-                .averageFormScore(averageFormScore != null ? BigDecimal.valueOf(averageFormScore) : BigDecimal.ZERO)
-                .formCorrections(formCorrections != null ? formCorrections : Arrays.asList())
-                .duration(totalDuration != null ? totalDuration : 0)
-                .caloriesBurned(caloriesBurned != null ? BigDecimal.valueOf(caloriesBurned) : BigDecimal.ZERO)
+                .goal(user.getGoal() != null ? user.getGoal() : "fitness") // 기본 목표 설정
+                .plannedDuration(totalDuration != null ? totalDuration : 0)
+                .actualDuration(totalDuration != null ? totalDuration : 0)
+                .sessionDate(startTime)
                 .build();
 
             // 운동 실행 데이터 추가 (각 운동별로)
@@ -329,31 +326,27 @@ public class WorkoutController {
                 for (Map<String, Object> exerciseResult : exerciseResults) {
                     ExerciseExecution execution = ExerciseExecution.builder()
                         .exerciseType((String) exerciseResult.get("exerciseType"))
-                        .reps(exerciseResult.get("completedReps") != null ? 
+                        .exerciseName((String) exerciseResult.getOrDefault("exerciseName", "Unknown"))
+                        .completedReps(exerciseResult.get("completedReps") != null ? 
                             ((Number) exerciseResult.get("completedReps")).intValue() : 0)
-                        .sets(exerciseResult.get("completedSets") != null ? 
+                        .completedSets(exerciseResult.get("completedSets") != null ? 
                             ((Number) exerciseResult.get("completedSets")).intValue() : 0)
-                        .formScore(exerciseResult.get("averageFormScore") != null ? 
-                            BigDecimal.valueOf(((Number) exerciseResult.get("averageFormScore")).doubleValue()) : 
-                            BigDecimal.ZERO)
-                        .duration(exerciseResult.get("duration") != null ? 
+                        .plannedReps(exerciseResult.get("targetReps") != null ? 
+                            ((Number) exerciseResult.get("targetReps")).intValue() : 0)
+                        .plannedSets(exerciseResult.get("targetSets") != null ? 
+                            ((Number) exerciseResult.get("targetSets")).intValue() : 0)
+                        .actualDuration(exerciseResult.get("duration") != null ? 
                             ((Number) exerciseResult.get("duration")).intValue() : 0)
-                        .timestamp(startTime) // 실제로는 각 운동의 실행 시간이어야 함
                         .build();
                     session.addExerciseExecution(execution);
                 }
             }
 
-            // 세션 피드백 생성 (통합 세션용)
-            SessionFeedback feedback = SessionFeedback.builder()
-                .overallDifficulty(3) // 기본값
-                .satisfaction(averageFormScore != null && averageFormScore > 0.7 ? 4 : 3)
-                .energyAfter(3)
-                .muscleSoreness(2)
-                .wouldRepeat(true)
-                .comments(String.format("통합 운동 프로그램 완료: %s (총 %d세트, %d회)", 
-                    programTitle, totalSets != null ? totalSets : 0, totalReps != null ? totalReps : 0))
-                .build();
+            // 세션 피드백 생성 - MotionCoach 데이터 기반 자동 피드백
+            SessionFeedback feedback = generateSmartFeedback(
+                programTitle, totalSets, totalReps, averageFormScore, 
+                formCorrections, exerciseResults, totalDuration
+            );
 
             session.setSessionFeedback(feedback);
 
@@ -499,5 +492,169 @@ public class WorkoutController {
         }
         
         return improvements;
+    }
+    
+    /**
+     * MotionCoach 데이터 기반 스마트 피드백 생성
+     */
+    private SessionFeedback generateSmartFeedback(String programTitle, Integer totalSets, 
+            Integer totalReps, Double averageFormScore, List<String> formCorrections, 
+            List<Map<String, Object>> exerciseResults, Integer totalDuration) {
+        
+        // 완료율 계산
+        double completionRate = calculateCompletionRate(exerciseResults);
+        
+        // 자동 난이도 평가 (MotionCoach 데이터 기반)
+        int calculatedDifficulty = calculateAutomaticDifficulty(averageFormScore, completionRate, totalDuration);
+        
+        // 자동 만족도 평가 (성과 기반)
+        int calculatedSatisfaction = calculateAutomaticSatisfaction(averageFormScore, completionRate);
+        
+        // 자동 에너지 상태 평가 (운동 강도와 완료율 기반)
+        int calculatedEnergyAfter = calculateAutomaticEnergyLevel(totalDuration, completionRate);
+        
+        // 예상 근육통 정도 (운동 강도 기반)
+        int calculatedMuscleSoreness = calculateAutomaticMuscleSoreness(totalSets, averageFormScore);
+        
+        // 재선택 의향 (전체적인 경험 기반)
+        boolean calculatedWouldRepeat = calculateWouldRepeat(calculatedSatisfaction, calculatedDifficulty);
+        
+        // 자세 교정 기반 코멘트 생성
+        String smartComments = generateSmartComments(programTitle, totalSets, totalReps, 
+            averageFormScore, formCorrections, completionRate);
+        
+        return SessionFeedback.builder()
+            .completionRate(BigDecimal.valueOf(completionRate / 100.0))
+            .overallDifficulty(calculatedDifficulty)
+            .satisfaction(calculatedSatisfaction)
+            .energyAfter(calculatedEnergyAfter)
+            .muscleSoreness(calculatedMuscleSoreness)
+            .wouldRepeat(calculatedWouldRepeat)
+            .comments(smartComments)
+            .build();
+    }
+    
+    /**
+     * 자동 난이도 평가 - MotionCoach 성과 기반
+     */
+    private int calculateAutomaticDifficulty(Double averageFormScore, double completionRate, Integer duration) {
+        double score = 0.0;
+        
+        // 자세 점수가 낮으면 어렵다고 평가
+        if (averageFormScore != null) {
+            if (averageFormScore < 0.6) score += 1.5; // 어려움 증가
+            else if (averageFormScore > 0.9) score -= 1.0; // 쉬움
+        }
+        
+        // 완료율이 낮으면 어렵다고 평가
+        if (completionRate < 70) score += 1.5;
+        else if (completionRate > 95) score -= 0.5;
+        
+        // 소요시간이 길면 어렵다고 평가
+        if (duration != null) {
+            if (duration > 1800) score += 0.5; // 30분 초과
+            else if (duration < 900) score -= 0.5; // 15분 미만
+        }
+        
+        int baseDifficulty = 3; // 기본 "적당함"
+        int finalDifficulty = (int) Math.round(baseDifficulty + score);
+        
+        return Math.max(1, Math.min(5, finalDifficulty));
+    }
+    
+    /**
+     * 자동 만족도 평가 - 성과 기반
+     */
+    private int calculateAutomaticSatisfaction(Double averageFormScore, double completionRate) {
+        double score = 3.0; // 기본 만족도
+        
+        // 좋은 자세 점수
+        if (averageFormScore != null && averageFormScore > 0.8) {
+            score += 1.0;
+        } else if (averageFormScore != null && averageFormScore < 0.6) {
+            score -= 0.5;
+        }
+        
+        // 높은 완료율
+        if (completionRate > 90) {
+            score += 1.0;
+        } else if (completionRate < 60) {
+            score -= 1.0;
+        }
+        
+        return Math.max(1, Math.min(5, (int) Math.round(score)));
+    }
+    
+    /**
+     * 자동 에너지 상태 평가
+     */
+    private int calculateAutomaticEnergyLevel(Integer duration, double completionRate) {
+        int baseEnergy = 3;
+        
+        // 운동 시간이 적절하고 완료율이 좋으면 에너지 상태 좋음
+        if (duration != null && duration <= 1800 && completionRate > 80) {
+            baseEnergy = 4; // 활기참
+        } else if (duration != null && duration > 2400) {
+            baseEnergy = 2; // 피곤함
+        }
+        
+        return baseEnergy;
+    }
+    
+    /**
+     * 자동 근육통 정도 평가
+     */
+    private int calculateAutomaticMuscleSoreness(Integer totalSets, Double averageFormScore) {
+        int baseSoreness = 2; // 약간
+        
+        // 세트 수가 많으면 근육통 증가
+        if (totalSets != null && totalSets > 12) {
+            baseSoreness = 3; // 보통
+        }
+        
+        // 자세가 좋으면 적절한 근육 사용으로 근육통 예상
+        if (averageFormScore != null && averageFormScore > 0.8) {
+            baseSoreness = Math.min(3, baseSoreness + 1);
+        }
+        
+        return baseSoreness;
+    }
+    
+    /**
+     * 재선택 의향 계산
+     */
+    private boolean calculateWouldRepeat(int satisfaction, int difficulty) {
+        // 만족도가 높고 난이도가 적절하면 재선택 의향 있음
+        return satisfaction >= 3 && difficulty >= 2 && difficulty <= 4;
+    }
+    
+    /**
+     * 스마트 코멘트 생성
+     */
+    private String generateSmartComments(String programTitle, Integer totalSets, Integer totalReps,
+            Double averageFormScore, List<String> formCorrections, double completionRate) {
+        
+        StringBuilder comments = new StringBuilder();
+        comments.append(String.format("🤖 자동 분석: %s 완료\n", programTitle));
+        comments.append(String.format("📊 성과: %d세트 %d회 (완료율 %.1f%%)\n", 
+            totalSets != null ? totalSets : 0, 
+            totalReps != null ? totalReps : 0, 
+            completionRate));
+        
+        if (averageFormScore != null) {
+            comments.append(String.format("🎯 평균 자세 점수: %.1f/1.0\n", averageFormScore));
+            
+            if (averageFormScore >= 0.9) {
+                comments.append("✨ 완벽한 자세! 이제 강도를 높여볼 시간이에요\n");
+            } else if (averageFormScore < 0.6) {
+                comments.append("💪 자세 연습이 더 필요해요. 천천히 정확하게!\n");
+            }
+        }
+        
+        if (formCorrections != null && !formCorrections.isEmpty()) {
+            comments.append(String.format("🔧 자세 교정: %s\n", String.join(", ", formCorrections.subList(0, Math.min(3, formCorrections.size())))));
+        }
+        
+        return comments.toString().trim();
     }
 } 

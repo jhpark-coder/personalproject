@@ -38,7 +38,7 @@ vi.mock('../../hooks/useAuth', () => ({
 }));
 
 // Mock MediaPipe
-vi.mock('@mediapipe/pose', () => ({
+vi.mock('@mediapipe/tasks-vision', () => ({
   Pose: vi.fn(() => ({
     setOptions: vi.fn(),
     onResults: vi.fn(),

@@ -273,6 +273,59 @@
   font-style: italic;
 }
 
+/* 피드백 인사이트 섹션 */
+.feedback-insights {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border: 1px solid #f59e0b;
+  border-radius: 16px;
+  padding: 24px;
+  margin: 32px 0;
+}
+
+.feedback-insights h3 {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #92400e;
+  margin: 0 0 16px 0;
+}
+
+.insights-message {
+  color: #78350f;
+  font-style: italic;
+  margin: 0;
+}
+
+.insights-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 16px;
+}
+
+.insight-item {
+  background: rgba(255, 255, 255, 0.8);
+  padding: 12px;
+  border-radius: 8px;
+  text-align: center;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.insight-label {
+  display: block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #78350f;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.insight-value {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: #451a03;
+}
+
 /* 추천 사항 */
 .recommendations {
   background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
@@ -488,9 +541,28 @@
     padding: 10px 14px;
     font-size: 13px;
   }
+  
+  .feedback-insights {
+    padding: 20px;
+    margin: 24px 0;
+  }
+  
+  .insights-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+  
+  .insight-item {
+    padding: 10px;
+  }
 }
 
 @media (max-width: 480px) {
+  .insights-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  
   .exercise-details {
     grid-template-columns: 1fr;
     gap: 8px;

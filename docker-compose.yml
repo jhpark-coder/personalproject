@@ -7,8 +7,17 @@ services:
     ports:
       - "80:80"
     depends_on:
+      - frontend
       - backend
       - communication-server
+    networks:
+      - fitmate-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: fitmate_frontend
     networks:
       - fitmate-network
 
@@ -23,9 +32,9 @@ services:
     env_file:
       - ./.env
     environment:
+      - SPRING_PROFILES_ACTIVE=dev
       - SPRING_DATA_REDIS_HOST=redis
       - SPRING_DATA_REDIS_PORT=6379
-      - NODE_ENV=development
     depends_on:
       - mysql
       - redis

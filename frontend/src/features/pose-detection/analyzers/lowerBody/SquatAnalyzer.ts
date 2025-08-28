@@ -43,7 +43,7 @@ export class SquatAnalyzer extends BaseAnalyzer {
       currentCount: this.stateRef.count,
       isCorrectForm: isDown || isUp,
       feedback: this.getSquatFeedback(was),
-      confidence: this.calculateConfidence([this.stateRef.phase === 'down' ? 0.8 : 0.9])
+      confidence: this.stateRef.phase === 'down' ? 0.8 : 0.9
     };
   }
   

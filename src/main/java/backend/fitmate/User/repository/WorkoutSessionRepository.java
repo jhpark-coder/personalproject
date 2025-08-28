@@ -65,4 +65,9 @@ public interface WorkoutSessionRepository extends JpaRepository<WorkoutSession, 
      */
     @Query("SELECT ws FROM WorkoutSession ws JOIN ws.feedback sf WHERE ws.user = :user AND ws.goal = :goal AND sf.completionRate IS NOT NULL")
     List<WorkoutSession> findSessionsWithCompletionRateByGoal(@Param("user") User user, @Param("goal") String goal);
+    
+    /**
+     * 특정 날짜 이후의 사용자 세션 조회
+     */
+    List<WorkoutSession> findByUserAndSessionDateAfter(User user, LocalDateTime fromDate);
 }
