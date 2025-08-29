@@ -101,7 +101,7 @@ const PoseDetector: React.FC = () => {
         addLog('아직 포즈 미검출(프레임)');
       }
     }
-  }, [addLog, selectedExercise]);
+  }, [addLog, selectedExercise, analyzeExercise, drawPoseOnCanvas]);
 
   // Pose 인스턴스 생성
   const createPose = useCallback(() => {
@@ -272,6 +272,8 @@ const PoseDetector: React.FC = () => {
     rafId.current = requestAnimationFrame(() => loop());
   }, [pose, isDetecting, addLog, resetPose]);
 
+  // 불필요한 stableFunctions 제거됨
+
   // 분석기 인스턴스들을 카테고리별로 그룹화
   const analyzers = useMemo(() => ({
     squat: new SquatAnalyzer(),
@@ -284,7 +286,7 @@ const PoseDetector: React.FC = () => {
   }), []);
 
   // 운동 분석 함수 단순화
-  const analyzeExercise = (landmarks: any[], type: ExerciseType): ExerciseAnalysis => {
+  const analyzeExercise = useCallback((landmarks: any[], type: ExerciseType): ExerciseAnalysis => {
     const analyzer = analyzers[type];
     if (analyzer) {
       return analyzer.analyze(landmarks);
@@ -297,7 +299,7 @@ const PoseDetector: React.FC = () => {
       feedback: '분석기를 찾을 수 없습니다',
       confidence: 0
     };
-  };
+  }, [analyzers]);
 
   // 각도 계산/도우미
   const calculateAngle = (p1: any, p2: any, p3: any): number => {
@@ -307,7 +309,7 @@ const PoseDetector: React.FC = () => {
   const avg = (a: number, b: number) => (a + b) / 2;
 
   // 캔버스에 포즈 그리기
-  const drawPoseOnCanvas = (landmarks: any[]) => {
+  const drawPoseOnCanvas = useCallback((landmarks: any[]) => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
     if (!canvas || !ctx) return;
@@ -355,7 +357,7 @@ const PoseDetector: React.FC = () => {
         ctx.stroke();
       }
     });
-  };
+  }, []);
 
   // 컴포넌트 마운트 시 초기화 + 환경 로그
   useEffect(() => {
@@ -365,13 +367,24 @@ const PoseDetector: React.FC = () => {
       secure: window.isSecureContext,
       href: location.href
     });
+    
     initializeMediaPipe();
-    // RAF 루프 시작
-    rafId.current = requestAnimationFrame(() => loop());
+    
     return () => {
       if (rafId.current) cancelAnimationFrame(rafId.current);
     };
-  }, [initializeMediaPipe, addLog, loop]);
+  }, [addLog, initializeMediaPipe]);
+  
+  // RAF 루프 시작 - pose가 준비되면 자동으로 시작
+  useEffect(() => {
+    if (!pose) return;
+    
+    rafId.current = requestAnimationFrame(loop);
+    
+    return () => {
+      if (rafId.current) cancelAnimationFrame(rafId.current);
+    };
+  }, [pose, loop]);
 
   // 뷰포트 변경 시 캔버스 재동기화
   useEffect(() => {
@@ -380,11 +393,17 @@ const PoseDetector: React.FC = () => {
     return () => window.removeEventListener('resize', onResize);
   }, [syncCanvasToVideo]);
 
-  // 운동 선택 변경 시 상태 초기화
+  // 운동 선택 변경 시 상태 초기화 및 Pose 콜백 업데이트
   useEffect(() => {
     stateRef.current = { phase: 'up', count: 0 };
     setExerciseAnalysis(a => ({ ...a, exerciseType: selectedExercise, currentCount: 0 }));
-  }, [selectedExercise]);
+    firstDetectionLogged.current = false;
+    
+    // Pose 인스턴스가 있으면 onResults 콜백을 새로 설정
+    if (pose) {
+      pose.onResults(onResults);
+    }
+  }, [selectedExercise, pose, onResults]);
 
   return (
     <div className="pose-detector">
