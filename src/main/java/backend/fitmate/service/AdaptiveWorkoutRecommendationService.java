@@ -49,93 +49,48 @@ public class AdaptiveWorkoutRecommendationService {
     private WorkoutSessionRepository workoutSessionRepository;
     
     /**
-     * 적응형 운동 추천 생성 (모션 분석 결과 반영)
+     * 적응형 운동 추천 생성 - 강화된 피드백 기반 학습
      */
     public Map<String, Object> generateAdaptiveRecommendation(User user, Map<String, Object> requestData) {
         log.info("적응형 운동 추천 생성 시작: userId={}", user.getId());
-
+        
         // 사용자 피트니스 프로필 계산
         UserFitnessProfile profile = profileService.calculateProfile(user);
-
-        // 요청 데이터에서 목표와 시간 추출
+        
+        // 최근 피드백 데이터 분석
+        FeedbackAnalysis feedbackAnalysis = analyzeFeedbackHistory(user, 14); // 최근 2주
+        
+        // 요청 데이터에서 목표와 시간 추출 (피드백 기반 조정 적용)
         String goal = (String) requestData.getOrDefault("goal", user.getGoal() != null ? user.getGoal() : "diet");
-        Integer targetDuration = Integer.parseInt(requestData.getOrDefault("targetDuration", "45").toString());
-
-        // 모션 분석 결과 추출 (있는 경우)
-        Map<String, Object> motionAnalysis = (Map<String, Object>) requestData.get("motionAnalysis");
-
-        // 적응형 운동 선택 (모션 분석 결과 반영)
-        List<Map<String, Object>> selectedExercises = selectAdaptiveExercises(user, profile, goal, targetDuration, motionAnalysis);
-
+        Integer baseDuration = Integer.parseInt(requestData.getOrDefault("targetDuration", "45").toString());
+        Integer adjustedDuration = adjustDurationBasedOnFeedback(baseDuration, feedbackAnalysis);
+        
+        // 적응형 운동 선택 (피드백 데이터 반영)
+        List<Map<String, Object>> selectedExercises = selectAdaptiveExercisesWithFeedback(user, profile, goal, adjustedDuration, feedbackAnalysis);
+        
         // 운동 계획 구성
         Map<String, Object> workoutPlan = createAdaptiveWorkoutPlan(selectedExercises, profile);
-
+        
         // 추천 결과 구성
         Map<String, Object> recommendation = new HashMap<>();
         recommendation.put("userProfile", createEnhancedUserProfile(user, profile));
         recommendation.put("workoutPlan", workoutPlan);
         recommendation.put("estimatedCalories", calculateAdaptiveCalories(selectedExercises, user));
-        recommendation.put("totalDuration", targetDuration);
-        recommendation.put("recommendations", generatePersonalizedTips(user, profile));
+        recommendation.put("totalDuration", adjustedDuration);
+        recommendation.put("recommendations", generatePersonalizedTipsWithFeedback(user, profile, feedbackAnalysis));
         recommendation.put("adaptationInfo", createAdaptationInfo(profile));
-
-        // 모션 기반 인사이트 추가
-        if (motionAnalysis != null) {
-            recommendation.put("motionInsights", generateMotionBasedInsights(motionAnalysis));
-        }
-
-        log.info("적응형 운동 추천 완료: userId={}, 신뢰도={}, 추천운동수={}, 모션분석포함={}",
-                user.getId(), profile.getConfidenceScore(), selectedExercises.size(), motionAnalysis != null);
-
+        recommendation.put("feedbackInsights", createFeedbackInsights(feedbackAnalysis));
+        
+        log.info("적응형 운동 추천 완료: userId={}, 신뢰도={}, 추천운동수={}, 피드백분석={}회", 
+                user.getId(), profile.getConfidenceScore(), selectedExercises.size(), feedbackAnalysis.totalSessions());
+        
         return recommendation;
-    }
-
-    /**
-     * 운동 세션 결과로부터 학습하여 사용자 프로필 업데이트
-     */
-    @Transactional
-    public void learnFromWorkoutSession(WorkoutSession session) {
-        User user = session.getUser();
-        if (user == null) return;
-
-        double performanceScore = 0.0;
-        int exerciseCount = 0;
-
-        for (ExerciseExecution execution : session.getExerciseExecutions()) {
-            exerciseCount++;
-            // For simplicity, we assume a target of 10 reps. 
-            // A real implementation would fetch the target from the workout plan.
-            int targetReps = 10; 
-            if (execution.getCompletedReps() >= targetReps) {
-                performanceScore += 1.0; // Succeeded
-            } else if (execution.getCompletedReps() > 0) {
-                performanceScore += 0.5; // Partially succeeded
-            }
-        }
-
-        if (exerciseCount > 0) {
-            double averagePerformance = performanceScore / exerciseCount;
-            double currentFitnessLevel = user.getFitnessLevel() != null ? user.getFitnessLevel() : 0.5;
-            
-            // Adjust fitness level based on performance
-            double adjustment = (averagePerformance - 0.5) * 0.05; // Max change per session is 0.025
-            double newFitnessLevel = currentFitnessLevel + adjustment;
-            
-            // Clamp the value between 0.1 and 1.0
-            newFitnessLevel = Math.max(0.1, Math.min(1.0, newFitnessLevel));
-
-            user.setFitnessLevel(newFitnessLevel);
-            // The user is attached to the session, so saving it should cascade.
-            // Explicitly saving the user is safer depending on cascade settings.
-            // userRepository.save(user); // Assuming a userRepository is injected.
-            log.info("Updated fitness level for user {}: {}", user.getId(), newFitnessLevel);
-        }
     }
     
     /**
-     * 적응형 운동 선택 알고리즘 (모션 분석 결과 반영)
+     * 적응형 운동 선택 알고리즘
      */
-    private List<Map<String, Object>> selectAdaptiveExercises(User user, UserFitnessProfile profile, String goal, int targetDuration, Map<String, Object> motionAnalysis) {
+    private List<Map<String, Object>> selectAdaptiveExercises(User user, UserFitnessProfile profile, String goal, int targetDuration) {
         // 1. 목표별 운동 후보군 구성
         List<String> candidateExercises = buildExercisePool(goal);
         
@@ -157,21 +112,14 @@ public class AdaptiveWorkoutRecommendationService {
                 .map(UserExercisePreference::getExerciseName)
                 .collect(Collectors.toList());
         
-        // 운동 선택 (균형과 다양성 고려) - 경험별 동적 조정
-        int maxExercises = switch (profile.getExperienceLevel() != null ? profile.getExperienceLevel() : "intermediate") {
-            case "beginner" -> 5;
-            case "intermediate" -> 7;
-            case "advanced" -> 10;
-            default -> 7;
-        };
-        
+        // 운동 선택 (균형과 다양성 고려)
         Map<String, Integer> targetCounts = Map.of(
-                "상체", 3, "하체", 3, "코어", 2, "전신", 3
+                "상체", 2, "하체", 2, "코어", 1, "전신", 2
         );
         Map<String, Integer> currentCounts = new HashMap<>();
         
         for (ScoredExercise scored : scoredExercises) {
-            if (selectedExercises.size() >= maxExercises) break;
+            if (selectedExercises.size() >= 7) break; // 최대 7개 운동
             
             String exerciseName = scored.exerciseName();
             
@@ -187,21 +135,14 @@ public class AdaptiveWorkoutRecommendationService {
             int currentCount = currentCounts.getOrDefault(target, 0);
             int targetCount = targetCounts.getOrDefault(target, 1);
             
-            if (currentCount < targetCount || selectedExercises.size() < Math.min(5, maxExercises)) {
+            if (currentCount < targetCount || selectedExercises.size() < 5) {
                 selectedExercises.add(exercise);
                 currentCounts.put(target, currentCount + 1);
             }
         }
         
-        // 최소 운동 개수 보장 (경험별)
-        int minExercises = switch (profile.getExperienceLevel() != null ? profile.getExperienceLevel() : "intermediate") {
-            case "beginner" -> 3;
-            case "intermediate" -> 5;
-            case "advanced" -> 7;
-            default -> 5;
-        };
-        
-        while (selectedExercises.size() < minExercises && !candidateExercises.isEmpty()) {
+        // 최소 5개 운동 보장
+        while (selectedExercises.size() < 5 && !candidateExercises.isEmpty()) {
             for (String exercise : candidateExercises) {
                 if (selectedExercises.stream().noneMatch(e -> e.get("name").equals(exercise))) {
                     selectedExercises.add(createAdaptiveExercise(user, profile, exercise, 0.5));
@@ -340,7 +281,7 @@ public class AdaptiveWorkoutRecommendationService {
      */
     private MotionCoachMetrics getMotionCoachMetrics(User user, String exerciseName) {
         LocalDateTime fromDate = LocalDateTime.now().minusDays(30); // 최근 30일
-        List<WorkoutSession> sessions = workoutSessionRepository.findRecentSessions(user, fromDate);
+        List<WorkoutSession> sessions = workoutSessionRepository.findByUserAndSessionDateAfter(user, fromDate);
         
         List<ExerciseExecution> motionCoachExecutions = sessions.stream()
                 .flatMap(session -> session.getExerciseExecutions().stream())
@@ -394,183 +335,27 @@ public class AdaptiveWorkoutRecommendationService {
     }
     
     /**
-     * MotionCoach 점수 계산 (실시간 모션 분석 반영)
+     * MotionCoach 점수 계산
      */
     private double calculateMotionCoachScore(MotionCoachMetrics metrics) {
         if (metrics.dataPoints() == 0) {
             return 0.5; // 데이터가 없으면 중립
         }
-
+        
         double score = 0.0;
-
+        
         // 완료율 점수 (40%)
         score += metrics.avgCompletionRate() * 0.4;
-
+        
         // 자세 정확도 점수 (40%)
         score += metrics.avgFormAccuracy() * 0.4;
-
+        
         // 개선 추세 점수 (20%)
         // 개선되고 있으면 높은 점수, 악화되면 낮은 점수
         double trendScore = 0.5 + (metrics.improvementTrend() * 0.5); // 0.0 ~ 1.0으로 정규화
         score += Math.max(0.0, Math.min(1.0, trendScore)) * 0.2;
-
+        
         return Math.max(0.0, Math.min(1.0, score));
-    }
-
-    /**
-     * 실시간 모션 분석 기반 점수 보정
-     */
-    private double calculateRealTimeMotionAdjustment(String exerciseName, Map<String, Object> motionAnalysis) {
-        if (motionAnalysis == null) {
-            return 0.0; // 모션 분석 데이터가 없으면 보정 없음
-        }
-
-        double adjustment = 0.0;
-
-        try {
-            // 현재 운동과 관련된 모션 데이터 추출
-            Map<String, Object> currentExerciseAnalysis = (Map<String, Object>) motionAnalysis.get(exerciseName);
-            if (currentExerciseAnalysis == null) {
-                return 0.0;
-            }
-
-            // 평균 신뢰도
-            Double avgConfidence = (Double) currentExerciseAnalysis.getOrDefault("avgConfidence", 0.0);
-            if (avgConfidence > 0.8) {
-                adjustment += 0.1; // 높은 신뢰도는 긍정적
-            } else if (avgConfidence < 0.5) {
-                adjustment -= 0.1; // 낮은 신뢰도는 부정적
-            }
-
-            // 폼 평가 점수
-            Double formScore = (Double) currentExerciseAnalysis.getOrDefault("formScore", 0.0);
-            if (formScore > 80) {
-                adjustment += 0.15; // 좋은 폼은 추천 증가
-            } else if (formScore < 60) {
-                adjustment -= 0.2; // 나쁜 폼은 추천 감소
-            }
-
-            // 개선 필요 영역
-            @SuppressWarnings("unchecked")
-            List<String> issues = (List<String>) currentExerciseAnalysis.getOrDefault("issues", new ArrayList<>());
-            if (issues.contains("깊이가 부족")) {
-                adjustment -= 0.05; // 깊이 부족은 약간 감소
-            }
-            if (issues.contains("자세 불안정")) {
-                adjustment -= 0.1; // 자세 불안정은 크게 감소
-            }
-
-            // 개선 강점
-            @SuppressWarnings("unchecked")
-            List<String> strengths = (List<String>) currentExerciseAnalysis.getOrDefault("strengths", new ArrayList<>());
-            if (strengths.contains("균형 좋음")) {
-                adjustment += 0.1; // 균형 좋음은 긍정적
-            }
-
-            log.debug("실시간 모션 분석 보정: {} - 조정값={}", exerciseName, adjustment);
-
-        } catch (Exception e) {
-            log.warn("실시간 모션 분석 보정 계산 중 오류: {}", e.getMessage());
-        }
-
-        return Math.max(-0.3, Math.min(0.3, adjustment)); // -0.3 ~ 0.3 범위 제한
-    }
-
-    /**
-     * 모션 기반 인사이트 생성
-     */
-    private Map<String, Object> generateMotionBasedInsights(Map<String, Object> motionAnalysis) {
-        Map<String, Object> insights = new HashMap<>();
-
-        if (motionAnalysis == null) {
-            insights.put("available", false);
-            insights.put("message", "모션 분석 데이터가 없습니다");
-            return insights;
-        }
-
-        List<String> recommendations = new ArrayList<>();
-        List<String> strengths = new ArrayList<>();
-        List<String> concerns = new ArrayList<>();
-
-        try {
-            // 운동별 분석
-            for (Map.Entry<String, Object> entry : motionAnalysis.entrySet()) {
-                String exerciseName = entry.getKey();
-                @SuppressWarnings("unchecked")
-                Map<String, Object> analysis = (Map<String, Object>) entry.getValue();
-
-                Double formScore = (Double) analysis.getOrDefault("formScore", 0.0);
-                @SuppressWarnings("unchecked")
-                List<String> issues = (List<String>) analysis.getOrDefault("issues", new ArrayList<>());
-                @SuppressWarnings("unchecked")
-                List<String> exerciseStrengths = (List<String>) analysis.getOrDefault("strengths", new ArrayList<>());
-
-                if (formScore > 85) {
-                    strengths.add(exerciseName + " 자세가 매우 좋습니다");
-                } else if (formScore < 70) {
-                    concerns.add(exerciseName + " 자세에 개선이 필요합니다");
-                }
-
-                // 문제점 기반 추천
-                if (issues.contains("깊이가 부족")) {
-                    recommendations.add(exerciseName + "는 더 깊게 수행해보세요");
-                }
-                if (issues.contains("자세 불안정")) {
-                    recommendations.add(exerciseName + "는 코어를 더 단단히 조이세요");
-                }
-
-                strengths.addAll(exerciseStrengths.stream()
-                    .map(strength -> exerciseName + ": " + strength)
-                    .collect(Collectors.toList()));
-            }
-
-            insights.put("available", true);
-            insights.put("recommendations", recommendations);
-            insights.put("strengths", strengths);
-            insights.put("concerns", concerns);
-            insights.put("overallAssessment", generateOverallAssessment(motionAnalysis));
-
-        } catch (Exception e) {
-            log.warn("모션 기반 인사이트 생성 중 오류: {}", e.getMessage());
-            insights.put("available", false);
-            insights.put("error", e.getMessage());
-        }
-
-        return insights;
-    }
-
-    /**
-     * 전체 평가 생성
-     */
-    private String generateOverallAssessment(Map<String, Object> motionAnalysis) {
-        double avgFormScore = 0.0;
-        int count = 0;
-
-        for (Object analysis : motionAnalysis.values()) {
-            if (analysis instanceof Map) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> analysisMap = (Map<String, Object>) analysis;
-                Double formScore = (Double) analysisMap.getOrDefault("formScore", 0.0);
-                avgFormScore += formScore;
-                count++;
-            }
-        }
-
-        if (count == 0) {
-            return "분석할 데이터가 부족합니다";
-        }
-
-        avgFormScore /= count;
-
-        if (avgFormScore > 85) {
-            return "탁월한 운동 자세입니다! 현재 페이스를 유지하세요";
-        } else if (avgFormScore > 75) {
-            return "좋은 운동 자세입니다. 작은 개선점들을 확인해보세요";
-        } else if (avgFormScore > 65) {
-            return "기초적인 자세가 잘 잡혀있습니다. 꾸준한 연습으로 개선해보세요";
-        } else {
-            return "자세 개선이 필요합니다. 전문가의 도움을 받아보세요";
-        }
     }
     
     /**
@@ -578,7 +363,7 @@ public class AdaptiveWorkoutRecommendationService {
      */
     private double calculateSessionFeedbackScore(User user, String exerciseName) {
         LocalDateTime fromDate = LocalDateTime.now().minusDays(21); // 최근 3주
-        List<WorkoutSession> sessions = workoutSessionRepository.findRecentSessions(user, fromDate);
+        List<WorkoutSession> sessions = workoutSessionRepository.findByUserAndSessionDateAfter(user, fromDate);
         
         List<SessionFeedback> relevantFeedbacks = sessions.stream()
                 .filter(session -> session.getExerciseExecutions().stream()
@@ -676,12 +461,12 @@ public class AdaptiveWorkoutRecommendationService {
      */
     private List<String> buildExercisePool(String goal) {
         return switch (goal) {
-            case "diet" -> List.of("squat", "pushup", "plank", "lunge", "calf_raise", "burpee", "mountain_climber", "점핑잭", "하이 니즈", "벗 킥스");
-            case "strength" -> List.of("squat", "pushup", "plank", "lunge", "calf_raise", "burpee", "턱걸이", "딥스", "데드리프트", "바벨 로우");
-            case "body" -> List.of("squat", "pushup", "plank", "lunge", "calf_raise", "mountain_climber", "크런치", "사이드 플랭크", "러시안 트위스트");
-            case "fitness" -> List.of("squat", "pushup", "lunge", "plank", "calf_raise", "burpee", "mountain_climber", "점핑잭", "하이 니즈", "스텝업");
-            case "stamina" -> List.of("squat", "lunge", "calf_raise", "burpee", "mountain_climber", "제자리 뛰기", "버피 테스트", "점핑잭", "하이 니즈");
-            default -> List.of("squat", "pushup", "plank", "lunge", "calf_raise", "burpee", "mountain_climber");
+            case "diet" -> List.of("squat", "pushup", "plank", "lunge", "calf_raise", "점핑잭", "마운틴 클라이머");
+            case "strength" -> List.of("squat", "pushup", "plank", "lunge", "턱걸이", "딥스", "데드리프트");
+            case "body" -> List.of("squat", "pushup", "plank", "lunge", "calf_raise", "크런치", "사이드 플랭크");
+            case "fitness" -> List.of("squat", "pushup", "lunge", "plank", "calf_raise", "점핑잭", "마운틴 클라이머");
+            case "stamina" -> List.of("squat", "lunge", "calf_raise", "제자리 뛰기", "마운틴 클라이머", "버피 테스트");
+            default -> List.of("squat", "pushup", "plank", "lunge", "calf_raise");
         };
     }
     
@@ -752,7 +537,7 @@ public class AdaptiveWorkoutRecommendationService {
         
         // 최근 30일간의 MotionCoach 데이터 분석
         LocalDateTime fromDate = LocalDateTime.now().minusDays(30);
-        List<WorkoutSession> motionCoachSessions = workoutSessionRepository.findRecentSessions(user, fromDate)
+        List<WorkoutSession> motionCoachSessions = workoutSessionRepository.findByUserAndSessionDateAfter(user, fromDate)
                 .stream()
                 .filter(session -> {
                     SessionFeedback feedback = session.getFeedback();
@@ -975,8 +760,232 @@ public class AdaptiveWorkoutRecommendationService {
         }
     }
     
+    /**
+     * 피드백 히스토리 분석
+     */
+    private FeedbackAnalysis analyzeFeedbackHistory(User user, int days) {
+        LocalDateTime fromDate = LocalDateTime.now().minusDays(days);
+        List<WorkoutSession> recentSessions = workoutSessionRepository.findByUserAndSessionDateAfter(user, fromDate);
+        
+        List<SessionFeedback> feedbacks = recentSessions.stream()
+                .map(WorkoutSession::getFeedback)
+                .filter(feedback -> feedback != null)
+                .collect(Collectors.toList());
+        
+        if (feedbacks.isEmpty()) {
+            return new FeedbackAnalysis(0.0, 3.0, 3.0, 0.0, 0, new HashMap<>(), new HashMap<>());
+        }
+        
+        // 평균 만족도
+        double avgSatisfaction = feedbacks.stream()
+                .filter(f -> f.getSatisfaction() != null)
+                .mapToInt(SessionFeedback::getSatisfaction)
+                .average()
+                .orElse(3.0);
+        
+        // 평균 난이도
+        double avgDifficulty = feedbacks.stream()
+                .filter(f -> f.getOverallDifficulty() != null)
+                .mapToInt(SessionFeedback::getOverallDifficulty)
+                .average()
+                .orElse(3.0);
+        
+        // 평균 완료율
+        double avgCompletionRate = feedbacks.stream()
+                .filter(f -> f.getCompletionRate() != null)
+                .mapToDouble(f -> f.getCompletionRate().doubleValue())
+                .average()
+                .orElse(0.8);
+        
+        // 재선택 의향 비율
+        double wouldRepeatRatio = feedbacks.stream()
+                .filter(f -> f.getWouldRepeat() != null)
+                .mapToDouble(f -> f.getWouldRepeat() ? 1.0 : 0.0)
+                .average()
+                .orElse(0.8);
+        
+        // 운동별 성과 맵
+        Map<String, Double> exercisePerformance = new HashMap<>();
+        Map<String, Integer> exerciseCounts = new HashMap<>();
+        
+        for (WorkoutSession session : recentSessions) {
+            for (ExerciseExecution execution : session.getExerciseExecutions()) {
+                String exerciseName = execution.getExerciseName();
+                double performance = execution.getCompletionRate() != null ? execution.getCompletionRate() : 0.8;
+                
+                exercisePerformance.merge(exerciseName, performance, Double::sum);
+                exerciseCounts.merge(exerciseName, 1, Integer::sum);
+            }
+        }
+        
+        // 평균 성과 계산
+        Map<String, Double> avgExercisePerformance = new HashMap<>();
+        for (String exercise : exercisePerformance.keySet()) {
+            double totalPerf = exercisePerformance.get(exercise);
+            int count = exerciseCounts.get(exercise);
+            avgExercisePerformance.put(exercise, totalPerf / count);
+        }
+        
+        return new FeedbackAnalysis(avgSatisfaction, avgDifficulty, avgCompletionRate, 
+                wouldRepeatRatio, feedbacks.size(), avgExercisePerformance, exerciseCounts);
+    }
+    
+    /**
+     * 피드백 기반 운동 시간 조정
+     */
+    private Integer adjustDurationBasedOnFeedback(Integer baseDuration, FeedbackAnalysis feedbackAnalysis) {
+        if (feedbackAnalysis.totalSessions() < 2) {
+            return baseDuration; // 데이터 부족시 조정 없음
+        }
+        
+        double adjustmentFactor = 0.0;
+        
+        // 난이도가 계속 어렵다고 평가되면 시간 단축
+        if (feedbackAnalysis.avgDifficulty() >= 4.0) {
+            adjustmentFactor -= 0.15; // 15% 단축
+        } else if (feedbackAnalysis.avgDifficulty() <= 2.0) {
+            adjustmentFactor += 0.1; // 10% 연장
+        }
+        
+        // 완료율이 낮으면 시간 단축
+        if (feedbackAnalysis.avgCompletionRate() < 0.7) {
+            adjustmentFactor -= 0.1; // 10% 단축
+        } else if (feedbackAnalysis.avgCompletionRate() > 0.95) {
+            adjustmentFactor += 0.05; // 5% 연장
+        }
+        
+        // 만족도가 낮으면 조정
+        if (feedbackAnalysis.avgSatisfaction() < 2.5) {
+            adjustmentFactor -= 0.1; // 부담 줄이기
+        }
+        
+        int adjustedDuration = (int) Math.round(baseDuration * (1.0 + adjustmentFactor));
+        return Math.max(15, Math.min(60, adjustedDuration)); // 15-60분 범위 제한
+    }
+    
+    /**
+     * 피드백 데이터를 반영한 적응형 운동 선택
+     */
+    private List<Map<String, Object>> selectAdaptiveExercisesWithFeedback(User user, UserFitnessProfile profile, 
+            String goal, Integer targetDuration, FeedbackAnalysis feedbackAnalysis) {
+        
+        // 기본 운동 선택 로직 실행
+        List<Map<String, Object>> baseExercises = selectAdaptiveExercises(user, profile, goal, targetDuration);
+        
+        // 피드백 기반 운동 조정
+        return baseExercises.stream()
+                .map(exercise -> adjustExerciseBasedOnFeedback(exercise, feedbackAnalysis))
+                .collect(Collectors.toList());
+    }
+    
+    /**
+     * 개별 운동을 피드백 기반으로 조정
+     */
+    private Map<String, Object> adjustExerciseBasedOnFeedback(Map<String, Object> exercise, FeedbackAnalysis feedbackAnalysis) {
+        String exerciseName = (String) exercise.get("name");
+        
+        // 해당 운동의 과거 성과 확인
+        Double pastPerformance = feedbackAnalysis.exercisePerformance().get(exerciseName);
+        Integer pastCount = feedbackAnalysis.exerciseCounts().get(exerciseName);
+        
+        Map<String, Object> adjustedExercise = new HashMap<>(exercise);
+        
+        if (pastPerformance != null && pastCount != null && pastCount >= 2) {
+            // 성과가 좋았던 운동은 난이도 증가
+            if (pastPerformance > 0.9) {
+                int currentSets = (Integer) adjustedExercise.get("sets");
+                int currentReps = (Integer) adjustedExercise.get("reps");
+                adjustedExercise.put("sets", Math.min(currentSets + 1, 5));
+                adjustedExercise.put("reps", Math.min((int)(currentReps * 1.1), 25));
+                adjustedExercise.put("personalizedTip", "이전에 잘 했던 운동이에요! 조금 더 도전해보세요 💪");
+            }
+            // 성과가 나빴던 운동은 난이도 감소
+            else if (pastPerformance < 0.6) {
+                int currentSets = (Integer) adjustedExercise.get("sets");
+                int currentReps = (Integer) adjustedExercise.get("reps");
+                adjustedExercise.put("sets", Math.max(currentSets - 1, 2));
+                adjustedExercise.put("reps", Math.max((int)(currentReps * 0.9), 8));
+                adjustedExercise.put("personalizedTip", "이번엔 좀 더 편안하게 시작해보세요 😊");
+            }
+        }
+        
+        return adjustedExercise;
+    }
+    
+    /**
+     * 피드백 기반 개인화된 팁 생성
+     */
+    private List<String> generatePersonalizedTipsWithFeedback(User user, UserFitnessProfile profile, FeedbackAnalysis feedbackAnalysis) {
+        List<String> tips = new ArrayList<>();
+        
+        // 기본 개인화된 팁 추가
+        tips.addAll(generatePersonalizedTips(user, profile));
+        
+        // 피드백 기반 추가 팁
+        if (feedbackAnalysis.totalSessions() >= 3) {
+            // 만족도 기반 팁
+            if (feedbackAnalysis.avgSatisfaction() >= 4.0) {
+                tips.add("🌟 최근 운동 만족도가 높네요! 이 페이스를 유지하세요");
+            } else if (feedbackAnalysis.avgSatisfaction() < 2.5) {
+                tips.add("🤔 운동이 맞지 않는 것 같아요. 오늘은 다른 스타일을 시도해보세요");
+            }
+            
+            // 난이도 기반 팁
+            if (feedbackAnalysis.avgDifficulty() >= 4.5) {
+                tips.add("😅 최근 운동이 힘드셨나요? 오늘은 강도를 조금 낮췄어요");
+            } else if (feedbackAnalysis.avgDifficulty() <= 2.0) {
+                tips.add("💪 준비되셨나요? 이번엔 조금 더 도전적으로 구성했어요");
+            }
+            
+            // 완주율 기반 팁
+            if (feedbackAnalysis.avgCompletionRate() < 0.7) {
+                tips.add("🎯 완주에 집중해보세요. 세트 수를 줄이고 정확하게!");
+            } else if (feedbackAnalysis.avgCompletionRate() > 0.95) {
+                tips.add("🏆 완벽한 완주율! 이제 강도를 높일 때입니다");
+            }
+        }
+        
+        return tips;
+    }
+    
+    /**
+     * 피드백 인사이트 생성
+     */
+    private Map<String, Object> createFeedbackInsights(FeedbackAnalysis feedbackAnalysis) {
+        Map<String, Object> insights = new HashMap<>();
+        
+        if (feedbackAnalysis.totalSessions() >= 2) {
+            insights.put("recentSatisfaction", String.format("%.1f/5.0", feedbackAnalysis.avgSatisfaction()));
+            insights.put("difficultyTrend", getDifficultyTrendLabel(feedbackAnalysis.avgDifficulty()));
+            insights.put("completionTrend", String.format("%.1f%%", feedbackAnalysis.avgCompletionRate() * 100));
+            insights.put("motivationLevel", feedbackAnalysis.wouldRepeatRatio() > 0.8 ? "높음" : 
+                                          feedbackAnalysis.wouldRepeatRatio() > 0.5 ? "보통" : "낮음");
+            
+            // 가장 성과가 좋았던 운동
+            String bestExercise = feedbackAnalysis.exercisePerformance().entrySet().stream()
+                    .max(Map.Entry.comparingByValue())
+                    .map(Map.Entry::getKey)
+                    .orElse(null);
+            if (bestExercise != null) {
+                insights.put("bestPerformingExercise", bestExercise);
+            }
+        } else {
+            insights.put("message", "더 많은 운동 기록이 있으면 더 정확한 분석이 가능해요!");
+        }
+        
+        return insights;
+    }
+    
+    private String getDifficultyTrendLabel(double avgDifficulty) {
+        if (avgDifficulty >= 4.0) return "최근 운동이 어려워요";
+        else if (avgDifficulty <= 2.0) return "더 도전할 준비 됐어요";
+        else return "적절한 난이도 유지 중";
+    }
+
     // 내부 클래스들
     private record ScoredExercise(String exerciseName, double score) {}
     private record ExerciseProgress(double averageCompletionRate, double averageDifficulty, int dataPoints) {}
     private record MotionCoachMetrics(double avgCompletionRate, double avgFormAccuracy, double improvementTrend, int dataPoints) {}
+    private record FeedbackAnalysis(double avgSatisfaction, double avgDifficulty, double avgCompletionRate, 
+            double wouldRepeatRatio, int totalSessions, Map<String, Double> exercisePerformance, Map<String, Integer> exerciseCounts) {}
 }

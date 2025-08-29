@@ -1,6 +1,5 @@
 package backend.fitmate.controller;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -23,17 +22,15 @@ import org.springframework.web.bind.annotation.RestController;
 
 import backend.fitmate.User.entity.SessionFeedback;
 import backend.fitmate.User.entity.User;
-import backend.fitmate.User.repository.SessionFeedbackRepository;
+import backend.fitmate.User.entity.WorkoutSession;
 import backend.fitmate.User.repository.UserRepository;
 import backend.fitmate.User.repository.WorkoutSessionRepository;
 import backend.fitmate.User.service.UserService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
 
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/users")
-@Slf4j
 public class UserController {
 
     private final UserRepository userRepository;
@@ -43,9 +40,6 @@ public class UserController {
     
     @Autowired
     private WorkoutSessionRepository workoutSessionRepository;
-    
-    @Autowired
-    private SessionFeedbackRepository sessionFeedbackRepository;
 
     @GetMapping("/search")
     public ResponseEntity<?> search(
@@ -229,11 +223,16 @@ public class UserController {
                 ));
             }
             
-            // 최근 피드백 데이터를 직접 조회 (세션 LAZY 로딩 회피)
+            // 최근 피드백 데이터 분석
             LocalDateTime fromDate = LocalDateTime.now().minusDays(days);
-            List<SessionFeedback> feedbacks = sessionFeedbackRepository.findRecentFeedback(user, fromDate);
+            List<WorkoutSession> recentSessions = workoutSessionRepository.findByUserAndSessionDateAfter(user, fromDate);
             
-            if (feedbacks == null || feedbacks.isEmpty()) {
+            List<SessionFeedback> feedbacks = recentSessions.stream()
+                    .map(WorkoutSession::getFeedback)
+                    .filter(feedback -> feedback != null)
+                    .collect(Collectors.toList());
+            
+            if (feedbacks.isEmpty()) {
                 return ResponseEntity.ok(Map.of(
                     "success", true,
                     "feedback", null,
@@ -241,35 +240,32 @@ public class UserController {
                 ));
             }
             
-            // 피드백 통계 계산 (Null 안전 처리)
+            // 피드백 통계 계산
             double avgSatisfaction = feedbacks.stream()
-                    .map(SessionFeedback::getSatisfaction)
-                    .filter(v -> v != null)
-                    .mapToInt(Integer::intValue)
+                    .filter(f -> f.getSatisfaction() != null)
+                    .mapToInt(SessionFeedback::getSatisfaction)
                     .average()
                     .orElse(3.0);
             
             double avgDifficulty = feedbacks.stream()
-                    .map(SessionFeedback::getOverallDifficulty)
-                    .filter(v -> v != null)
-                    .mapToInt(Integer::intValue)
+                    .filter(f -> f.getOverallDifficulty() != null)
+                    .mapToInt(SessionFeedback::getOverallDifficulty)
                     .average()
                     .orElse(3.0);
             
             double avgCompletionRate = feedbacks.stream()
-                    .map(SessionFeedback::getCompletionRate)
-                    .filter(v -> v != null)
-                    .mapToDouble(BigDecimal::doubleValue)
+                    .filter(f -> f.getCompletionRate() != null)
+                    .mapToDouble(f -> f.getCompletionRate().doubleValue())
                     .average()
                     .orElse(0.8);
             
             double wouldRepeatRatio = feedbacks.stream()
-                    .map(SessionFeedback::getWouldRepeat)
-                    .filter(v -> v != null)
-                    .mapToDouble(v -> v ? 1.0 : 0.0)
+                    .filter(f -> f.getWouldRepeat() != null)
+                    .mapToDouble(f -> f.getWouldRepeat() ? 1.0 : 0.0)
                     .average()
                     .orElse(0.8);
             
+            // 피드백 요약 객체 생성
             Map<String, Object> feedbackSummary = new HashMap<>();
             feedbackSummary.put("avgSatisfaction", Math.round(avgSatisfaction * 10.0) / 10.0);
             feedbackSummary.put("avgDifficulty", Math.round(avgDifficulty * 10.0) / 10.0);
@@ -277,7 +273,8 @@ public class UserController {
             feedbackSummary.put("recentSessionCount", feedbacks.size());
             feedbackSummary.put("wouldRepeatRatio", Math.round(wouldRepeatRatio * 100.0) / 100.0);
             
-            String recentDifficulty;
+            // 난이도 트렌드 라벨
+            String recentDifficulty = null;
             if (avgDifficulty >= 4.0) {
                 recentDifficulty = "too_hard";
             } else if (avgDifficulty <= 2.0) {
@@ -293,7 +290,6 @@ public class UserController {
             ));
             
         } catch (Exception e) {
-            log.error("운동 피드백 조회 중 오류 발생: userId={}, days={}, error={}", userId, days, e.getMessage(), e);
             return ResponseEntity.status(500).body(Map.of(
                 "success", false,
                 "message", "운동 피드백 조회 중 오류가 발생했습니다: " + e.getMessage()
