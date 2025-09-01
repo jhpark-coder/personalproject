@@ -1,157 +1,376 @@
-.complete-section {
-  text-align: center;
-  padding: var(--spacing-xl) 0;
+/* 온보딩 완료 페이지 - 현대적이고 축하감 있는 디자인 */
+
+.onboarding-complete-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-lg);
+  position: relative;
+  overflow: hidden;
 }
 
+/* 배경 장식 효과 */
+.onboarding-complete-container::before {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+  animation: float 6s ease-in-out infinite;
+}
+
+.onboarding-complete-container::after {
+  content: '';
+  position: absolute;
+  bottom: -50%;
+  right: -50%;
+  width: 200%;
+  height: 200%;
+  background: radial-gradient(circle, rgba(247, 115, 22, 0.15) 0%, transparent 70%);
+  animation: float 8s ease-in-out infinite reverse;
+}
+
+.complete-content {
+  background: var(--white);
+  border-radius: var(--radius-2xl);
+  padding: var(--spacing-2xl);
+  max-width: 500px;
+  width: 100%;
+  box-shadow: var(--shadow-xl);
+  text-align: center;
+  position: relative;
+  z-index: 10;
+  animation: slideInUp 0.8s ease-out;
+}
+
+/* 성공 아이콘 */
 .success-icon {
   font-size: 4rem;
   margin-bottom: var(--spacing-lg);
-  animation: bounce 1s ease-in-out;
+  animation: celebration 2s ease-in-out;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.1));
 }
 
-@keyframes bounce {
-  0%, 20%, 50%, 80%, 100% {
-    transform: translateY(0);
-  }
-  40% {
-    transform: translateY(-10px);
-  }
-  60% {
-    transform: translateY(-5px);
-  }
-}
-
-.complete-title {
+/* 메인 제목 */
+.complete-content h1 {
   font-size: var(--text-3xl);
   font-weight: 700;
   color: var(--gray-900);
   margin-bottom: var(--spacing-md);
+  background: linear-gradient(135deg, var(--primary), var(--accent-energy));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
 }
 
-.complete-subtitle {
+/* 서브 타이틀 */
+.complete-content > p {
   font-size: var(--text-lg);
   color: var(--gray-600);
   margin-bottom: var(--spacing-2xl);
-  line-height: 1.5;
+  line-height: 1.6;
 }
 
-.summary-section {
-  background-color: var(--gray-50);
-  border-radius: var(--radius-lg);
-  padding: var(--spacing-lg);
-  margin-bottom: var(--spacing-2xl);
-  text-align: left;
+/* 캘린더 옵션 섹션 */
+.calendar-option {
+  background: linear-gradient(135deg, var(--gray-50), var(--primary-light));
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-xl);
+  margin-top: var(--spacing-xl);
+  border: 1px solid rgba(37, 99, 235, 0.1);
 }
 
-.summary-title {
-  font-size: var(--text-lg);
+.calendar-option h3 {
+  font-size: var(--text-xl);
   font-weight: 600;
-  color: var(--gray-900);
-  margin-bottom: var(--spacing-md);
-}
-
-.summary-items {
+  color: var(--primary-dark);
+  margin-bottom: var(--spacing-sm);
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   gap: var(--spacing-sm);
 }
 
-.summary-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--spacing-sm) 0;
-  border-bottom: 1px solid var(--gray-200);
-}
-
-.summary-item:last-child {
-  border-bottom: none;
-}
-
-.summary-label {
-  font-size: var(--text-base);
-  color: var(--gray-600);
-  font-weight: 500;
-}
-
-.summary-value {
-  font-size: var(--text-base);
-  color: var(--gray-900);
-  font-weight: 600;
-}
-
-.features-section {
-  text-align: left;
-}
-
-.features-title {
+.calendar-option h3::before {
+  content: '🗓️';
   font-size: var(--text-lg);
-  font-weight: 600;
-  color: var(--gray-900);
-  margin-bottom: var(--spacing-md);
 }
 
-.features-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+.calendar-option > p {
+  font-size: var(--text-base);
+  color: var(--gray-700);
+  margin-bottom: var(--spacing-lg);
+  line-height: 1.5;
+}
+
+/* 캘린더 혜택 목록 */
+.calendar-benefits {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-xl);
+}
+
+.benefit-item {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  padding: var(--spacing-sm) var(--spacing-md);
+  background: var(--white);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  border: 1px solid rgba(37, 99, 235, 0.1);
+  transition: all 0.3s ease;
+}
+
+.benefit-item:hover {
+  transform: translateX(8px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--primary);
+}
+
+.benefit-icon {
+  font-size: var(--text-lg);
+  min-width: 24px;
+}
+
+.benefit-item span:last-child {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--gray-700);
+}
+
+/* 액션 버튼들 */
+.calendar-actions {
+  display: flex;
+  flex-direction: column;
   gap: var(--spacing-md);
 }
 
-.feature-item {
-  background-color: var(--white);
-  border: 1px solid var(--gray-200);
-  border-radius: var(--radius-md);
-  padding: var(--spacing-md);
-  text-align: center;
-  transition: all 0.2s ease;
+.connect-calendar-btn {
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  color: var(--white);
+  border: none;
+  padding: var(--spacing-md) var(--spacing-xl);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-base);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: var(--shadow-md);
+  position: relative;
+  overflow: hidden;
 }
 
-.feature-item:hover {
-  border-color: var(--primary-blue);
+.connect-calendar-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s ease;
+}
+
+.connect-calendar-btn:hover {
   transform: translateY(-2px);
-  box-shadow: var(--shadow-sm);
+  box-shadow: var(--shadow-lg);
 }
 
-.feature-icon {
-  font-size: var(--text-2xl);
-  margin-bottom: var(--spacing-sm);
+.connect-calendar-btn:hover::before {
+  left: 100%;
 }
 
-.feature-text {
-  font-size: var(--text-sm);
+.connect-calendar-btn:active {
+  transform: translateY(0);
+}
+
+.connect-calendar-btn:disabled {
+  opacity: 0.7;
+  transform: none;
+  cursor: not-allowed;
+}
+
+.skip-calendar-btn {
+  background: var(--white);
   color: var(--gray-700);
+  border: 2px solid var(--gray-200);
+  padding: var(--spacing-md) var(--spacing-xl);
+  border-radius: var(--radius-lg);
+  font-size: var(--text-base);
   font-weight: 500;
-  line-height: 1.4;
+  cursor: pointer;
+  transition: all 0.3s ease;
 }
 
-/* 실외 사용을 위한 개선사항 */
-@media (max-width: 480px) {
-  .complete-title {
+.skip-calendar-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-light);
+}
+
+/* 애니메이션 */
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes celebration {
+  0%, 100% {
+    transform: scale(1) rotate(0deg);
+  }
+  25% {
+    transform: scale(1.1) rotate(-5deg);
+  }
+  50% {
+    transform: scale(1.2) rotate(0deg);
+  }
+  75% {
+    transform: scale(1.1) rotate(5deg);
+  }
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  33% {
+    transform: translate(10px, -10px) rotate(1deg);
+  }
+  66% {
+    transform: translate(-5px, 5px) rotate(-1deg);
+  }
+}
+
+/* 모바일 반응형 */
+@media (max-width: 768px) {
+  .onboarding-complete-container {
+    padding: var(--spacing-md);
+  }
+
+  .complete-content {
+    padding: var(--spacing-xl);
+  }
+
+  .complete-content h1 {
     font-size: var(--text-2xl);
   }
-  
-  .complete-subtitle {
+
+  .complete-content > p {
     font-size: var(--text-base);
   }
-  
-  .features-grid {
-    grid-template-columns: 1fr;
+
+  .success-icon {
+    font-size: 3rem;
   }
-  
-  .summary-item {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--spacing-xs);
+
+  .calendar-option {
+    padding: var(--spacing-lg);
+  }
+}
+
+@media (max-width: 480px) {
+  .complete-content {
+    padding: var(--spacing-lg);
+  }
+
+  .complete-content h1 {
+    font-size: var(--text-xl);
+  }
+
+  .success-icon {
+    font-size: 2.5rem;
+  }
+
+  .calendar-actions {
+    gap: var(--spacing-sm);
+  }
+
+  .connect-calendar-btn,
+  .skip-calendar-btn {
+    padding: var(--spacing-sm) var(--spacing-lg);
+    font-size: var(--text-sm);
+  }
+}
+
+/* 다크모드 대응 (미래 확장성) */
+@media (prefers-color-scheme: dark) {
+  .complete-content {
+    background: var(--gray-800);
+    color: var(--gray-100);
+  }
+
+  .complete-content h1 {
+    color: var(--gray-100);
+  }
+
+  .complete-content > p {
+    color: var(--gray-300);
+  }
+
+  .calendar-option {
+    background: var(--gray-700);
+  }
+
+  .benefit-item {
+    background: var(--gray-700);
+    border-color: var(--gray-600);
+  }
+
+  .skip-calendar-btn {
+    background: var(--gray-700);
+    color: var(--gray-200);
+    border-color: var(--gray-600);
   }
 }
 
 /* 고대비 모드 */
 @media (prefers-contrast: high) {
-  .summary-section {
-    border: 2px solid var(--gray-900);
+  .complete-content {
+    border: 3px solid var(--gray-900);
   }
-  
-  .feature-item {
+
+  .benefit-item {
     border-width: 2px;
   }
-} 
+
+  .connect-calendar-btn,
+  .skip-calendar-btn {
+    border-width: 3px;
+  }
+}
+
+/* 애니메이션 감소 설정 */
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-complete-container::before,
+  .onboarding-complete-container::after {
+    animation: none;
+  }
+
+  .complete-content {
+    animation: none;
+  }
+
+  .success-icon {
+    animation: none;
+  }
+
+  .benefit-item:hover {
+    transform: none;
+  }
+
+  .connect-calendar-btn:hover {
+    transform: none;
+  }
+}

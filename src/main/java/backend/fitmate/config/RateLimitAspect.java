@@ -9,12 +9,12 @@ import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.aspectj.lang.reflect.MethodSignature;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.ApplicationContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -24,13 +24,15 @@ import io.github.bucket4j.BucketConfiguration;
 import io.github.bucket4j.ConsumptionProbe;
 import io.github.bucket4j.distributed.proxy.ProxyManager;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
 
 @Aspect
 @Component
+@ConditionalOnBean(ProxyManager.class)
+@RequiredArgsConstructor
 public class RateLimitAspect {
 
-    @Autowired
-    private ApplicationContext applicationContext;
+    private final ProxyManager<String> proxyManager;
 
     @Around("@annotation(backend.fitmate.config.RateLimit)")
     public Object rateLimit(ProceedingJoinPoint joinPoint) throws Throwable {
@@ -54,9 +56,6 @@ public class RateLimitAspect {
         System.out.println("버킷 이름: " + rateLimitAnnotation.bucketName());
         System.out.println("키 타입: " + rateLimitAnnotation.keyType());
 
-        // ProxyManager 가져오기
-        ProxyManager<String> proxyManager = applicationContext.getBean(ProxyManager.class);
-
         // Rate Limiting 키 생성
         String key = generateKey(rateLimitAnnotation.keyType());
         System.out.println("생성된 키: " + key);
@@ -73,29 +72,12 @@ public class RateLimitAspect {
         if (probe.isConsumed()) {
             // 허용된 경우 원래 메서드 실행
             Object result = joinPoint.proceed();
-            
-            // 토큰 수 표시 제거 - 부정확한 정보 제공 방지
-            // 응답에 남은 토큰 수 추가하는 로직을 완전히 제거
-            // if (result instanceof ResponseEntity) {
-            //     ResponseEntity<?> response = (ResponseEntity<?>) result;
-            //     if (response.getBody() instanceof Map) {
-            //         @SuppressWarnings("unchecked")
-            //         Map<String, Object> responseBody = (Map<String, Object>) response.getBody();
-            //         responseBody.put("remainingTokens", actualRemainingTokens);
-            //         responseBody.put("totalCapacity", getBucketCapacity(rateLimitAnnotation.bucketName()));
-            //     }
-            // }
-            
             return result;
         } else {
             // 제한된 경우 에러 응답 반환
             System.out.println("요청 차단됨 - Rate Limit 초과");
-            
-            // ConsumptionProbe에서 retryAfter 정보도 가져올 수 있습니다.
-            // long waitForRefillSeconds = probe.getNanosToWaitForRefill() / 1_000_000_000; // 나노초를 초로 변환
-            return createRateLimitResponse(); // 기존 로직 유지
+            return createRateLimitResponse();
         }
-        // === 핵심 변경 부분 끝 ===
     }
 
     /**
@@ -232,6 +214,7 @@ public class RateLimitAspect {
     /**
      * 버킷 이름에 따른 용량을 반환합니다.
      */
+    @SuppressWarnings("unused")
     private long getBucketCapacity(String bucketName) {
         switch (bucketName) {
             case "loginBucket":

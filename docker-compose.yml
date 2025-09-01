@@ -35,6 +35,8 @@ services:
       - SPRING_PROFILES_ACTIVE=dev
       - SPRING_DATA_REDIS_HOST=redis
       - SPRING_DATA_REDIS_PORT=6379
+      - ALLOW_SOCIAL_AUTO_SIGNUP=true
+      - COMMUNICATION_SERVER_URL=http://communication-server:3000
     depends_on:
       - mysql
       - redis
@@ -54,6 +56,7 @@ services:
       - MONGODB_URI=mongodb://mongo:27017/communication-server-dev
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - USE_MOCK_SMS=false
     ports:
       - "4000:3000"
     depends_on:

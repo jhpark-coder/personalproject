@@ -37,6 +37,9 @@ export abstract class BaseAnalyzer implements ExerciseAnalyzer {
     this.stateRef = { phase: 'up', count: 0 };
   }
   
+  // External state support - optional override
+  setExternalState?(stateRef: { current: any }): void;
+  
   protected validateLandmarks(landmarks: any[]): boolean {
     return landmarks.every(landmark => landmark && landmark.visibility > 0.3);
   }
@@ -56,6 +59,15 @@ export abstract class BaseAnalyzer implements ExerciseAnalyzer {
       .filter(landmark => landmark && landmark.visibility)
       .map(landmark => landmark.visibility);
     
-    return visibilities.length > 0 ? Math.min(...visibilities) : 0;
+    if (visibilities.length === 0) return 0;
+    
+    // 가중 평균 사용 - 높은 visibility 값에 더 큰 가중치 부여
+    const weightedSum = visibilities.reduce((sum, v) => sum + v * v, 0);
+    const weightSum = visibilities.reduce((sum, v) => sum + v, 0);
+    const weightedAvg = weightSum > 0 ? weightedSum / weightSum : 0;
+    
+    // 최소 신뢰도 보장 - 일부 랜드마크만 보여도 기본 신뢰도 제공
+    const minConfidence = visibilities.length > 0 ? 0.3 : 0;
+    return Math.max(minConfidence, Math.min(1, weightedAvg));
   }
 } 

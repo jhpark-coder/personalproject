@@ -3,8 +3,10 @@ package backend.fitmate.service;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
 
 import backend.fitmate.User.entity.ExerciseExecution;
 import backend.fitmate.User.entity.SessionFeedback;
@@ -41,6 +43,15 @@ public class SessionFeedbackService {
     
     @Autowired
     private UserExercisePreferenceService preferenceService;
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    @Value("${COMMUNICATION_SERVER_URL:http://localhost:4000}")
+    private String communicationServerUrl;
+
+    @Autowired
+    private CalendarService calendarService;
     
     /**
      * 운동 세션 시작
@@ -97,6 +108,19 @@ public class SessionFeedbackService {
         updateExercisePreferences(session, request);
         
         log.info("피드백 저장 완료: sessionId={}, feedbackId={}", sessionId, feedback.getId());
+
+        // 후처리: 알림 생성 및 캘린더 이벤트 자동 생성(에러 무시하고 로깅)
+        try {
+            sendCompletionNotification(session, feedback);
+        } catch (Exception e) {
+            log.warn("알림 생성 실패: {}", e.getMessage());
+        }
+
+        try {
+            createCalendarEventForSession(session);
+        } catch (Exception e) {
+            log.warn("캘린더 이벤트 생성 실패: {}", e.getMessage());
+        }
         
         return feedback;
     }
@@ -222,5 +246,49 @@ public class SessionFeedbackService {
     public WorkoutSession getSessionWithDetails(Long sessionId) {
         return sessionRepository.findById(sessionId)
                 .orElseThrow(() -> new IllegalArgumentException("세션을 찾을 수 없습니다: " + sessionId));
+    }
+
+    /**
+     * 세션 완료 알림 생성 (통신 서버 REST 호출)
+     */
+    private void sendCompletionNotification(WorkoutSession session, SessionFeedback feedback) {
+        if (session.getUser() == null) return;
+        String url = communicationServerUrl + "/api/notifications/create";
+        var payload = new java.util.HashMap<String, Object>();
+        payload.put("senderUserId", 0); // 시스템
+        payload.put("targetUserId", session.getUser().getId());
+        payload.put("message", "운동 세션이 저장되었습니다. 수고하셨어요!");
+        payload.put("type", "WORKOUT_COMPLETED");
+        payload.put("category", "ADMIN");
+        payload.put("link", "/calendar");
+        restTemplate.postForObject(url, payload, java.util.Map.class);
+    }
+
+    /**
+     * 세션을 캘린더에 자동 기록
+     */
+    private void createCalendarEventForSession(WorkoutSession session) throws Exception {
+        if (session.getUser() == null) return;
+        // 기본 30분 블록 또는 실제 소요시간 사용
+        int minutes = session.getActualDuration() != null ? session.getActualDuration() :
+                (session.getPlannedDuration() != null ? session.getPlannedDuration() : 30);
+        var start = java.time.ZonedDateTime.now(java.time.ZoneId.of("Asia/Seoul"));
+        var end = start.plusMinutes(minutes);
+        var eventData = new java.util.HashMap<String, Object>();
+        eventData.put("summary", "��️ FitMate 운동 세션");
+        eventData.put("description", "목표: " + session.getGoal());
+        eventData.put("location", "");
+        eventData.put("startDateTime", start.toInstant().toString());
+        eventData.put("endDateTime", end.toInstant().toString());
+        eventData.put("attendeeEmails", java.util.List.of());
+        eventData.put("recurrence", null);
+        calendarService.createEvent(session.getUser().getId(),
+                (String) eventData.get("summary"),
+                (String) eventData.get("description"),
+                (String) eventData.get("location"),
+                new com.google.api.client.util.DateTime((String) eventData.get("startDateTime")),
+                new com.google.api.client.util.DateTime((String) eventData.get("endDateTime")),
+                java.util.List.of(),
+                null);
     }
 }

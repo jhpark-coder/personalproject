@@ -7,6 +7,8 @@ export interface TTSOptions {
   rate?: number;
   pitch?: number;
   volume?: number;
+  /** Google Cloud TTS를 우선 사용하도록 요청 */
+  preferCloud?: boolean;
 }
 
 export interface TTSResult {
@@ -70,18 +72,14 @@ class HybridTTSService {
         responseType: 'blob'
       });
 
-      // response.data가 Blob인지 확인
-      if (response.data instanceof Blob) {
-        const audioUrl = URL.createObjectURL(response.data);
-        return {
-          success: true,
-          audioUrl,
-          method: 'google-cloud'
-        };
-      } else {
-        console.error('응답 데이터가 Blob이 아닙니다:', typeof response.data);
-        throw new Error('Invalid response data type');
-      }
+      const audioBlob = response.data;
+      const audioUrl = URL.createObjectURL(audioBlob);
+
+      return {
+        success: true,
+        audioUrl,
+        method: 'google-cloud'
+      };
     } catch (error) {
       console.error('Google Cloud TTS 실패:', error);
       return {
@@ -137,29 +135,15 @@ class HybridTTSService {
   }
 
   /**
-   * 하이브리드 음성 합성 (설정된 방법 우선, 실패 시 폴백)
+   * 하이브리드 음성 합성 (Google Cloud 우선, 실패 시 브라우저)
    */
   async synthesize(text: string, options: TTSOptions = {}): Promise<TTSResult> {
-    // 설정된 TTS 방법 확인
-    const savedSettings = localStorage.getItem('ttsSettings');
-    let preferredMethod: 'google-cloud' | 'browser-fallback' = 'google-cloud';
-    
-    if (savedSettings) {
-      try {
-        const settings = JSON.parse(savedSettings);
-        preferredMethod = settings.method;
-      } catch (error) {
-        console.error('TTS 설정 파싱 실패:', error);
-      }
-    }
-
-    // 설정된 방법으로 먼저 시도
-    if (preferredMethod === 'google-cloud' && this.isGoogleCloudAvailable) {
+    // Google Cloud TTS가 사용 가능하고 선호되거나(중요 멘트) 텍스트가 길 때 우선 사용
+    if (this.isGoogleCloudAvailable && (options.preferCloud || text.length > 10)) {
       const result = await this.synthesizeWithGoogleCloud(text, options);
       if (result.success) {
         return result;
       }
-      console.log('Google Cloud TTS 실패, 브라우저 TTS로 폴백');
     }
 
     // 브라우저 TTS로 폴백
@@ -170,59 +154,26 @@ class HybridTTSService {
    * 운동 가이드용 음성 합성
    */
   async synthesizeExerciseGuide(text: string): Promise<TTSResult> {
-    // 설정된 TTS 방법 확인
-    const savedSettings = localStorage.getItem('ttsSettings');
-    let preferredMethod: 'google-cloud' | 'browser-fallback' = 'google-cloud';
-    
-    if (savedSettings) {
-      try {
-        const settings = JSON.parse(savedSettings);
-        preferredMethod = settings.method;
-      } catch (error) {
-        console.error('TTS 설정 파싱 실패:', error);
-      }
-    }
+    try {
+      const response = await apiClient.post('/api/tts/exercise-guide', { text });
+      const audioBlob = response.data;
+      const audioUrl = URL.createObjectURL(audioBlob);
 
-    // 설정된 방법으로 먼저 시도
-    if (preferredMethod === 'google-cloud' && this.isGoogleCloudAvailable) {
-      try {
-        const response = await apiClient.post('/api/tts/exercise-guide', { text }, {
-          responseType: 'blob'
-        });
-        
-        // response.data가 Blob인지 확인
-        if (response.data instanceof Blob) {
-          const audioUrl = URL.createObjectURL(response.data);
-          return {
-            success: true,
-            audioUrl,
-            method: 'google-cloud'
-          };
-        } else {
-          console.error('응답 데이터가 Blob이 아닙니다:', typeof response.data);
-          throw new Error('Invalid response data type');
-        }
-      } catch (error) {
-        console.error('운동 가이드 Google Cloud TTS 실패, 브라우저 TTS로 폴백:', error);
-      }
+      return {
+        success: true,
+        audioUrl,
+        method: 'google-cloud'
+      };
+    } catch (error) {
+      console.error('운동 가이드 TTS 실패, 브라우저 TTS로 폴백:', error);
+      
+      // 운동 가이드용 설정으로 브라우저 TTS 사용
+      return this.synthesizeWithBrowser(text, {
+        rate: 0.8,  // 느린 속도
+        pitch: 1.0, // 기본 톤
+        volume: 1.2 // 큰 볼륨
+      });
     }
-
-    // 브라우저 TTS로 폴백 (설정된 옵션 사용)
-    const browserOptions = { rate: 0.8, pitch: 1.0, volume: 1.2 };
-    if (savedSettings) {
-      try {
-        const settings = JSON.parse(savedSettings);
-        if (settings.method === 'browser-fallback') {
-          browserOptions.rate = settings.rate;
-          browserOptions.pitch = settings.pitch;
-          browserOptions.volume = settings.volume;
-        }
-      } catch (error) {
-        console.error('TTS 설정 파싱 실패:', error);
-      }
-    }
-    
-    return this.synthesizeWithBrowser(text, browserOptions);
   }
 
   /**
@@ -311,18 +262,22 @@ class HybridTTSService {
         responseType: 'blob'
       });
       
-      // response.data가 Blob인지 확인
+      // response.data가 Blob인지 확인하고 변환
+      let audioBlob: Blob;
       if (response.data instanceof Blob) {
-        const audioUrl = URL.createObjectURL(response.data);
-        return {
-          success: true,
-          audioUrl,
-          method: 'google-cloud'
-        };
+        audioBlob = response.data;
       } else {
-        console.error('응답 데이터가 Blob이 아닙니다:', typeof response.data);
-        throw new Error('Invalid response data type');
+        // Blob이 아닌 경우 새로 생성
+        audioBlob = new Blob([response.data], { type: 'audio/wav' });
       }
+      
+      const audioUrl = URL.createObjectURL(audioBlob);
+
+      return {
+        success: true,
+        audioUrl,
+        method: 'google-cloud'
+      };
     } catch (error) {
       console.error('음성 미리듣기 실패:', error);
       return {

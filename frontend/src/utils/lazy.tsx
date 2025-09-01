@@ -5,33 +5,44 @@
 import React, { Suspense, ComponentType, LazyExoticComponent } from 'react';
 
 // 로딩 컴포넌트
-const LoadingSpinner: React.FC<{ message?: string }> = ({ message = '로딩 중...' }) => (
-  <div style={{
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: '200px',
-    color: '#666'
-  }}>
+const LoadingSpinner: React.FC<{ message?: string }> = ({ message = '로딩 중...' }) => {
+  React.useEffect(() => {
+    // Add keyframes animation to head if not exists
+    if (!document.querySelector('#lazy-spinner-styles')) {
+      const style = document.createElement('style');
+      style.id = 'lazy-spinner-styles';
+      style.textContent = `
+        @keyframes lazy-spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+  }, []);
+
+  return (
     <div style={{
-      width: '40px',
-      height: '40px',
-      border: '3px solid #f3f3f3',
-      borderTop: '3px solid #3498db',
-      borderRadius: '50%',
-      animation: 'spin 1s linear infinite',
-      marginBottom: '16px'
-    }} />
-    <p>{message}</p>
-    <style>{`
-      @keyframes spin {
-        0% { transform: rotate(0deg); }
-        100% { transform: rotate(360deg); }
-      }
-    `}</style>
-  </div>
-);
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: '200px',
+      color: '#666'
+    }}>
+      <div style={{
+        width: '40px',
+        height: '40px',
+        border: '3px solid #f3f3f3',
+        borderTop: '3px solid #3498db',
+        borderRadius: '50%',
+        animation: 'lazy-spin 1s linear infinite',
+        marginBottom: '16px'
+      }} />
+      <p>{message}</p>
+    </div>
+  );
+};
 
 // 에러 바운더리
 class LazyErrorBoundary extends React.Component<
@@ -54,7 +65,9 @@ class LazyErrorBoundary extends React.Component<
   render() {
     if (this.state.hasError) {
       const FallbackComponent = this.props.fallback || DefaultErrorFallback;
-      return <FallbackComponent retry={() => this.setState({ hasError: false, error: undefined })} />;
+      return React.createElement(FallbackComponent, {
+        retry: () => this.setState({ hasError: false, error: undefined })
+      });
     }
 
     return this.props.children;
@@ -62,35 +75,40 @@ class LazyErrorBoundary extends React.Component<
 }
 
 // 기본 에러 폴백 컴포넌트
-const DefaultErrorFallback: React.FC<{ retry: () => void }> = ({ retry }) => (
-  <div style={{
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: '200px',
-    padding: '20px',
-    textAlign: 'center'
-  }}>
-    <h3 style={{ color: '#e74c3c', marginBottom: '16px' }}>컴포넌트 로딩 실패</h3>
-    <p style={{ color: '#666', marginBottom: '20px' }}>
-      네트워크 연결을 확인하고 다시 시도해주세요.
-    </p>
-    <button 
-      onClick={retry}
-      style={{
+const DefaultErrorFallback: React.FC<{ retry: () => void }> = ({ retry }) => {
+  return React.createElement('div', {
+    style: {
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: '200px',
+      padding: '20px',
+      textAlign: 'center'
+    }
+  }, [
+    React.createElement('h3', {
+      key: 'title',
+      style: { color: '#e74c3c', marginBottom: '16px' }
+    }, '컴포넌트 로딩 실패'),
+    React.createElement('p', {
+      key: 'message',
+      style: { color: '#666', marginBottom: '20px' }
+    }, '네트워크 연결을 확인하고 다시 시도해주세요.'),
+    React.createElement('button', {
+      key: 'retry',
+      onClick: retry,
+      style: {
         padding: '8px 16px',
         backgroundColor: '#3498db',
         color: 'white',
         border: 'none',
         borderRadius: '4px',
         cursor: 'pointer'
-      }}
-    >
-      다시 시도
-    </button>
-  </div>
-);
+      }
+    }, '다시 시도')
+  ]);
+};
 
 // 개선된 lazy 로딩 함수
 export const createLazyComponent = <T extends ComponentType<any>>(

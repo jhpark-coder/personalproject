@@ -5,6 +5,22 @@
   font-family: inherit;
 }
 
+/* Embedded mode overrides */
+.pose-detector.embedded {
+  max-width: 100%;
+  padding: 0;
+  background: transparent;
+}
+
+.pose-detector.embedded .video-container {
+  margin: 0;
+  border-radius: 0;
+  box-shadow: none;
+  aspect-ratio: unset;
+  width: 100%;
+  height: 100%;
+}
+
 .pose-detector-header {
   display: flex;
   justify-content: space-between;
@@ -60,8 +76,16 @@
   box-shadow: 0 8px 32px rgba(0,0,0,0.1);
   width: 100%;
   max-width: 800px;
-  aspect-ratio: 3 / 4; /* 모바일 세로 비율에 가깝게 */
+  aspect-ratio: 4 / 3;
   margin: 0 auto;
+}
+
+/* 모바일에서는 세로 비율 */
+@media (max-width: 768px) {
+  .video-container {
+    aspect-ratio: 3 / 4;
+    max-width: 100%;
+  }
 }
 
 .pose-video {
@@ -148,7 +172,7 @@
 .feedback {
   margin-bottom: 25px;
   padding: 20px;
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  background: linear-gradient(135deg, var(--accent-energy) 0%, var(--danger) 100%);
   border-radius: 12px;
   color: white;
 }

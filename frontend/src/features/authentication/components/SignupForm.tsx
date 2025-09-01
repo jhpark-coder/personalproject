@@ -431,7 +431,7 @@ const SignupForm: React.FC = () => {
       const phoneNumber = formatPhoneNumber(formData.phoneNumber);
       console.log('변환된 전화번호:', phoneNumber);
 
-      const response = await communicationClient.post('/sms/request-otp', {
+      const response = await apiClient.post('/sms/request-otp', {
         phone: phoneNumber
       });
 
@@ -469,7 +469,7 @@ const SignupForm: React.FC = () => {
       console.log('전화번호:', phoneNumber);
       console.log('입력된 코드:', smsCode);
 
-      const response = await communicationClient.post('/sms/verify-otp', {
+      const response = await apiClient.post('/sms/verify-otp', {
         phone: phoneNumber, 
         code: smsCode 
       });

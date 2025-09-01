@@ -1,16 +1,16 @@
 /* 전체 디자인 시스템 */
 :root {
-  /* ===== Primary (신뢰성 + 활동성) ===== */
-  --primary: #2563EB;         /* 더 활기찬 블루 (기존 #334155 대신) */
-  --primary-dark: #1D4ED8;    /* 깊이감 있는 블루 */
-  --primary-light: #DBEAFE;   /* 부드러운 배경용 */
+  /* ===== Dark Monochrome System (어두운 단색계열) ===== */
+  --primary: #1e293b;         /* 다크 슬레이트 그레이 */
+  --primary-dark: #0f172a;    /* 더 깊은 차콜 */
+  --primary-light: #334155;   /* 중간 그레이 */
 
-  /* ===== Accent (피트니스 특화) ===== */
-  --accent-energy: #F97316;   /* 오렌지 (운동 에너지, CTA) */
-  --accent-energy-dark: #EA580C;  /* hover state */
-  --accent-success: #10B981;  /* 민트그린 (성취/목표달성) */
-  --accent-success-dark: #18A27D; /* hover state */
-  --accent-focus: #8B5CF6;    /* 보라 (집중/명상/프리미엄) */
+  /* ===== Dark Accent Colors (단조로운 계열) ===== */
+  --accent-energy: #64748b;   /* 중간 그레이 (기존 오렌지 대체) */
+  --accent-energy-dark: #475569;  /* 어두운 그레이 */
+  --accent-success: #16a34a;  /* 차분한 그린 (성취감 표현용) */
+  --accent-success-dark: #15803d; 
+  --accent-focus: #64748b;    /* 통일성을 위해 같은 그레이 계열 */
 
   /* ===== Semantic (기능적 색상) ===== */
   --success: #059669;         /* 성공/완료 */
@@ -723,6 +723,113 @@ body {
 .skeleton-card { height: 140px; border-radius: var(--radius-lg); }
 .skeleton-circle { border-radius: 50%; }
 
+/* 추가 유틸리티 클래스 */
+.btn-primary {
+  background: var(--primary);
+  color: var(--white);
+  border: none;
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+  background: var(--primary-dark);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.btn-secondary {
+  background: var(--gray-100);
+  color: var(--gray-700);
+  border: 1px solid var(--gray-300);
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+  background: var(--gray-200);
+  transform: translateY(-1px);
+}
+
+.btn-success {
+  background: var(--accent-success);
+  color: var(--white);
+  border: none;
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-success:hover {
+  background: var(--accent-success-dark);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+.btn-danger {
+  background: var(--danger);
+  color: var(--white);
+  border: none;
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-danger:hover {
+  background: #b91c1c;
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-md);
+}
+
+/* 그라데이션 배경 유틸리티 */
+.bg-primary-gradient {
+  background: var(--primary);
+}
+
+.bg-success-gradient {
+  background: var(--accent-success);
+}
+
+.bg-danger-gradient {
+  background: var(--danger);
+}
+
+/* 텍스트 색상 유틸리티 */
+.text-primary { color: var(--primary); }
+.text-secondary { color: var(--gray-600); }
+.text-success { color: var(--accent-success); }
+.text-danger { color: var(--danger); }
+.text-warning { color: var(--warning); }
+
+/* 간격 유틸리티 */
+.mt-xs { margin-top: var(--spacing-xs); }
+.mt-sm { margin-top: var(--spacing-sm); }
+.mt-md { margin-top: var(--spacing-md); }
+.mt-lg { margin-top: var(--spacing-lg); }
+.mt-xl { margin-top: var(--spacing-xl); }
+
+.mb-xs { margin-bottom: var(--spacing-xs); }
+.mb-sm { margin-bottom: var(--spacing-sm); }
+.mb-md { margin-bottom: var(--spacing-md); }
+.mb-lg { margin-bottom: var(--spacing-lg); }
+.mb-xl { margin-bottom: var(--spacing-xl); }
+
+.p-xs { padding: var(--spacing-xs); }
+.p-sm { padding: var(--spacing-sm); }
+.p-md { padding: var(--spacing-md); }
+.p-lg { padding: var(--spacing-lg); }
+.p-xl { padding: var(--spacing-xl); }
+
 @media (max-width: 1023px) {
   .desktop-only { display: none !important; }
 }
@@ -858,3 +965,70 @@ body {
     font-size: var(--text-base);
   }
 }
+
+/* Border Radius Utilities */
+.rounded-sm { border-radius: var(--radius-sm); }
+.rounded-md { border-radius: var(--radius-md); }
+.rounded-lg { border-radius: var(--radius-lg); }
+.rounded-xl { border-radius: var(--radius-xl); }
+.rounded-full { border-radius: 50%; }
+
+/* Shadow Utilities */
+.shadow-sm { box-shadow: var(--shadow-sm); }
+.shadow-md { box-shadow: var(--shadow-md); }
+.shadow-lg { box-shadow: var(--shadow-lg); }
+.shadow-xl { box-shadow: var(--shadow-xl); }
+
+/* Display Utilities */
+.flex { display: flex; }
+.inline-flex { display: inline-flex; }
+.grid { display: grid; }
+.hidden { display: none; }
+.block { display: block; }
+.inline-block { display: inline-block; }
+
+/* Flex Utilities */
+.flex-col { flex-direction: column; }
+.flex-row { flex-direction: row; }
+.justify-center { justify-content: center; }
+.justify-between { justify-content: space-between; }
+.justify-end { justify-content: flex-end; }
+.items-center { align-items: center; }
+.items-start { align-items: flex-start; }
+.items-end { align-items: flex-end; }
+.flex-wrap { flex-wrap: wrap; }
+.flex-nowrap { flex-wrap: nowrap; }
+
+/* Width & Height Utilities */
+.w-full { width: 100%; }
+.h-full { height: 100%; }
+.min-h-screen { min-height: 100vh; }
+
+/* Position Utilities */
+.relative { position: relative; }
+.absolute { position: absolute; }
+.fixed { position: fixed; }
+.sticky { position: sticky; }
+
+/* Font Weight Utilities */
+.font-light { font-weight: 300; }
+.font-normal { font-weight: 400; }
+.font-medium { font-weight: 500; }
+.font-semibold { font-weight: 600; }
+.font-bold { font-weight: 700; }
+.font-extrabold { font-weight: 800; }
+
+/* Text Alignment */
+.text-left { text-align: left; }
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+
+/* Background Color Utilities */
+.bg-white { background-color: var(--white); }
+.bg-gray-50 { background-color: var(--gray-50); }
+.bg-gray-100 { background-color: var(--gray-100); }
+.bg-gray-200 { background-color: var(--gray-200); }
+.bg-primary { background-color: var(--primary); }
+.bg-success { background-color: var(--accent-success); }
+.bg-danger { background-color: var(--danger); }
+.bg-warning { background-color: var(--warning); }

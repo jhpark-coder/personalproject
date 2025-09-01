@@ -5,6 +5,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
@@ -25,11 +27,13 @@ import backend.fitmate.User.service.UserService;
 import backend.fitmate.config.JwtTokenProvider;
 import backend.fitmate.config.RateLimit;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
 
 
 @RestController
 @RequestMapping("/api/auth")
 @CrossOrigin(origins = "${app.frontend.url}", allowCredentials = "true")
+@Slf4j
 public class AuthController {
 
     // @Autowired
@@ -44,6 +48,12 @@ public class AuthController {
     private JwtTokenProvider jwtTokenProvider;
     @Autowired
     private org.springframework.security.crypto.password.PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private RestTemplate restTemplate;
+
+    @Value("${COMMUNICATION_SERVER_URL:http://localhost:4000}")
+    private String communicationServerUrl;
 
     @PostMapping("/login")
     @RateLimit(bucketName = "loginBucket", keyType = RateLimit.KeyType.IP)
@@ -336,17 +346,81 @@ public class AuthController {
 
     @PostMapping("/verify-phone")
     public ResponseEntity<?> verifyPhone(@RequestBody Map<String, String> phoneRequest) {
-        String phoneNumber = phoneRequest.get("phoneNumber");
-        
-        // 휴대폰 인증 로직 구현 필요
-        // - SMS 발송
-        // - 인증번호 검증
-        
-        Map<String, Object> response = new HashMap<>();
-        response.put("success", true);
-        response.put("message", "인증번호가 발송되었습니다.");
-        
-        return ResponseEntity.ok(response);
+        try {
+            String phoneNumber = phoneRequest.get("phoneNumber");
+            String code = phoneRequest.get("code");
+
+            if (phoneNumber == null || phoneNumber.trim().isEmpty()) {
+                Map<String, Object> res = new HashMap<>();
+                res.put("success", false);
+                res.put("message", "전화번호가 필요합니다.");
+                return ResponseEntity.badRequest().body(res);
+            }
+
+            // 통신 서버 URL 조합
+            String requestOtpUrl = communicationServerUrl + "/sms/request-otp";
+            String verifyOtpUrl = communicationServerUrl + "/sms/verify-otp";
+
+            if (code == null || code.trim().isEmpty()) {
+                // OTP 발송 요청
+                Map<String, String> payload = new HashMap<>();
+                payload.put("phone", phoneNumber);
+                @SuppressWarnings("unchecked")
+                Map<String, Object> result = restTemplate.postForObject(requestOtpUrl, payload, Map.class);
+
+                boolean success = result != null && Boolean.TRUE.equals(result.get("success"));
+                Map<String, Object> res = new HashMap<>();
+                res.put("success", success);
+                res.put("message", success ? "인증 코드가 발송되었습니다." : (result != null ? result.getOrDefault("message", "인증 코드 발송에 실패했습니다.") : "인증 코드 발송에 실패했습니다."));
+                if (result != null && result.get("expiresIn") != null) {
+                    res.put("expiresIn", result.get("expiresIn"));
+                }
+                return ResponseEntity.ok(res);
+            } else {
+                // OTP 검증 요청
+                Map<String, String> payload = new HashMap<>();
+                payload.put("phone", phoneNumber);
+                payload.put("code", code);
+                @SuppressWarnings("unchecked")
+                Map<String, Object> result = restTemplate.postForObject(verifyOtpUrl, payload, Map.class);
+
+                boolean success = result != null && Boolean.TRUE.equals(result.get("success"));
+
+                // 검증 성공 시, 로그인 사용자라면 프로필에 전화번호 저장(선택 사항)
+                if (success) {
+                    try {
+                        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+                        if (authentication != null && authentication.isAuthenticated()) {
+                            String authName = authentication.getName();
+                            User user = null;
+                            if (authName.contains(":")) {
+                                String[] parts = authName.split(":");
+                                if (parts.length == 2) {
+                                    user = userService.findByOAuth2ProviderAndOAuth2Id(parts[0], parts[1]).orElse(null);
+                                }
+                            } else {
+                                try { user = userService.findById(Long.parseLong(authName)).orElse(null);} catch (NumberFormatException ignored) {}
+                            }
+                            if (user != null) {
+                                user.setPhoneNumber(phoneNumber);
+                                userService.save(user);
+                            }
+                        }
+                    } catch (Exception ignored) {}
+                }
+
+                Map<String, Object> res = new HashMap<>();
+                res.put("success", success);
+                res.put("message", success ? "인증이 완료되었습니다." : (result != null ? result.getOrDefault("message", "인증 실패") : "인증 실패"));
+                res.put("verified", success);
+                return ResponseEntity.ok(res);
+            }
+        } catch (Exception e) {
+            Map<String, Object> res = new HashMap<>();
+            res.put("success", false);
+            res.put("message", "휴대폰 인증 처리 중 오류가 발생했습니다: " + e.getMessage());
+            return ResponseEntity.status(500).body(res);
+        }
     }
 
     // Quick Tunnel 동적 OAuth 리다이렉트 URL 업데이트
@@ -389,7 +463,7 @@ public class AuthController {
     public ResponseEntity<?> getUserProfile() {
         try {
             System.err.println("🔍 Profile API - 요청 도달");
-            System.err.println("🔍 Profile API - 요청 시간: " + java.time.LocalDateTime.now());
+            System.err.println("🔍 Profile API - 요청 시간: " + java.time.LocalDateTime.now(java.time.ZoneId.of("Asia/Seoul")));
             
             Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
             System.err.println("🔍 Profile API - Authentication: " + authentication);
@@ -463,8 +537,7 @@ public class AuthController {
                                 .orElse(null);
                     }
                 } catch (Exception e) {
-                    System.out.println("JWT에서 로그인 정보 추출 실패: " + e.getMessage());
-                    e.printStackTrace();
+                    log.error("JWT에서 로그인 정보 추출 실패: {}", e.getMessage(), e);
                 }
             }
             
@@ -571,12 +644,11 @@ public class AuthController {
             System.err.println("🔍 Profile API - 성공 응답 전송");
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            System.out.println("getUserProfile 예외 발생: " + e.getMessage());
-            e.printStackTrace();
-            Map<String, Object> response = new HashMap<>();
-            response.put("success", false);
-            response.put("message", "사용자 정보 조회 실패: " + e.getMessage());
-            return ResponseEntity.badRequest().body(response);
+            log.error("getUserProfile 예외 발생: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest().body(Map.of(
+                "success", false,
+                "message", "사용자 정보 조회 실패: " + e.getMessage()
+            ));
         }
     }
 
@@ -608,6 +680,16 @@ public class AuthController {
             response.put("message", "로그아웃 처리 중 오류가 발생했습니다.");
             return ResponseEntity.status(500).body(response);
         }
+    }
+
+    @GetMapping("/test-env")
+    public ResponseEntity<?> testEnv() {
+        String envValue = System.getenv().getOrDefault("ALLOW_SOCIAL_AUTO_SIGNUP", "not_set");
+        boolean parsed = Boolean.parseBoolean(envValue);
+        Map<String, Object> response = new HashMap<>();
+        response.put("envValue", envValue);
+        response.put("parsedValue", parsed);
+        return ResponseEntity.ok(response);
     }
 
     @PostMapping("/save-onboarding-profile")

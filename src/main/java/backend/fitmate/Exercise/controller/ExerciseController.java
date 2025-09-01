@@ -13,10 +13,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 import backend.fitmate.Exercise.service.ExerciseService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/exercise-information")
+@Slf4j
 public class ExerciseController {
 
     private final ExerciseService exerciseService;
@@ -87,8 +89,7 @@ public class ExerciseController {
             System.out.println("🔍 서비스 호출 완료, 결과: " + result);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
-            System.out.println("❌ ExerciseController 예외 발생: " + e.getMessage());
-            e.printStackTrace();
+            log.error("ExerciseController 예외 발생: {}", e.getMessage(), e);
             return ResponseEntity.internalServerError().body(Map.of(
                 "success", false,
                 "message", "MET 값이 있는 운동 조회 실패: " + e.getMessage()

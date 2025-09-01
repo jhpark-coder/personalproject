@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { SmsService } from '../sms/sms.service';
 import { NotificationsService } from './notifications.service';
@@ -13,23 +14,26 @@ export class NotificationSchedulerService {
     private readonly smsService: SmsService,
     private readonly notificationsService: NotificationsService,
     private readonly httpService: HttpService,
+    private readonly configService: ConfigService,
   ) {}
 
   /**
    * Spring Boot에서 관리자를 제외한 모든 사용자 목록 조회
    */
-  private async getAllUsersExceptAdmins(): Promise<Array<{id: number, name: string, role?: string}>> {
+  private async getAllUsersExceptAdmins(): Promise<
+    Array<{ id: number; name: string; role?: string }>
+  > {
     try {
       // Spring Boot 백엔드에서 사용자 목록 조회 (Docker 환경)
       const response = await firstValueFrom(
-        this.httpService.get('http://backend:8080/api/users/all')
+        this.httpService.get('http://backend:8080/api/users/all'),
       );
-      
+
       // 관리자가 아닌 사용자만 필터링
-      const users = response.data.filter((user: any) => 
-        !user.role || !user.role.includes('ROLE_ADMIN')
+      const users = response.data.filter(
+        (user: any) => !user.role || !user.role.includes('ROLE_ADMIN'),
       );
-      
+
       this.logger.log(`📋 총 ${users.length}명의 사용자에게 알림 발송 예정`);
       return users;
     } catch (error) {
@@ -81,7 +85,7 @@ export class NotificationSchedulerService {
 
       for (const user of usersToNotify) {
         try {
-          // 사이트 알림 발송
+          // 1) 사이트 알림 발송
           await this.notificationsService.createNotification({
             senderUserId: 0, // 시스템 발송
             targetUserId: user.id,
@@ -90,14 +94,98 @@ export class NotificationSchedulerService {
             category: 'ADMIN',
           });
 
+          // 2) 백엔드 전일 요약/오늘 추천 호출 (실패해도 넘어감)
+          try {
+            const backendBase =
+              this.configService.get<string>('BACKEND_BASE_URL') ||
+              process.env.BACKEND_BASE_URL ||
+              'http://localhost:8080';
+            const dailySummaryResp = await firstValueFrom(
+              this.httpService.get(
+                `${backendBase}/api/internal/analytics/daily-summary`,
+                {
+                  params: { userId: user.id },
+                  headers: {
+                    'X-Internal-Api-Key': process.env.INTERNAL_API_KEY || '',
+                  },
+                },
+              ),
+            );
+            const summary = dailySummaryResp.data?.summary;
+
+            const recommendationResp = await firstValueFrom(
+              this.httpService.post(
+                `${backendBase}/api/internal/adaptive-workout/recommend`,
+                {
+                  userId: user.id,
+                  targetDuration: 45,
+                },
+                {
+                  headers: {
+                    'X-Internal-Api-Key': process.env.INTERNAL_API_KEY || '',
+                  },
+                },
+              ),
+            );
+            const rec = recommendationResp.data?.data?.workoutPlan;
+
+            // 사용자 프로필에서 전화번호 조회
+            const profileResp = await firstValueFrom(
+              this.httpService.get(
+                `${backendBase}/api/users/${user.id}/profile`,
+              ),
+            );
+            const phoneNumber = profileResp.data?.user?.phoneNumber as
+              | string
+              | undefined;
+            if (!phoneNumber) {
+              this.logger.warn(
+                `전화번호 없음으로 SMS 스킵 (userId=${user.id})`,
+              );
+            } else {
+              // 3) SMS 본문 구성
+              const lines: string[] = [];
+              lines.push(`[FitMate] ${user.name}님, 오늘의 운동 안내`);
+              if (summary) {
+                lines.push(
+                  `어제: ${summary.totalMinutes || 0}분, ${summary.totalExercises || 0}종목, 완료율 ${(summary.avgCompletionRate || 0) * 100}%`,
+                );
+              } else {
+                lines.push('어제: 기록 없음');
+              }
+              if (rec?.main?.exercises?.length) {
+                const names = rec.main.exercises
+                  .slice(0, 3)
+                  .map((e: any) => e.name)
+                  .join(', ');
+                lines.push(`추천: ${names} ...`);
+              } else {
+                lines.push('추천: 스쿼트 3x12, 푸시업 3x10, 플랭크 3x30초');
+              }
+              lines.push('화이팅! 💪');
+
+              await this.smsService.sendCustomMessage(
+                phoneNumber,
+                lines.join('\n'),
+              );
+            }
+          } catch (smsBuildError) {
+            this.logger.warn(
+              `일일 요약/추천 생성 실패 (userId=${user.id}): ${smsBuildError}`,
+            );
+          }
+
           this.logger.log(
             `✅ ${user.name} (ID: ${user.id})에게 운동 알림 발송 완료`,
           );
         } catch (userError) {
-          this.logger.error(`❌ ${user.name} (ID: ${user.id}) 알림 발송 실패:`, userError);
+          this.logger.error(
+            `❌ ${user.name} (ID: ${user.id}) 알림 발송 실패:`,
+            userError,
+          );
         }
       }
-      
+
       this.logger.log(`🏁 일일 운동 알림 발송 완료: ${usersToNotify.length}명`);
     } catch (error) {
       this.logger.error('❌ 일일 운동 알림 발송 실패:', error);
@@ -130,10 +218,13 @@ export class NotificationSchedulerService {
             `✅ ${user.name} (ID: ${user.id})에게 주간 리포트 발송 완료`,
           );
         } catch (userError) {
-          this.logger.error(`❌ ${user.name} (ID: ${user.id}) 주간 리포트 발송 실패:`, userError);
+          this.logger.error(
+            `❌ ${user.name} (ID: ${user.id}) 주간 리포트 발송 실패:`,
+            userError,
+          );
         }
       }
-      
+
       this.logger.log(`🏁 주간 리포트 발송 완료: ${usersToNotify.length}명`);
     } catch (error) {
       this.logger.error('❌ 주간 리포트 발송 실패:', error);
@@ -166,10 +257,13 @@ export class NotificationSchedulerService {
             `✅ ${user.name} (ID: ${user.id})의 목표 달성 축하 알림 발송 완료`,
           );
         } catch (userError) {
-          this.logger.error(`❌ ${user.name} (ID: ${user.id}) 목표 달성 알림 발송 실패:`, userError);
+          this.logger.error(
+            `❌ ${user.name} (ID: ${user.id}) 목표 달성 알림 발송 실패:`,
+            userError,
+          );
         }
       }
-      
+
       this.logger.log(`🏁 목표 달성 확인 완료: ${usersToNotify.length}명`);
     } catch (error) {
       this.logger.error('❌ 목표 달성 확인 실패:', error);
@@ -202,11 +296,16 @@ export class NotificationSchedulerService {
             `✅ ${user.name} (ID: ${user.id})에게 운동 습관 형성 알림 발송 완료`,
           );
         } catch (userError) {
-          this.logger.error(`❌ ${user.name} (ID: ${user.id}) 운동 습관 알림 발송 실패:`, userError);
+          this.logger.error(
+            `❌ ${user.name} (ID: ${user.id}) 운동 습관 알림 발송 실패:`,
+            userError,
+          );
         }
       }
-      
-      this.logger.log(`🏁 운동 습관 형성 알림 발송 완료: ${usersToNotify.length}명`);
+
+      this.logger.log(
+        `🏁 운동 습관 형성 알림 발송 완료: ${usersToNotify.length}명`,
+      );
     } catch (error) {
       this.logger.error('❌ 운동 습관 형성 알림 발송 실패:', error);
     }

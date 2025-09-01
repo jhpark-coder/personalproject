@@ -21,7 +21,7 @@ export class NotificationsService {
     const notification = new this.notificationModel({
       ...createNotificationDto,
       isRead: false,
-      createdAt: new Date(),
+      createdAt: new Date(Date.now() + (9 * 60 * 60 * 1000)),
     });
 
     return await notification.save();
@@ -32,9 +32,9 @@ export class NotificationsService {
     return this.notificationModel
       .find({
         $or: [
-          { targetUserId: userId },        // 특정 사용자에게 보낸 알림
-          { targetUserId: 0 }              // 전체 사용자 대상 알림
-        ]
+          { targetUserId: userId }, // 특정 사용자에게 보낸 알림
+          { targetUserId: 0 }, // 전체 사용자 대상 알림
+        ],
       })
       .sort({ createdAt: -1 })
       .exec();
@@ -53,12 +53,12 @@ export class NotificationsService {
       $and: [
         {
           $or: [
-            { targetUserId: userId },        // 특정 사용자에게 보낸 알림
-            { targetUserId: 0 }              // 전체 사용자 대상 알림
-          ]
+            { targetUserId: userId }, // 특정 사용자에게 보낸 알림
+            { targetUserId: 0 }, // 전체 사용자 대상 알림
+          ],
         },
-        { isRead: false }                    // 읽지 않은 알림
-      ]
+        { isRead: false }, // 읽지 않은 알림
+      ],
     });
   }
 }

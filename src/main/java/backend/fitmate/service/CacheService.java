@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
@@ -83,8 +84,15 @@ public class CacheService {
 
     // 전체 캐시 삭제
     public void clearAllCaches() {
-        if (redisTemplate != null) {
-            redisTemplate.getConnectionFactory().getConnection().flushAll();
+        if (redisTemplate != null && redisTemplate.getConnectionFactory() != null) {
+            redisTemplate.execute((RedisConnection connection) -> {
+                try {
+                    connection.serverCommands().flushAll();
+                } catch (UnsupportedOperationException ignored) {
+                    // 일부 임베디드/테스트 커넥션에서 지원되지 않을 수 있음
+                }
+                return null;
+            });
         }
     }
 } 

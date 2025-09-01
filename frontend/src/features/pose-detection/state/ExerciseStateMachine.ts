@@ -1,4 +1,6 @@
-import { Point3D, AngleCalculationResult } from '../analyzers/base/AngleCalculator';
+// Local minimal types to satisfy current usage
+export type Point3D = { x: number; y: number; visibility?: number };
+export type AngleCalculationResult = number | { value: number; confidence: number };
 
 export enum ExerciseState {
   READY = 'READY',
@@ -178,12 +180,14 @@ export class ExerciseStateMachine {
     }
   }
   
+  // 기본 동작 조건: 구체 운동에서 setCustomConditions로 교체됨
+  // 현재는 간단한 플레이스홀더 로직
   private isContractPosition(data: FrameAnalysisData): boolean {
-    return false;
+    return data.confidence > 0.6;
   }
   
   private isRelaxPosition(data: FrameAnalysisData): boolean {
-    return false;
+    return data.confidence > 0.6;
   }
   
   private isReadyPosition(data: FrameAnalysisData): boolean {

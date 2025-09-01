@@ -5,21 +5,44 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-
-import backend.fitmate.Exercise.entity.Exercise;
-import backend.fitmate.Exercise.service.ExerciseService;
 
 @Service
 public class WorkoutRecommendationService {
 
-    @Autowired
-    private ExerciseService exerciseService;
-    
-    private final Random random = new Random();
+    private static final class PlanData {
+        final List<Map<String, Object>> warmupExercises;
+        final List<Map<String, Object>> mainExercises;
+        final List<Map<String, Object>> cooldownExercises;
+        final int warmupDuration;
+        final int mainDuration;
+        final int cooldownDuration;
+
+        PlanData(
+            List<Map<String, Object>> warmupExercises,
+            List<Map<String, Object>> mainExercises,
+            List<Map<String, Object>> cooldownExercises,
+            int warmupDuration,
+            int mainDuration,
+            int cooldownDuration
+        ) {
+            this.warmupExercises = warmupExercises;
+            this.mainExercises = mainExercises;
+            this.cooldownExercises = cooldownExercises;
+            this.warmupDuration = warmupDuration;
+            this.mainDuration = mainDuration;
+            this.cooldownDuration = cooldownDuration;
+        }
+
+        Map<String, Object> toMap() {
+            Map<String, Object> workoutPlan = new HashMap<>();
+            workoutPlan.put("warmup", createPhase("준비운동", warmupExercises, warmupDuration));
+            workoutPlan.put("main", createPhase("메인운동", mainExercises, mainDuration));
+            workoutPlan.put("cooldown", createPhase("마무리운동", cooldownExercises, cooldownDuration));
+            return workoutPlan;
+        }
+    }
 
     public Map<String, Object> generateRecommendation(Map<String, Object> userData) {
         // 사용자 데이터 추출
@@ -33,17 +56,18 @@ public class WorkoutRecommendationService {
         double heightInMeters = height / 100.0;
         double bmi = weight / (heightInMeters * heightInMeters);
         
-        // 운동 추천 로직
-        Map<String, Object> workoutPlan = createWorkoutPlan(goal, experience, bmi, age);
+        // 운동 추천 로직 (타입 안전 데이터 구성)
+        PlanData planData = createPlanData(goal, experience, bmi, age);
         
-        // 칼로리 계산
-        int estimatedCalories = calculateEstimatedCalories(workoutPlan, weight);
+        // 칼로리 계산 및 총 시간 계산 (캐스팅 없음)
+        int estimatedCalories = calculateEstimatedCalories(planData.warmupExercises, planData.mainExercises, planData.cooldownExercises, weight);
+        int totalDuration = planData.warmupDuration + planData.mainDuration + planData.cooldownDuration;
         
         Map<String, Object> recommendation = new HashMap<>();
         recommendation.put("userProfile", createUserProfile(userData, bmi));
-        recommendation.put("workoutPlan", workoutPlan);
+        recommendation.put("workoutPlan", planData.toMap());
         recommendation.put("estimatedCalories", estimatedCalories);
-        recommendation.put("totalDuration", calculateTotalDuration(workoutPlan));
+        recommendation.put("totalDuration", totalDuration);
         recommendation.put("recommendations", getPersonalizedTips(goal, experience, bmi));
         
         return recommendation;
@@ -59,22 +83,26 @@ public class WorkoutRecommendationService {
         return profile;
     }
 
-    private Map<String, Object> createWorkoutPlan(String goal, String experience, double bmi, int age) {
-        Map<String, Object> workoutPlan = new HashMap<>();
-        
-        // 기본 운동 세트 구성
+    private PlanData createPlanData(String goal, String experience, double bmi, int age) {
         List<Map<String, Object>> warmupExercises = getWarmupExercises();
         List<Map<String, Object>> mainExercises = getMainExercises(goal, experience, bmi);
         List<Map<String, Object>> cooldownExercises = getCooldownExercises();
         
-        workoutPlan.put("warmup", createPhase("준비운동", warmupExercises, 10));
-        workoutPlan.put("main", createPhase("메인운동", mainExercises, 35));
-        workoutPlan.put("cooldown", createPhase("마무리운동", cooldownExercises, 10));
-        
-        return workoutPlan;
+        int warmupDuration = 10;
+        int mainDuration = 35;
+        int cooldownDuration = 10;
+
+        return new PlanData(
+            warmupExercises,
+            mainExercises,
+            cooldownExercises,
+            warmupDuration,
+            mainDuration,
+            cooldownDuration
+        );
     }
 
-    private Map<String, Object> createPhase(String name, List<Map<String, Object>> exercises, int duration) {
+    private static Map<String, Object> createPhase(String name, List<Map<String, Object>> exercises, int duration) {
         Map<String, Object> phase = new HashMap<>();
         phase.put("name", name);
         phase.put("exercises", exercises);
@@ -124,11 +152,19 @@ public class WorkoutRecommendationService {
         
         int sets = getBaseSets(experience);
         
-        exercises.add(createExercise("스쿼트", "하체", sets, getCardioReps(experience), 60, 6.0));
-        exercises.add(createExercise("푸시업", "상체", sets, getStrengthReps(experience, "MEDIUM"), 90, 7.0));
-        exercises.add(createExercise("플랭크", "코어", sets, 30, 60, 5.0));
-        exercises.add(createExercise("마운틴 클라이머", "전신", sets, getCardioReps(experience), 60, 8.0));
-        exercises.add(createExercise("런지", "하체", sets, getStrengthReps(experience, "MEDIUM"), 90, 6.5));
+        if ("beginner".equals(experience)) {
+            // 초보자: 3가지 기본 운동만, 더 적은 횟수
+            exercises.add(createExercise("스쿼트", "하체", 2, 15, 45, 6.0));
+            exercises.add(createExercise("푸시업", "상체", 2, 8, 60, 7.0));
+            exercises.add(createExercise("플랭크", "코어", 2, 20, 45, 5.0));
+        } else {
+            // 중급자/고급자: 기존 5가지 운동
+            exercises.add(createExercise("스쿼트", "하체", sets, getCardioReps(experience), 60, 6.0));
+            exercises.add(createExercise("푸시업", "상체", sets, getStrengthReps(experience, "MEDIUM"), 90, 7.0));
+            exercises.add(createExercise("플랭크", "코어", sets, 30, 60, 5.0));
+            exercises.add(createExercise("마운틴 클라이머", "전신", sets, getCardioReps(experience), 60, 8.0));
+            exercises.add(createExercise("런지", "하체", sets, getStrengthReps(experience, "MEDIUM"), 90, 6.5));
+        }
         
         return exercises;
     }
@@ -246,14 +282,18 @@ public class WorkoutRecommendationService {
         }
     }
 
-    private int calculateEstimatedCalories(Map<String, Object> workoutPlan, double weight) {
+    private int calculateEstimatedCalories(
+        List<Map<String, Object>> warmup,
+        List<Map<String, Object>> main,
+        List<Map<String, Object>> cooldown,
+        double weight
+    ) {
         int totalCalories = 0;
-        
-        @SuppressWarnings("unchecked")
+
         List<Map<String, Object>> allExercises = new ArrayList<>();
-        allExercises.addAll((List<Map<String, Object>>) ((Map<String, Object>) workoutPlan.get("warmup")).get("exercises"));
-        allExercises.addAll((List<Map<String, Object>>) ((Map<String, Object>) workoutPlan.get("main")).get("exercises"));
-        allExercises.addAll((List<Map<String, Object>>) ((Map<String, Object>) workoutPlan.get("cooldown")).get("exercises"));
+        allExercises.addAll(warmup);
+        allExercises.addAll(main);
+        allExercises.addAll(cooldown);
         
         for (Map<String, Object> exercise : allExercises) {
             double mets = (Double) exercise.get("mets");
@@ -267,17 +307,6 @@ public class WorkoutRecommendationService {
         }
         
         return totalCalories;
-    }
-
-    private int calculateTotalDuration(Map<String, Object> workoutPlan) {
-        @SuppressWarnings("unchecked")
-        int warmupDuration = (Integer) ((Map<String, Object>) workoutPlan.get("warmup")).get("duration");
-        @SuppressWarnings("unchecked")
-        int mainDuration = (Integer) ((Map<String, Object>) workoutPlan.get("main")).get("duration");
-        @SuppressWarnings("unchecked")
-        int cooldownDuration = (Integer) ((Map<String, Object>) workoutPlan.get("cooldown")).get("duration");
-        
-        return warmupDuration + mainDuration + cooldownDuration;
     }
 
     private String getBMICategory(double bmi) {

@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { API_ENDPOINTS } from '@config/api';
 import { apiClient } from '@utils/axiosConfig';
 import { getUserData } from '@utils/userProfile';
+import { getKoreaTime } from '../../../utils/dateUtils';
 
 interface ChecklistItem {
   id: string;
@@ -33,7 +34,7 @@ interface WorkoutRecommendation {
 }
 
 const getTodayKey = (): string => {
-  const d = new Date();
+  const d = getKoreaTime();
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
   const day = String(d.getDate()).padStart(2, '0');
@@ -152,7 +153,7 @@ const TodayChecklist: React.FC<{ onStart?: () => void }> = ({ onStart }) => {
       if (!token) return;
 
       // 오늘 운동 기록 확인
-      const today = new Date();
+      const today = getKoreaTime();
       const todayStr = today.toISOString().split('T')[0];
       
       // 사용자 ID 가져오기

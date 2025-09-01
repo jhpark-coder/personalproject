@@ -3,30 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { API_ENDPOINTS } from '@config/api';
 import { apiClient } from '@utils/axiosConfig';
 import { getUserData } from '@utils/userProfile';
+import type { ExerciseType, WorkoutExercise, WorkoutProgram } from '../../../types/exercise';
 import './WorkoutProgramSelector.css';
-
-export type ExerciseType = 'squat' | 'lunge' | 'pushup' | 'plank' | 'calf_raise' | 
-                          'burpee' | 'mountain_climber' | 'bridge' | 'situp' | 'crunch';
-
-export interface WorkoutExercise {
-  exerciseType: ExerciseType;
-  targetSets: number;
-  targetReps: number;
-  restSeconds: number;
-  estimatedDuration: number; // 예상 소요시간 (초)
-}
-
-export interface WorkoutProgram {
-  id: 'recommended' | 'upper_body' | 'cardio' | 'lower_body';
-  title: string;
-  description: string;
-  icon: string;
-  color: string;
-  difficulty: 'beginner' | 'intermediate' | 'advanced';
-  estimatedDuration: number; // 총 예상시간 (분)
-  estimatedCalories: number; // 예상 칼로리
-  exercises: WorkoutExercise[];
-}
 
 const WORKOUT_PROGRAMS: WorkoutProgram[] = [
   {
@@ -179,7 +157,14 @@ const WorkoutProgramSelector: React.FC<WorkoutProgramSelectorProps> = ({
       '마운틴 클라이머': 'mountain_climber',
       '브릿지': 'bridge',
       '윗몸일으키기': 'situp',
-      '크런치': 'crunch'
+      '크런치': 'crunch',
+      '제자리 뛰기': 'jumping_jack',
+      '점프 스쿼트': 'jump_squat',
+      '턱걸이': 'pullup',
+      '데드리프트': 'deadlift',
+      '월 시트': 'wall_sit',
+      '하이 니즈': 'high_knees',
+      '사이드 플랭크': 'side_plank'
     };
     return nameMap[name] || 'squat';
   };
@@ -371,7 +356,14 @@ const getExerciseDisplayName = (exerciseType: ExerciseType): string => {
     mountain_climber: '마운틴 클라이머',
     bridge: '브릿지',
     situp: '윗몸일으키기',
-    crunch: '크런치'
+    crunch: '크런치',
+    jumping_jack: '제자리 뛰기',
+    jump_squat: '점프 스쿼트',
+    pullup: '턱걸이',
+    deadlift: '데드리프트',
+    wall_sit: '월 시트',
+    high_knees: '하이 니즈',
+    side_plank: '사이드 플랭크'
   };
   return displayNames[exerciseType] || exerciseType;
 };

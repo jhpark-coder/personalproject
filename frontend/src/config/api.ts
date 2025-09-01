@@ -5,6 +5,9 @@ const isDevelopment = import.meta.env.DEV;
 const isBrowser = typeof window !== 'undefined';
 const isHttps = isBrowser && window.location.protocol === 'https:';
 
+// Quick Tunnel 도메인 감지
+const isQuickTunnel = isBrowser && window.location.hostname.includes('.trycloudflare.com');
+
 // 통신 서버 기본 URL 결정
 // - HTTPS 페이지(터널 등)에서는 혼합 콘텐츠 방지를 위해 기본적으로 상대 경로 사용
 // - 환경변수(VITE_CHAT_SERVER_URL)가 명시되면 이를 우선 사용
@@ -13,8 +16,9 @@ const DEFAULT_CHAT_SERVER_URL = isDevelopment && !isHttps ? 'http://localhost:40
 // 명시적으로 설정된 베이스 URL이 있으면 사용, 없으면 상대 경로 사용
 export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').trim();
 
-// 개발/프로덕션 모두 기본은 상대 경로 사용 (Nginx 리버스 프록시 활용)
-const backendUrl = API_BASE_URL || '';
+// Quick Tunnel 환경에서는 항상 상대 경로 사용 (HTTPS 혼합 콘텐츠 방지)
+// 개발/프로덕션 모두 기본은 상대 경로 사용 (Nginx 리버스 프록시 활용)  
+const backendUrl = (isQuickTunnel || isHttps) ? '' : (API_BASE_URL || '');
 
 // 하위 호환: 기존 코드에서 직접 참조하는 경우를 위해 유지
 // HTTPS 환경에서는 기본적으로 상대 경로를 사용하도록 함
@@ -22,13 +26,17 @@ const configuredChatServerUrl = (import.meta.env.VITE_CHAT_SERVER_URL || DEFAULT
 export const CHAT_SERVER_URL = configuredChatServerUrl;
 
 // 알림 REST 전용 베이스
-// - HTTPS 환경에서는 상대 경로 사용 -> Vite/Nginx 프록시가 통신 서버로 라우팅
+// - HTTPS 환경이나 Quick Tunnel에서는 상대 경로 사용 -> Nginx 프록시가 통신 서버로 라우팅
 // - 그 외에는 환경변수 또는 로컬 기본값 사용
-const NOTIF_BASE_URL = isHttps ? '' : configuredChatServerUrl || '';
+const NOTIF_BASE_URL = (isHttps || isQuickTunnel) ? '' : configuredChatServerUrl || '';
 
 // Quick Tunnel 동적 URL 감지 함수
 const getCurrentBaseUrl = () => {
   if (typeof window !== 'undefined') {
+    // Quick Tunnel 환경에서는 HTTPS 프로토콜 강제 사용
+    if (window.location.hostname.includes('.trycloudflare.com')) {
+      return `https://${window.location.hostname}${window.location.port ? ':' + window.location.port : ''}`;
+    }
     return window.location.origin;
   }
   return 'http://localhost';
@@ -45,8 +53,8 @@ export const API_ENDPOINTS = {
   // 백엔드 URL
   BACKEND_URL: backendUrl,
   
-  // 통신 서버 URL (소켓 등)
-  COMMUNICATION_SERVER_URL: configuredChatServerUrl,
+  // 통신 서버 URL (소켓 등) - HTTPS 페이지나 Quick Tunnel에서는 상대경로 강제
+  COMMUNICATION_SERVER_URL: (isHttps || isQuickTunnel) ? '' : configuredChatServerUrl,
   
   // 인증 관련
   LOGIN: `${backendUrl}/api/auth/login`,
@@ -122,6 +130,12 @@ export const API_ENDPOINTS = {
   
   // 운동정보 관련
   EXERCISES: `${backendUrl}/api/exercise-information`,
+  // Legacy endpoint for frontend compatibility
+  EXERCISES_COMPAT: `${backendUrl}/api/exercise-information`,
+  
+  // 운동 추천 관련
+  WORKOUT_RECOMMEND: `${backendUrl}/api/workout/recommend`,
+  WORKOUT_TEMPLATES: `${backendUrl}/api/workout/templates`,
   
   // 분석 데이터 관련
   BODY_DATA: `${backendUrl}/api/analytics/body`,
@@ -154,7 +168,7 @@ export const API_ENDPOINTS = {
   CALENDAR_WORKOUT: `${backendUrl}/api/calendar/workout`,
   
   // 통합 운동 시스템 관련 엔드포인트 추가
-  ADAPTIVE_WORKOUT_GENERATE: `${backendUrl}/api/adaptive-workout/generate`,
+  ADAPTIVE_WORKOUT_GENERATE: `${backendUrl}/api/adaptive-workout/recommend`,
   WORKOUT_SESSION_FEEDBACK: `${backendUrl}/api/workout/session-feedback`,
   
   BASE_URL: backendUrl

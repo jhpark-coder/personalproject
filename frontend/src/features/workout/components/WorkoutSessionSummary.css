@@ -2,7 +2,7 @@
 
 .workout-summary {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--primary);
   display: flex;
   flex-direction: column;
   padding-bottom: calc(env(safe-area-inset-bottom) + 20px);
@@ -177,7 +177,7 @@
 
 .progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #007AFF 0%, #34C759 100%);
+  background: var(--accent-success);
   border-radius: 4px;
   transition: width 0.6s ease-out;
 }

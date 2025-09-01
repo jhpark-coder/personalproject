@@ -75,7 +75,22 @@ public class JwtTokenProvider {
     }
 
     public Authentication getAuthentication(String token) {
-        UserDetails userDetails = userDetailsService.loadUserByUsername(this.getUserIdFromToken(token));
+        // JWT에서 직접 사용자 정보 추출 (DB 조회 없이)
+        Claims claims = getClaimsFromToken(token);
+        String userId = claims.getSubject();
+        String email = claims.get("email", String.class);
+        String name = claims.get("name", String.class);
+        String role = claims.get("role", String.class);
+        
+        // 간단한 UserDetails 구현으로 성능 최적화
+        UserDetails userDetails = new org.springframework.security.core.userdetails.User(
+            userId, 
+            "", 
+            java.util.Collections.singletonList(
+                new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_" + (role != null ? role : "USER"))
+            )
+        );
+        
         return new UsernamePasswordAuthenticationToken(userDetails, "", userDetails.getAuthorities());
     }
 

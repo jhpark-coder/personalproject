@@ -3,7 +3,7 @@
 /* 기본 페이지 모드 스타일 */
 .workout-program-selector {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--primary);
   display: flex;
   flex-direction: column;
 }
@@ -36,7 +36,7 @@
   background: white;
   border-radius: 20px;
   width: 90%;
-  max-width: 500px;
+  max-width: 700px; /* PC에서 더 넓게 */
   max-height: 80vh;
   overflow-y: auto;
   box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
@@ -93,7 +93,7 @@
 }
 
 .modal-content .selector-header {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--primary);
   color: white;
   margin-bottom: 0;
   border-radius: 20px 20px 0 0;
@@ -215,7 +215,7 @@
 
 .program-card.selected {
   border: 2px solid #007AFF;
-  background: linear-gradient(135deg, #f8f9ff 0%, #e8f2ff 100%);
+  background: var(--gray-50);
   transform: translateY(-2px);
   box-shadow: 0 8px 25px rgba(0, 122, 255, 0.2);
 }
@@ -451,6 +451,49 @@
 
 .button-full {
   width: 100%;
+}
+
+/* PC 반응형 최적화 */
+@media (min-width: 1024px) {
+  .modal-content {
+    max-width: 800px; /* PC에서 더욱 넓게 */
+    width: 80%;
+  }
+  
+  .programs-section {
+    padding: 30px;
+  }
+  
+  .program-card {
+    padding: 24px;
+  }
+  
+  .program-content {
+    gap: 20px;
+  }
+  
+  .program-icon {
+    width: 70px;
+    height: 70px;
+    font-size: 32px;
+  }
+  
+  .program-title {
+    font-size: 20px;
+  }
+  
+  .program-description {
+    font-size: 15px;
+  }
+  
+  .program-details {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+  }
+  
+  .detail-item {
+    font-size: 14px;
+  }
 }
 
 /* 반응형 디자인 */

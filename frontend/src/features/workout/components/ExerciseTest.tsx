@@ -42,7 +42,7 @@ const ExerciseTest: React.FC = () => {
     setMessage('');
     
     try {
-      const response = await fetch(`${API_ENDPOINTS.BACKEND_URL}/api/exercises/test`);
+      const response = await fetch(`${API_ENDPOINTS.BACKEND_URL}/api/exercise-information?page=0&size=1`);
       const data = await response.json();
       
       if (data.success) {
@@ -62,7 +62,7 @@ const ExerciseTest: React.FC = () => {
     setLoading(true);
     
     try {
-      const response = await fetch(`${API_ENDPOINTS.BACKEND_URL}/api/exercises/muscles`);
+      const response = await fetch(`${API_ENDPOINTS.BACKEND_URL}/api/exercise-information/muscles`);
       const data = await response.json();
       
       if (data.success && data.data && data.data.results) {
@@ -89,7 +89,7 @@ const ExerciseTest: React.FC = () => {
     setLoading(true);
     
     try {
-      const response = await fetch(`${API_ENDPOINTS.BACKEND_URL}/api/exercises/equipment`);
+      const response = await fetch(`${API_ENDPOINTS.BACKEND_URL}/api/exercise-information/categories`);
       const data = await response.json();
       
       if (data.success && data.data && data.data.results) {
@@ -116,7 +116,7 @@ const ExerciseTest: React.FC = () => {
     setLoading(true);
     
     try {
-      const response = await fetch(`${API_ENDPOINTS.BACKEND_URL}/api/exercises/all`);
+      const response = await fetch(`${API_ENDPOINTS.BACKEND_URL}/api/exercise-information?page=0&size=100`);
       const data = await response.json();
       
       if (data.success && data.data && data.data.results) {
@@ -157,7 +157,7 @@ const ExerciseTest: React.FC = () => {
       if (selectedMuscle) params.append('muscleId', selectedMuscle);
       if (selectedEquipment) params.append('equipmentId', selectedEquipment);
       
-      const response = await fetch(`${API_ENDPOINTS.BACKEND_URL}/api/exercises/recommend?${params}`);
+      const response = await fetch(`${API_ENDPOINTS.BACKEND_URL}/api/exercise-information?${params}`);
       const data = await response.json();
       
       if (data.success && data.data && data.data.results) {

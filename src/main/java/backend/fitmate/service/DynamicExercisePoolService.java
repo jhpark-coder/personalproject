@@ -1,18 +1,16 @@
 package backend.fitmate.service;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import backend.fitmate.Exercise.service.ExerciseService;
 import backend.fitmate.User.entity.User;
 import lombok.extern.slf4j.Slf4j;
 
@@ -24,11 +22,12 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class DynamicExercisePoolService {
     
-    @Autowired
-    private ExerciseService exerciseService;
     
-    @Autowired
-    private UserExercisePreferenceService preferenceService;
+    private final UserExercisePreferenceService preferenceService;
+    
+    public DynamicExercisePoolService(UserExercisePreferenceService preferenceService) {
+        this.preferenceService = preferenceService;
+    }
     
     // AI 코칭 지원 운동 (현재 + 확장)
     private static final Map<String, Boolean> AI_COACHING_SUPPORT = Map.ofEntries(
@@ -128,7 +127,7 @@ public class DynamicExercisePoolService {
      */
     private List<String> getSeasonalExercises() {
         // 현재 계절에 맞는 운동 (여름: 체중감소, 겨울: 근력강화 등)
-        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime now = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
         int month = now.getMonthValue();
         
         if (month >= 6 && month <= 8) { // 여름
@@ -177,226 +176,43 @@ public class DynamicExercisePoolService {
             List<String> seasonal, List<String> personalized, List<String> aiSupported, Integer targetDuration) {
         
         // 우선순위별 운동 선택
-        Map<String, Integer> exercisePriority = new HashMap<>();
+        List<String> selected = new ArrayList<>();
+        selected.addAll(core);
+        selected.addAll(rotation);
+        selected.addAll(seasonal);
+        selected.addAll(personalized);
         
-        // 핵심 운동 (최고 우선순위)
-        core.forEach(ex -> exercisePriority.put(ex, exercisePriority.getOrDefault(ex, 0) + 10));
+        // 중복 제거 및 제한
+        List<String> distinct = selected.stream().distinct().collect(Collectors.toList());
+        int limit = Math.min(distinct.size(), 20);
+        List<String> finalList = distinct.subList(0, limit);
         
-        // 개인화 운동 (높은 우선순위)
-        personalized.forEach(ex -> exercisePriority.put(ex, exercisePriority.getOrDefault(ex, 0) + 8));
+        // 메타 정보 계산
+        int aiSupportedCount = (int) finalList.stream().filter(e -> AI_COACHING_SUPPORT.getOrDefault(e, false)).count();
+        int varietyScore = Math.min(100, 50 + finalList.size());
         
-        // 회전 운동 (중간 우선순위)
-        rotation.forEach(ex -> exercisePriority.put(ex, exercisePriority.getOrDefault(ex, 0) + 5));
-        
-        // 계절 운동 (낮은 우선순위)
-        seasonal.forEach(ex -> exercisePriority.put(ex, exercisePriority.getOrDefault(ex, 0) + 3));
-        
-        // AI 지원 운동만 최종 선택
-        List<String> finalPool = exercisePriority.entrySet().stream()
-                .filter(entry -> aiSupported.contains(entry.getKey()))
-                .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
-                .map(Map.Entry::getKey)
-                .limit(15) // 최대 15개 운동으로 제한
-                .collect(Collectors.toList());
-        
-        // 다양성 점수 계산
-        double varietyScore = calculateVarietyScore(finalPool);
-        
-        return DynamicExercisePool.builder()
-                .coreExercises(core)
-                .rotationPool(rotation)
-                .seasonalExercises(seasonal)
-                .personalizedPool(personalized)
-                .finalExercisePool(finalPool)
-                .aiSupportedCount(finalPool.size())
-                .totalExerciseCount(finalPool.size())
-                .varietyScore(varietyScore)
-                .generatedAt(LocalDateTime.now())
-                .build();
-    }
-    
-    /**
-     * 운동 풀의 다양성 점수 계산
-     */
-    private double calculateVarietyScore(List<String> exercises) {
-        if (exercises.isEmpty()) return 0.0;
-        
-        // 1. 근육군 다양성 (40%)
-        Map<String, Integer> muscleGroupCount = new HashMap<>();
-        exercises.forEach(exercise -> {
-            getCategoryForExercise(exercise).forEach(category -> 
-                muscleGroupCount.put(category, muscleGroupCount.getOrDefault(category, 0) + 1));
-        });
-        double muscleGroupDiversity = Math.min(1.0, muscleGroupCount.size() / 5.0); // 최대 5개 카테고리
-        
-        // 2. 운동 타입 다양성 (30%)
-        Map<String, Integer> typeCount = new HashMap<>();
-        exercises.forEach(exercise -> {
-            String type = getExerciseType(exercise);
-            typeCount.put(type, typeCount.getOrDefault(type, 0) + 1);
-        });
-        double typeDiversity = Math.min(1.0, typeCount.size() / 4.0); // 최대 4개 타입
-        
-        // 3. 강도 다양성 (30%)
-        Map<String, Integer> intensityCount = new HashMap<>();
-        exercises.forEach(exercise -> {
-            String intensity = getExerciseIntensity(exercise);
-            intensityCount.put(intensity, intensityCount.getOrDefault(intensity, 0) + 1);
-        });
-        double intensityDiversity = Math.min(1.0, intensityCount.size() / 3.0); // 최대 3개 강도
-        
-        double totalScore = (muscleGroupDiversity * 0.4) + (typeDiversity * 0.3) + (intensityDiversity * 0.3);
-        
-        log.debug("다양성 점수 계산: 근육군={}, 타입={}, 강도={}, 총점={}", 
-                muscleGroupDiversity, typeDiversity, intensityDiversity, totalScore);
-        
-        return totalScore;
-    }
-    
-    /**
-     * 운동의 카테고리 조회
-     */
-    private List<String> getCategoryForExercise(String exerciseName) {
-        return CATEGORY_POOLS.entrySet().stream()
-                .filter(entry -> entry.getValue().contains(exerciseName))
-                .map(Map.Entry::getKey)
-                .collect(Collectors.toList());
-    }
-    
-    /**
-     * 운동 타입 분류
-     */
-    private String getExerciseType(String exerciseName) {
-        // 간단한 타입 분류
-        if (exerciseName.contains("점프") || exerciseName.contains("버피") || exerciseName.contains("마운틴")) {
-            return "유산소";
-        } else if (exerciseName.contains("플랭크") || exerciseName.contains("브릿지")) {
-            return "정적";
-        } else if (exerciseName.contains("푸시업") || exerciseName.contains("스쿼트")) {
-            return "근력";
-        } else {
-            return "복합";
-        }
-    }
-    
-    /**
-     * 운동 강도 분류
-     */
-    private String getExerciseIntensity(String exerciseName) {
-        // 강도별 분류
-        List<String> highIntensity = Arrays.asList("버피", "마운틴 클라이머", "점프 스쿼트");
-        List<String> lowIntensity = Arrays.asList("플랭크", "브릿지", "카프 레이즈");
-        
-        if (highIntensity.contains(exerciseName)) {
-            return "고강도";
-        } else if (lowIntensity.contains(exerciseName)) {
-            return "저강도";
-        } else {
-            return "중강도";
-        }
+        return new DynamicExercisePool(finalList, aiSupportedCount, varietyScore);
     }
     
     /**
      * 동적 운동 풀 결과 클래스
      */
     public static class DynamicExercisePool {
-        private List<String> coreExercises;
-        private List<String> rotationPool;
-        private List<String> seasonalExercises;
-        private List<String> personalizedPool;
         private List<String> finalExercisePool;
         private int aiSupportedCount;
         private int totalExerciseCount;
         private double varietyScore;
         private LocalDateTime generatedAt;
         
-        public static DynamicExercisePoolBuilder builder() {
-            return new DynamicExercisePoolBuilder();
-        }
-        
-        public static class DynamicExercisePoolBuilder {
-            private List<String> coreExercises;
-            private List<String> rotationPool;
-            private List<String> seasonalExercises;
-            private List<String> personalizedPool;
-            private List<String> finalExercisePool;
-            private int aiSupportedCount;
-            private int totalExerciseCount;
-            private double varietyScore;
-            private LocalDateTime generatedAt;
-            
-            public DynamicExercisePoolBuilder coreExercises(List<String> coreExercises) {
-                this.coreExercises = coreExercises;
-                return this;
-            }
-            
-            public DynamicExercisePoolBuilder rotationPool(List<String> rotationPool) {
-                this.rotationPool = rotationPool;
-                return this;
-            }
-            
-            public DynamicExercisePoolBuilder seasonalExercises(List<String> seasonalExercises) {
-                this.seasonalExercises = seasonalExercises;
-                return this;
-            }
-            
-            public DynamicExercisePoolBuilder personalizedPool(List<String> personalizedPool) {
-                this.personalizedPool = personalizedPool;
-                return this;
-            }
-            
-            public DynamicExercisePoolBuilder finalExercisePool(List<String> finalExercisePool) {
-                this.finalExercisePool = finalExercisePool;
-                return this;
-            }
-            
-            public DynamicExercisePoolBuilder aiSupportedCount(int aiSupportedCount) {
-                this.aiSupportedCount = aiSupportedCount;
-                return this;
-            }
-            
-            public DynamicExercisePoolBuilder totalExerciseCount(int totalExerciseCount) {
-                this.totalExerciseCount = totalExerciseCount;
-                return this;
-            }
-            
-            public DynamicExercisePoolBuilder varietyScore(double varietyScore) {
-                this.varietyScore = varietyScore;
-                return this;
-            }
-            
-            public DynamicExercisePoolBuilder generatedAt(LocalDateTime generatedAt) {
-                this.generatedAt = generatedAt;
-                return this;
-            }
-            
-            public DynamicExercisePool build() {
-                return new DynamicExercisePool(coreExercises, rotationPool, seasonalExercises, 
-                        personalizedPool, finalExercisePool, aiSupportedCount, 
-                        totalExerciseCount, varietyScore, generatedAt);
-            }
-        }
-        
-        private DynamicExercisePool(List<String> coreExercises, List<String> rotationPool,
-                List<String> seasonalExercises, List<String> personalizedPool,
-                List<String> finalExercisePool, int aiSupportedCount, 
-                int totalExerciseCount, double varietyScore, LocalDateTime generatedAt) {
-            this.coreExercises = coreExercises;
-            this.rotationPool = rotationPool;
-            this.seasonalExercises = seasonalExercises;
-            this.personalizedPool = personalizedPool;
+        public DynamicExercisePool(List<String> finalExercisePool, int aiSupportedCount, double varietyScore) {
             this.finalExercisePool = finalExercisePool;
             this.aiSupportedCount = aiSupportedCount;
-            this.totalExerciseCount = totalExerciseCount;
+            this.totalExerciseCount = finalExercisePool.size();
             this.varietyScore = varietyScore;
-            this.generatedAt = generatedAt;
+            this.generatedAt = LocalDateTime.now(ZoneId.of("Asia/Seoul"));
         }
         
         // Getters
-        public List<String> getCoreExercises() { return coreExercises; }
-        public List<String> getRotationPool() { return rotationPool; }
-        public List<String> getSeasonalExercises() { return seasonalExercises; }
-        public List<String> getPersonalizedPool() { return personalizedPool; }
         public List<String> getFinalExercisePool() { return finalExercisePool; }
         public int getAiSupportedCount() { return aiSupportedCount; }
         public int getTotalExerciseCount() { return totalExerciseCount; }

@@ -206,7 +206,12 @@ describe('CommunicationGateway', () => {
         recipient: null,
       };
 
-      const savedMessage = { ...data, id: 'msg-1', timestamp: new Date(), isAdmin: false };
+      const savedMessage = {
+        ...data,
+        id: 'msg-1',
+        timestamp: new Date(),
+        isAdmin: false,
+      };
       jest
         .spyOn(chatService, 'saveMessage')
         .mockResolvedValue(savedMessage as any);
@@ -245,7 +250,12 @@ describe('CommunicationGateway', () => {
         emit: jest.fn(),
       } as any;
 
-      const savedMessage = { ...data, id: 'msg-1', timestamp: new Date(), isAdmin: true };
+      const savedMessage = {
+        ...data,
+        id: 'msg-1',
+        timestamp: new Date(),
+        isAdmin: true,
+      };
       jest
         .spyOn(chatService, 'saveMessage')
         .mockResolvedValue(savedMessage as any);

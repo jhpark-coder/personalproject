@@ -1,6 +1,7 @@
 package backend.fitmate.exception;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -112,7 +113,7 @@ public class GlobalExceptionHandler {
         response.put("message", message);
         response.put("errorCode", errorCode);
         response.put("status", status.value());
-        response.put("timestamp", LocalDateTime.now());
+        response.put("timestamp", LocalDateTime.now(ZoneId.of("Asia/Seoul")));
         return response;
     }
 }

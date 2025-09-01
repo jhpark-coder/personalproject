@@ -148,7 +148,7 @@
 .feedback {
   margin-bottom: 25px;
   padding: 20px;
-  background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+  background: var(--accent-energy);
   border-radius: 12px;
   color: white;
 }
@@ -256,11 +256,11 @@
 
 /* 성공/실패 상태 스타일 */
 .pose-detector.success .feedback {
-  background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+  background: #4CAF50;
 }
 
 .pose-detector.error .feedback {
-  background: linear-gradient(135deg, #f44336 0%, #d32f2f 100%);
+  background: #f44336;
 } 
 
 .debug-toggle {

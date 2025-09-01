@@ -5,6 +5,7 @@ import { API_ENDPOINTS } from '../config/api';
 // Axios 인스턴스 생성
 const createAxiosInstance = (): AxiosInstance => {
   const instance = axios.create({
+    baseURL: API_ENDPOINTS.BACKEND_URL, // 백엔드 baseURL 설정
     timeout: 30000, // 30초 타임아웃
     headers: {
       'Content-Type': 'application/json',

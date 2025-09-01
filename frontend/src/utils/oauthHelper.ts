@@ -18,18 +18,19 @@ export const handleDynamicOAuthLogin = async (provider: string, isCalendarOnly: 
     
     console.log('OAuth 로그인 시작:', { provider, currentBaseUrl, isQuickTunnel, isCalendarOnly });
     
-    if (isQuickTunnel) {
-      // Quick Tunnel 환경에서는 백엔드에 동적 redirect URL 업데이트 요청
-      const { data: updateResult } = await apiClient.post(API_ENDPOINTS.UPDATE_OAUTH_REDIRECT, {
-        baseUrl: currentBaseUrl,
-        provider: provider
-      });
-      
-      console.log('OAuth 리다이렉트 URL 업데이트 결과:', updateResult);
-    }
+    // Quick Tunnel 환경에서는 localhost:8080으로 직접 OAuth 처리
+    // Naver OAuth는 localhost:8080만 등록되어 있음
+    let authUrl: string;
     
-    // OAuth 인증 URL 생성
-    let authUrl = API_ENDPOINTS.OAUTH2_AUTHORIZATION(provider);
+    if (isQuickTunnel) {
+      // trycloudflare 환경에서는 localhost:8080으로 직접 연결
+      // 백엔드는 localhost에서 실행 중이므로 직접 접근 가능
+      authUrl = `http://localhost:8080/oauth2/authorization/${provider}`;
+      console.log('Quick Tunnel 환경 감지: localhost:8080으로 OAuth 처리');
+    } else {
+      // 일반 환경에서는 상대 경로 사용
+      authUrl = API_ENDPOINTS.OAUTH2_AUTHORIZATION(provider);
+    }
     
     // 캘린더 전용 요청인 경우 파라미터 추가
     if (isCalendarOnly) {
@@ -39,7 +40,7 @@ export const handleDynamicOAuthLogin = async (provider: string, isCalendarOnly: 
     
     console.log('OAuth 인증 URL:', authUrl);
     
-    // OAuth 인증 페이지로 이동
+    // OAuth 인증 페이지로 이동 (같은 창에서)
     window.location.href = authUrl;
     
     return true;

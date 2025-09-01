@@ -6,8 +6,6 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import backend.fitmate.User.repository.UserRepository;
-import backend.fitmate.service.CustomUserDetailsService;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.MalformedJwtException;
 import io.jsonwebtoken.UnsupportedJwtException;
@@ -21,8 +19,6 @@ import lombok.RequiredArgsConstructor;
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private final JwtTokenProvider jwtTokenProvider;
-    private final CustomUserDetailsService customUserDetailsService;
-    private final UserRepository userRepository;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -30,19 +26,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String requestURI = request.getRequestURI();
         String token = resolveToken(request);
         
-        System.err.println("🔍 JWT Filter - URI: " + requestURI);
-        System.err.println("🔍 JWT Filter - Token present: " + (token != null));
+        logger.debug("JWT Filter - URI: " + requestURI);
+        logger.debug("JWT Filter - Token present: " + (token != null));
         
         if (token != null) {
-            System.err.println("🔍 JWT Filter - Token (앞 20자): " + token.substring(0, Math.min(20, token.length())) + "...");
             try {
                 if (jwtTokenProvider.validateToken(token)) {
                     Authentication authentication = jwtTokenProvider.getAuthentication(token);
                     SecurityContextHolder.getContext().setAuthentication(authentication);
-                    System.err.println("🔍 JWT Filter - 인증 성공, 사용자: " + authentication.getName());
-                    System.err.println("🔍 JWT Filter - 권한: " + authentication.getAuthorities());
+                    logger.debug("JWT Filter - 인증 성공, 사용자: " + authentication.getName());
                 } else {
-                    System.err.println("🔍 JWT Filter - 토큰 검증 실패");
+                    logger.debug("JWT Filter - 토큰 검증 실패");
                 }
             } catch (io.jsonwebtoken.security.SecurityException | MalformedJwtException e) {
                 logger.warn("잘못된 JWT 서명입니다.", e);

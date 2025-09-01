@@ -1,6 +1,7 @@
 package backend.fitmate.service;
 
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.OptionalDouble;
 
@@ -34,7 +35,7 @@ public class UserFitnessProfileService {
         log.info("사용자 피트니스 프로필 계산 시작: userId={}", user.getId());
         
         // 최근 4주간 피드백 데이터 조회
-        LocalDateTime fromDate = LocalDateTime.now().minusDays(ANALYSIS_PERIOD_DAYS);
+        LocalDateTime fromDate = LocalDateTime.now(ZoneId.of("Asia/Seoul")).minusDays(ANALYSIS_PERIOD_DAYS);
         List<SessionFeedback> recentFeedback = feedbackRepository.findRecentFeedback(user, fromDate);
         
         if (recentFeedback.isEmpty()) {
@@ -61,7 +62,7 @@ public class UserFitnessProfileService {
                 .recoveryPattern(recoveryPattern)
                 .motivationLevel(motivationLevel)
                 .experienceLevel(user.getExperience())
-                .lastUpdated(LocalDateTime.now())
+                .lastUpdated(LocalDateTime.now(ZoneId.of("Asia/Seoul")))
                 .confidenceScore(confidenceScore)
                 .build();
         
@@ -85,7 +86,7 @@ public class UserFitnessProfileService {
                 .recoveryPattern(3.0)
                 .motivationLevel(0.7)
                 .experienceLevel(user.getExperience())
-                .lastUpdated(LocalDateTime.now())
+                .lastUpdated(LocalDateTime.now(ZoneId.of("Asia/Seoul")))
                 .confidenceScore(0.3) // 낮은 신뢰도
                 .build();
     }

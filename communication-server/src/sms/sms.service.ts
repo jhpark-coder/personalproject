@@ -86,6 +86,26 @@ export class SmsService implements OnModuleInit {
    */
   async sendSms(to: string, message: string): Promise<boolean> {
     try {
+      // 개발 환경에서 Mock SMS 모드
+      const isDevelopment = this.configService.get<string>('NODE_ENV') === 'development';
+      const useMockSms = this.configService.get<string>('USE_MOCK_SMS') === 'true';
+      
+      if (isDevelopment && useMockSms) {
+        console.log('===========================================');
+        console.log('📱 [MOCK SMS - 개발 모드]');
+        console.log('수신번호:', to);
+        console.log('메시지 내용:', message);
+        
+        // OTP 코드 추출해서 보여주기
+        const otpMatch = message.match(/\d{6}/);
+        if (otpMatch) {
+          console.log('🔑 인증코드: ', otpMatch[0]);
+          console.log('(개발 환경: 실제 SMS는 발송되지 않습니다)');
+        }
+        console.log('===========================================');
+        return true;
+      }
+
       if (!this.client) {
         console.error('❌ Twilio client not initialized');
         return false;
@@ -112,6 +132,11 @@ export class SmsService implements OnModuleInit {
       return true;
     } catch (error) {
       console.error('❌ SMS sending failed:', error);
+      // Trial 계정 에러 처리
+      if (error.code === 21608) {
+        console.error('⚠️ Twilio Trial 계정 제한: 인증된 번호로만 발송 가능합니다.');
+        console.error('해결방법: twilio.com/console에서 번호 인증 또는 USE_MOCK_SMS=true 설정');
+      }
       return false;
     }
   }

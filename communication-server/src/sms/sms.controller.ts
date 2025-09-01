@@ -129,7 +129,7 @@ export class SmsController {
     return {
       success: true,
       message: 'SMS 서비스가 정상적으로 작동 중입니다.',
-      timestamp: new Date().toISOString(),
+      timestamp: new Date(Date.now() + (9 * 60 * 60 * 1000)).toISOString(),
     };
   }
 

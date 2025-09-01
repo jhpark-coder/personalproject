@@ -2,15 +2,15 @@
   position: fixed;
   bottom: 20px;
   right: 20px;
-  background-color: var(--brand-primary);
+  background: var(--primary);
   color: white;
   border: none;
   border-radius: 50px;
   padding: 16px 24px;
-  font-size: 16px;
+  font-size: var(--text-base);
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+  box-shadow: 0 4px 15px rgba(37, 99, 235, 0.4);
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
@@ -19,8 +19,9 @@
 }
 
 .chat-button:hover {
+  background: var(--primary-dark);
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.5);
 }
 
 .chat-button:active {
@@ -59,6 +60,23 @@
   border-radius: 12px;
   overflow: hidden;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+}
+
+/* PC 반응형 최적화 */
+@media (min-width: 1024px) {
+  .chat-button {
+    padding: 20px 30px;
+    font-size: var(--text-lg);
+  }
+  
+  .chat-button-icon {
+    font-size: 24px;
+  }
+  
+  .chat-modal {
+    max-width: 800px;
+    height: 85vh;
+  }
 }
 
 /* 모바일 반응형 */

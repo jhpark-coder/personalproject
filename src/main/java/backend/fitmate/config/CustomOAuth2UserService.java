@@ -15,18 +15,51 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import backend.fitmate.User.entity.User;
-import backend.fitmate.User.repository.UserRepository;
 import backend.fitmate.User.service.UserService;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequest, OAuth2User> {
 
     private final UserService userService;
-    private final UserRepository userRepository;
     private final RedisTemplate<String, Object> redisTemplate;
+
+    private Long parseLongSafely(Object value) {
+        if (value == null) return null;
+        if (value instanceof Number num) return num.longValue();
+        if (value instanceof String s) {
+            try {
+                return Long.parseLong(s);
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private String maskToken(String raw) {
+        if (raw == null || raw.isBlank()) return "(empty)";
+        int keep = Math.min(6, raw.length());
+        String visible = raw.substring(0, keep);
+        return visible + "****";
+    }
+
+    private String maskEmail(String email) {
+        if (email == null || !email.contains("@")) return "(none)";
+        String[] parts = email.split("@", 2);
+        String local = parts[0];
+        String domain = parts[1];
+        String maskedLocal = local.length() <= 2 ? local.charAt(0) + "*" : local.substring(0, 2) + "***";
+        return maskedLocal + "@" + domain;
+    }
+
+    private String maskSub(String sub) {
+        return maskToken(sub);
+    }
 
     @Override
     public OAuth2User loadUser(OAuth2UserRequest userRequest) throws OAuth2AuthenticationException {
@@ -37,18 +70,21 @@ public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
         Map<String, Object> attributes = new HashMap<>(oAuth2User.getAttributes());
         String nameAttributeKey;
 
-        System.out.println("--- [CustomOAuth2UserService] loadUser 진입 ---");
-        System.out.println("🛂 Registration ID: " + registrationId);
+        log.info("--- [CustomOAuth2UserService] loadUser 진입 ---");
+        log.info("🛂 Registration ID: {}", registrationId);
         try {
             HttpServletRequest req0 = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
             String uri = req0.getRequestURI();
             String qs = req0.getQueryString();
-            String cookies = req0.getCookies() != null ? java.util.Arrays.stream(req0.getCookies()).map(c -> c.getName() + "=" + c.getValue()).collect(java.util.stream.Collectors.joining("; ")) : "(no-cookies)";
-            String sessionId = (req0.getSession(false) != null) ? req0.getSession(false).getId() : "(no-session)";
-            System.out.println("[CAL-LINK][CALLBACK] " + uri + (qs != null ? ("?" + qs) : ""));
-            System.out.println("[CAL-LINK][SES] sessionId=" + sessionId);
-            System.out.println("[CAL-LINK][CK ] " + cookies);
-        } catch (Exception ignore) {}
+            String sessionId = (req0.getSession(false) != null) ? req0.getSession(false).getId() : null;
+            String maskedSession = sessionId != null ? maskToken(sessionId) : "(no-session)";
+            String cookieNames = (req0.getCookies() != null)
+                ? java.util.Arrays.stream(req0.getCookies()).map(c -> c.getName()).collect(java.util.stream.Collectors.joining(","))
+                : "(no-cookies)";
+            log.debug("[CAL-LINK][CALLBACK] {}{}", uri, (qs != null ? ("?" + qs) : ""));
+            log.debug("[CAL-LINK][SES] sessionId(masked)={}", maskedSession);
+            log.debug("[CAL-LINK][CKN] names={} ", cookieNames);
+        } catch (IllegalStateException ignore) {}
 
         // ================== 캘린더 연동 처리 로직 ==================
         HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
@@ -62,8 +98,8 @@ public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
                 Object marker = session.getAttribute("calendar_linking_active");
                 Object userIdAttr = session.getAttribute("calendar_linking_user_id");
                 if (Boolean.TRUE.equals(marker) && userIdAttr != null) {
-                    calendarLinkingUserId = Long.parseLong(String.valueOf(userIdAttr));
-                    System.out.println("✅ 세션으로 캘린더 연동 사용자 확인: userId=" + calendarLinkingUserId + ", sessionId=" + session.getId());
+                    calendarLinkingUserId = parseLongSafely(userIdAttr);
+                    log.info("✅ 세션으로 캘린더 연동 사용자 확인: userId={}, sessionId(masked)={}", calendarLinkingUserId, maskToken(session.getId()));
                 }
 
                 // Redis 세션 키 보조 확인
@@ -71,25 +107,26 @@ public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
                     String sessionKey = "calendar_session:" + session.getId();
                     Object redisMapped = redisTemplate.opsForValue().get(sessionKey);
                     if (redisMapped != null) {
-                        calendarLinkingUserId = Long.parseLong(String.valueOf(redisMapped));
-                        System.out.println("✅ Redis 세션 매핑으로 캘린더 연동 사용자 확인: userId=" + calendarLinkingUserId);
+                        calendarLinkingUserId = parseLongSafely(redisMapped);
+                        log.info("✅ Redis 세션 매핑으로 캘린더 연동 사용자 확인: userId={}", calendarLinkingUserId);
                     } else {
-                        System.out.println("[CAL-LINK][REDIS] not found: " + sessionKey);
+                        log.debug("[CAL-LINK][REDIS] not found: {}", sessionKey);
                     }
                 }
             } else {
-                System.out.println("[CAL-LINK][SES] no session");
+                log.debug("[CAL-LINK][SES] no session");
             }
 
             // 1.5) HttpOnly 쿠키 보조 확인
             if (calendarLinkingUserId == null && request.getCookies() != null) {
                 for (jakarta.servlet.http.Cookie c : request.getCookies()) {
                     if ("calendar_link_uid".equals(c.getName())) {
-                        try {
-                            calendarLinkingUserId = Long.parseLong(c.getValue());
-                            System.out.println("✅ 쿠키로 캘린더 연동 사용자 확인: userId=" + calendarLinkingUserId);
+                        Long parsed = parseLongSafely(c.getValue());
+                        if (parsed != null) {
+                            calendarLinkingUserId = parsed;
+                            log.info("✅ 쿠키로 캘린더 연동 사용자 확인: userId={}", calendarLinkingUserId);
                             break;
-                        } catch (NumberFormatException ignored) {}
+                        }
                     }
                 }
             }
@@ -97,20 +134,20 @@ public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
             // 2) 하위 호환: state 파라미터 기반 (이전 방식)
             if (calendarLinkingUserId == null) {
                 String state = request.getParameter("state");
-                System.out.println("[CAL-LINK][STATE] " + state);
+                log.debug("[CAL-LINK][STATE] (masked) {}", state != null ? maskToken(state) : null);
                 if (state != null && !state.isBlank()) {
                     String stateKey = "oauth_state:" + state;
                     Object mappedUserId = redisTemplate.opsForValue().get(stateKey);
-                    System.out.println("🛂 Redis 조회 결과 for key '" + stateKey + "': " + mappedUserId);
+                    log.debug("🛂 Redis 조회 결과 for key '{}': {}", stateKey, mappedUserId != null ? "(hit)" : "(miss)");
                     if (mappedUserId != null) {
-                        calendarLinkingUserId = Long.parseLong(String.valueOf(mappedUserId));
+                        calendarLinkingUserId = parseLongSafely(mappedUserId);
                         redisTemplate.delete(stateKey); // 일회성 사용 후 즉시 삭제
-                        System.out.println("✅ Redis state 매핑으로 캘린더 연동 사용자 확인: userId=" + calendarLinkingUserId);
+                        log.info("✅ Redis state 매핑으로 캘린더 연동 사용자 확인: userId={}", calendarLinkingUserId);
                     }
                 }
             }
-        } catch (Exception e) {
-            System.err.println("🚨 캘린더 연동 사용자 식별 중 오류: " + e.getMessage());
+        } catch (IllegalStateException e) {
+            log.error("🚨 캘린더 연동 사용자 식별 중 오류: {}", e.getMessage(), e);
         }
 
         // 캘린더 연동 사용자가 확인된 경우 (google-connect 전용 registration)
@@ -121,26 +158,25 @@ public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
                 String googleName = oAuth2User.getAttribute("name");
                 String googlePicture = oAuth2User.getAttribute("picture");
 
-                System.out.println("[CAL-LINK][LINK] userId=" + calendarLinkingUserId + ", email=" + googleEmail + ", name=" + googleName + ", sub=" + googleOauthId);
+                log.info("[CAL-LINK][LINK] userId={}, email(masked)={}, name={}, sub(masked)={}", calendarLinkingUserId, maskEmail(googleEmail), googleName, maskSub(googleOauthId));
                 User updatedUser = userService.addGoogleCalendarInfoByUserId(
                     calendarLinkingUserId, googleEmail, googleName, googlePicture, googleOauthId);
 
-                System.out.println("[CAL-LINK][LINK-DONE] updatedUserId=" + updatedUser.getId());
+                log.info("[CAL-LINK][LINK-DONE] updatedUserId={}", updatedUser.getId());
                 attributes.put("provider", "google-connect");
                 attributes.put("userId", updatedUser.getId().toString());
                 attributes.put("calendarLinking", true);
                 nameAttributeKey = "sub";
 
                 return new DefaultOAuth2User(oAuth2User.getAuthorities(), attributes, nameAttributeKey);
-            } catch (Exception e) {
-                System.err.println("🚨 캘린더 연동 처리 실패: " + e.getMessage());
-                e.printStackTrace();
+            } catch (RuntimeException e) {
+                log.error("🚨 캘린더 연동 처리 실패: {}", e.getMessage(), e);
                 throw new OAuth2AuthenticationException("캘린더 연동 처리 중 오류가 발생했습니다: " + e.getMessage());
             }
         }
 
         // 일반 소셜 로그인 분기
-        System.out.println("🔀 [CustomOAuth2UserService] 일반 소셜 로그인 분기 실행");
+        log.info("🔀 [CustomOAuth2UserService] 일반 소셜 로그인 분기 실행");
         switch (registrationId) {
             case "google":
             case "google-connect":
@@ -149,25 +185,42 @@ public class CustomOAuth2UserService implements OAuth2UserService<OAuth2UserRequ
                 break;
             case "naver":
                 Object responseObj = attributes.get("response");
-                if (responseObj instanceof Map) {
-                    attributes = new HashMap<>((Map<String, Object>) responseObj);
-                    attributes.put("provider", "naver");
-                    attributes.put("response", responseObj);
-                    nameAttributeKey = "response";
+                if (responseObj instanceof Map<?, ?> respRaw) {
+                    Map<String, Object> resp = new HashMap<>();
+                    respRaw.forEach((k, v) -> resp.put(String.valueOf(k), v));
+                    // 표준 키로 정규화
+                    Map<String, Object> normalized = new HashMap<>();
+                    normalized.putAll(resp);
+                    normalized.put("provider", "naver");
+                    // Naver 표준화: id/email/name/picture
+                    if (!normalized.containsKey("id") && resp.get("id") != null) normalized.put("id", resp.get("id"));
+                    if (!normalized.containsKey("email") && resp.get("email") != null) normalized.put("email", resp.get("email"));
+                    if (!normalized.containsKey("name") && resp.get("name") != null) normalized.put("name", resp.get("name"));
+                    Object profileImage = resp.get("profile_image");
+                    if (profileImage != null) normalized.put("picture", profileImage);
+                    attributes = normalized;
+                    nameAttributeKey = "id";
                 } else {
                     throw new OAuth2AuthenticationException("네이버 OAuth2 응답의 response 객체가 Map이 아닙니다: " + responseObj);
                 }
                 break;
             case "kakao":
+                log.info("[KAKAO-DEBUG] Raw attributes: {}", attributes);
                 Map<String, Object> kakaoAttributes = new HashMap<>();
                 kakaoAttributes.put("id", attributes.get("id"));
-                Map<String, Object> kakaoAccount = (Map<String, Object>) attributes.get("kakao_account");
-                if (kakaoAccount != null) {
-                    kakaoAttributes.put("email", kakaoAccount.get("email"));
-                    Map<String, Object> profile = (Map<String, Object>) kakaoAccount.get("profile");
-                    if (profile != null) {
-                        kakaoAttributes.put("name", profile.get("nickname"));
-                        kakaoAttributes.put("picture", profile.get("profile_image_url"));
+                Object kakaoAccountObj = attributes.get("kakao_account");
+                log.info("[KAKAO-DEBUG] kakao_account object: {}", kakaoAccountObj);
+                if (kakaoAccountObj instanceof Map<?, ?> kakaoAccount) {
+                    Object emailObj = kakaoAccount.get("email");
+                    log.info("[KAKAO-DEBUG] email from kakao_account: {}", emailObj);
+                    kakaoAttributes.put("email", emailObj);
+                    Object profileObj = kakaoAccount.get("profile");
+                    log.info("[KAKAO-DEBUG] profile object: {}", profileObj);
+                    if (profileObj instanceof Map<?, ?> profile) {
+                        Object nickname = profile.get("nickname");
+                        Object profileImageUrl = profile.get("profile_image_url");
+                        if (nickname != null) kakaoAttributes.put("name", nickname);
+                        if (profileImageUrl != null) kakaoAttributes.put("picture", profileImageUrl);
                     }
                 }
                 kakaoAttributes.put("provider", "kakao");

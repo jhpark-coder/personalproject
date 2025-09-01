@@ -17,6 +17,7 @@ import Modal from '@components/ui/Modal';
 const PoseDetector = lazy(() => import('@features/pose-detection/components/PoseDetector'));
 import AuthGuard from '@features/authentication/components/AuthGuard';
 import { UserProvider } from '@context/UserContext';
+import WorkoutProvider from '@context/WorkoutContext';
 
 // 새로운 페이지 컴포넌트들
 const OnboardingExperience = lazy(() => import('@features/onboarding/components/OnboardingExperience'));
@@ -86,7 +87,9 @@ function AppRoutes() {
         } />
         <Route path="/motion" element={
           <AuthGuard requireAuth={true}>
-            <MotionCoach />
+            <WorkoutProvider>
+              <MotionCoach />
+            </WorkoutProvider>
           </AuthGuard>
         } />
         <Route path="/users" element={
@@ -193,7 +196,9 @@ function AppRoutes() {
         } />
         <Route path="/workout/integrated" element={
           <AuthGuard requireAuth={true}>
-            <IntegratedWorkoutSession />
+            <WorkoutProvider>
+              <IntegratedWorkoutSession />
+            </WorkoutProvider>
           </AuthGuard>
         } />
         {/* 개발용 테스트 페이지 */}

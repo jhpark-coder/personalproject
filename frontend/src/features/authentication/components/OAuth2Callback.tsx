@@ -3,10 +3,12 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import Modal from '@components/ui/Modal';
 import { API_ENDPOINTS } from '@config/api';
 import { apiClient, handleApiError } from '@utils/axiosConfig';
+import { useUser } from '@context/UserContext';
 import './OAuth2Callback.css';
 
 const OAuth2Callback: React.FC = () => {
   const navigate = useNavigate();
+  const { setUserFromLogin } = useUser();
   const [modal, setModal] = useState({
     isOpen: false,
     title: '',
@@ -72,6 +74,31 @@ const OAuth2Callback: React.FC = () => {
         console.log('🔥 토큰 저장 시작 - 토큰:', token ? token.substring(0, 20) + '...' : 'null');
         localStorage.setItem('token', token);
         console.log('🔥 토큰 저장 완료 - 확인:', localStorage.getItem('token') ? '성공' : '실패');
+        
+        // JWT 토큰에서 사용자 정보 추출하고 UserContext 업데이트
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          const userData = {
+            id: parseInt(payload.sub || '0'),
+            email: payload.email || '',
+            name: payload.name || '',
+            provider: payload.provider || provider,
+            picture: payload.picture || '',
+            role: payload.role || 'ROLE_USER',
+            height: '',
+            weight: '',
+            age: '',
+            gender: '',
+            phoneNumber: '',
+            birthDate: '',
+            nickname: ''
+          };
+          
+          console.log('🔄 UserContext 업데이트:', userData);
+          setUserFromLogin(userData, token);
+        } catch (error) {
+          console.error('JWT 토큰 파싱 실패:', error);
+        }
         
         // 캘린더 전용 요청인지 확인 (URL 파라미터로 명확하게 구분)
         const isCalendarRequest = calendarOnly === 'true';

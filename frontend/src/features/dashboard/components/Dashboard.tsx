@@ -44,20 +44,12 @@ interface GoalData {
   progress: number;
 }
 
-interface RecommendationData {
-  title: string;
-  description: string;
-  icon: string;
-  tooltip: string;
-}
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useUser();
   const [workoutData, setWorkoutData] = useState<WorkoutData | null>(null);
   const [goalData, setGoalData] = useState<GoalData | null>(null);
-  const [recommendationData, setRecommendationData] = useState<RecommendationData | null>(null);
-  const [showRecommendation, setShowRecommendation] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   // 최근 5일간의 날짜 라벨 생성 (메모이제이션)
   const generateWeekLabels = useCallback(() => {
@@ -148,7 +140,6 @@ const Dashboard: React.FC = () => {
         const data = response.data.data;
         setGoalData(data.goal);
         setWorkoutData(data.stats);
-        setRecommendationData(data.recommendation);
       } else {
         console.error('대시보드 데이터 로드 실패');
       }
@@ -161,9 +152,6 @@ const Dashboard: React.FC = () => {
 
 
 
-  const handleCloseRecommendation = () => {
-    setShowRecommendation(false);
-  };
 
   if (isLoading) {
     return (
@@ -308,37 +296,6 @@ const Dashboard: React.FC = () => {
         {/* 오늘의 체크리스트 카드 (간결) */}
         <TodayChecklist onStart={() => navigate('/motion')} />
 
-        {/* 추천 루틴 팝업 */}
-        {showRecommendation && recommendationData && (
-          <div className="recommendation-overlay">
-            <div className="recommendation-inner content-wrapper">
-              <div className="recommendation-card">
-                <div className="recommendation-header">
-                  <h3>추천 루틴</h3>
-                  <button 
-                    className="close-button"
-                    onClick={handleCloseRecommendation}
-                  >
-                    ✕
-                  </button>
-                </div>
-                
-                <div className="routine-card">
-                  <div className="routine-icon">{recommendationData.icon}</div>
-                  <div className="routine-info">
-                    <h4 className="routine-title">{recommendationData.title}</h4>
-                    <p className="routine-details">{recommendationData.description}</p>
-                  </div>
-                </div>
-                
-                <div className="recommendation-tooltip">
-                  <div className="tooltip-arrow"></div>
-                  <p>{recommendationData.tooltip}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* 하단 네비게이션 */}

@@ -226,7 +226,7 @@ public class CalendarController {
             }
 
             // Spring Security가 자체 state를 생성하므로 state 파라미터 제거
-            String authUrl = UriComponentsBuilder.fromHttpUrl(externalBaseUrl)
+            String authUrl = UriComponentsBuilder.fromUriString(externalBaseUrl)
                     .path("/oauth2/authorization/google-connect")
                     .toUriString();
 

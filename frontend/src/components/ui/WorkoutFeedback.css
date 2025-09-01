@@ -104,7 +104,7 @@
 
 .completion-fill {
   height: 100%;
-  background: linear-gradient(90deg, #10b981 0%, #34d399 100%);
+  background: var(--accent-success);
   border-radius: 4px;
   transition: width 0.3s ease;
 }
@@ -129,13 +129,13 @@
 }
 
 .rating-button:hover {
-  border-color: #3b82f6;
-  background-color: #eff6ff;
+  border-color: var(--primary);
+  background-color: var(--gray-50);
 }
 
 .rating-button.active {
-  border-color: #3b82f6;
-  background-color: #3b82f6;
+  border-color: var(--primary);
+  background-color: var(--primary);
   color: white;
 }
 
@@ -164,13 +164,13 @@
 }
 
 .toggle-button:hover {
-  border-color: #3b82f6;
-  background-color: #eff6ff;
+  border-color: var(--primary);
+  background-color: var(--gray-50);
 }
 
 .toggle-button.active {
-  border-color: #10b981;
-  background-color: #10b981;
+  border-color: var(--accent-success);
+  background-color: var(--accent-success);
   color: white;
 }
 
@@ -249,7 +249,7 @@
   appearance: none;
   width: 20px;
   height: 20px;
-  background: #3b82f6;
+  background: var(--primary);
   border-radius: 50%;
   cursor: pointer;
 }
@@ -257,7 +257,7 @@
 .rpe-slider::-moz-range-thumb {
   width: 20px;
   height: 20px;
-  background: #3b82f6;
+  background: var(--primary);
   border-radius: 50%;
   cursor: pointer;
   border: none;
@@ -310,7 +310,7 @@
 
 .submit-button {
   flex: 1;
-  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  background: var(--primary);
   color: white;
   border: none;
   padding: 14px 20px;
@@ -322,9 +322,9 @@
 }
 
 .submit-button:hover:not(:disabled) {
-  background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+  background: var(--primary-dark);
   transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+  box-shadow: 0 4px 12px rgba(30, 41, 59, 0.4);
 }
 
 .submit-button:disabled {

@@ -11,12 +11,12 @@ interface RestTimerProps {
   }; // 다음 운동 정보 (선택적)
 }
 
-const RestTimer: React.FC<RestTimerProps> = ({
+function RestTimer({
   duration,
   onComplete,
   onSkip,
   nextExercise
-}) => {
+}: RestTimerProps) {
   const [timeRemaining, setTimeRemaining] = useState(duration);
   const [isRunning, setIsRunning] = useState(false);
 
@@ -45,7 +45,7 @@ const RestTimer: React.FC<RestTimerProps> = ({
   // 컴포넌트 마운트 시 자동으로 타이머 시작
   useEffect(() => {
     startTimer();
-  }, []);
+  }, [startTimer]);
 
   useEffect(() => {
     if (!isRunning || timeRemaining <= 0) return;

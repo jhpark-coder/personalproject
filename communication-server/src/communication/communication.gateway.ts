@@ -84,7 +84,7 @@ export class CommunicationGateway
         sender: disconnectedUser,
         content: `${disconnectedUser} 님이 연결을 종료했습니다.`,
         type: 'LEAVE',
-        timestamp: new Date().toISOString(),
+        timestamp: new Date(Date.now() + (9 * 60 * 60 * 1000)).toISOString(),
       });
     }
   }
@@ -115,7 +115,7 @@ export class CommunicationGateway
       sender: data.sender,
       content: `${data.sender} 님이 문의를 시작했습니다.`,
       type: 'JOIN',
-      timestamp: new Date().toISOString(),
+      timestamp: new Date(Date.now() + (9 * 60 * 60 * 1000)).toISOString(),
     });
 
     return { status: 'joined', user: data.sender };
@@ -253,7 +253,11 @@ export class CommunicationGateway
     this.server.emit('broadcastNotification', notification);
   }
 
-  public sendCalendarUpdateToUser(userId: string, message: string, eventsCount?: number) {
+  public sendCalendarUpdateToUser(
+    userId: string,
+    message: string,
+    eventsCount?: number,
+  ) {
     this.logger.log(`📢 Sending calendar update to user ${userId}: ${message}`);
     this.server.to(userId).emit('calendarUpdate', { message, eventsCount });
   }

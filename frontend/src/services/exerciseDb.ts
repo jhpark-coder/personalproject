@@ -48,8 +48,8 @@ export interface ExdbExerciseDetail extends ExdbExerciseSummary {
 // 서버 캐시 조회
 export async function getKoInstructions(exerciseId: string): Promise<string[] | null> {
   try {
-    const response = await apiClient.get(`/api/exercises/instructions/${encodeURIComponent(exerciseId)}`);
-    return response.data?.data || null;
+    const response = await apiClient.get(`/api/exercise-information/${encodeURIComponent(exerciseId)}`);
+    return response.data?.instructionsKo || null;
   } catch {
     return null;
   }
@@ -58,7 +58,8 @@ export async function getKoInstructions(exerciseId: string): Promise<string[] | 
 // 서버 저장
 export async function saveKoInstructions(exerciseId: string, instructionsKo: string[], nameKo?: string): Promise<boolean> {
   try {
-    const response = await apiClient.post(`/api/exercises/instructions`, {
+    // Using the reload-seed endpoint as a placeholder since there's no instruction save endpoint
+    const response = await apiClient.post(`/api/exercise-information/reload-seed`, {
       exerciseId,
       nameKo,
       instructionsKo

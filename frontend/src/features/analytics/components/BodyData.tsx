@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { API_ENDPOINTS } from '../../../config/api';
-import { apiClient, handleApiError } from '../../../utils/axiosConfig';
-import NavigationBar from '../../../components/ui/NavigationBar';
+import { API_ENDPOINTS } from '@config/api';
+import { apiClient, handleApiError } from '@utils/axiosConfig';
+import NavigationBar from '@components/ui/NavigationBar';
 import './BodyData.css';
 import { useToast } from '@components/ui/ToastProvider';
 import { useUnreadNotifications } from '@features/notifications/hooks/useUnreadNotifications';
@@ -12,26 +12,13 @@ import { useUser } from '@context/UserContext';
 // 소수점 1자리 반올림 유틸
 const round1 = (v: number) => Math.round(v * 10) / 10;
 
-interface BodyRecord {
-  id: number;
-  measureDate: string;
-  weight: number;
-  bodyFatPercentage: number;
-  muscleMass: number;
-  basalMetabolicRate: number;
-  bodyWaterPercentage: number;
-  boneMass: number;
-  visceralFatLevel: number;
-  notes?: string;
-}
-
 interface TrendsData {
   weightTrend: any[];
   bodyFatTrend: any[];
   muscleMassTrend: any[];
 }
 
-const BodyData: React.FC = () => {
+function BodyData() {
   const navigate = useNavigate();
   const [activeTabs, setActiveTabs] = useState({
     muscle: 'daily',
@@ -65,7 +52,7 @@ const BodyData: React.FC = () => {
       // 초기 로드 시 모든 섹션의 기본 기간(daily) 데이터 로드
       loadTrendsData();
     }
-  }, []);
+  }, [loadTrendsData]);
 
   // 탭 변경 핸들러
   const handleTabChange = (section: 'muscle' | 'bodyFat' | 'weight', period: 'daily' | 'weekly' | 'monthly') => {
@@ -131,15 +118,15 @@ const BodyData: React.FC = () => {
       setTrendsData(prev => {
         if (!prev) return data;
         
-        const updatedData = { ...prev };
-        if (section === 'muscle' && data.muscleMassTrend) {
-          updatedData.muscleMassTrend = data.muscleMassTrend;
+        const updatedData = { ...prev } as TrendsData;
+        if (section === 'muscle' && (data as any).muscleMassTrend) {
+          updatedData.muscleMassTrend = (data as any).muscleMassTrend;
         }
-        if (section === 'bodyFat' && data.bodyFatTrend) {
-          updatedData.bodyFatTrend = data.bodyFatTrend;
+        if (section === 'bodyFat' && (data as any).bodyFatTrend) {
+          updatedData.bodyFatTrend = (data as any).bodyFatTrend;
         }
-        if (section === 'weight' && data.weightTrend) {
-          updatedData.weightTrend = data.weightTrend;
+        if (section === 'weight' && (data as any).weightTrend) {
+          updatedData.weightTrend = (data as any).weightTrend;
         }
         
         return updatedData;
@@ -161,88 +148,7 @@ const BodyData: React.FC = () => {
     return trendData;
   };
 
-  // 일별 데이터 생성 (최근 5일간)
-  const generateDailyData = (data: any[], days: number) => {
-    const dailyData: any[] = [];
-    const now = new Date();
-    
-    for (let i = days - 1; i >= 0; i--) {
-      const targetDate = new Date(now);
-      targetDate.setDate(now.getDate() - i);
-      const dateString = targetDate.toISOString().split('T')[0];
-      
-      // 해당 날짜의 데이터 찾기
-      const dayData = data.find(item => {
-        const itemDate = new Date(item[0]);
-        return itemDate.toDateString() === targetDate.toDateString();
-      });
-      
-      if (dayData) {
-        dailyData.push([dateString, parseFloat(dayData[1])]);
-      } else {
-        // 데이터가 없으면 0으로 설정
-        dailyData.push([dateString, 0]);
-      }
-    }
-    
-    return dailyData;
-  };
-
-  // 주간 평균 계산
-  const calculateWeeklyAverages = (data: any[], weeks: number) => {
-    const weeklyData: any[] = [];
-    const now = new Date();
-    
-    for (let i = weeks - 1; i >= 0; i--) {
-      const weekStart = new Date(now);
-      weekStart.setDate(now.getDate() - (i * 7));
-      const weekEnd = new Date(weekStart);
-      weekEnd.setDate(weekStart.getDate() + 6);
-      
-      const weekData = data.filter(item => {
-        const itemDate = new Date(item[0]);
-        return itemDate >= weekStart && itemDate <= weekEnd;
-      });
-      
-      if (weekData.length > 0) {
-        const average = weekData.reduce((sum, item) => sum + parseFloat(item[1]), 0) / weekData.length;
-        weeklyData.push([weekStart.toISOString().split('T')[0], average]);
-      } else {
-        // 데이터가 없는 주는 0으로 설정
-        weeklyData.push([weekStart.toISOString().split('T')[0], 0]);
-      }
-    }
-    
-    return weeklyData;
-  };
-
-  // 월간 평균 계산
-  const calculateMonthlyAverages = (data: any[], months: number) => {
-    const monthlyData: any[] = [];
-    const now = new Date();
-    
-    for (let i = months - 1; i >= 0; i--) {
-      const monthStart = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      const monthEnd = new Date(monthStart.getFullYear(), monthStart.getMonth() + 1, 0);
-      
-      const monthData = data.filter(item => {
-        const itemDate = new Date(item[0]);
-        return itemDate >= monthStart && itemDate <= monthEnd;
-      });
-      
-      if (monthData.length > 0) {
-        const average = monthData.reduce((sum, item) => sum + parseFloat(item[1]), 0) / monthData.length;
-        monthlyData.push([monthStart.toISOString().split('T')[0], average]);
-      } else {
-        // 데이터가 없는 달은 0으로 설정
-        monthlyData.push([monthStart.toISOString().split('T')[0], 0]);
-      }
-    }
-    
-    return monthlyData;
-  };
-
-  const loadTrendsData = async () => {
+  const loadTrendsData = useCallback(async () => {
     const userId = getUserId();
     if (!userId) {
       setError('사용자 정보를 찾을 수 없습니다.');
@@ -311,23 +217,10 @@ const BodyData: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeTabs, showToast]);
 
   // 차트 데이터 포맷팅
-  const formatChartData = (trendData: any[], key: string, period: string) => {
-    // 주차 문자열(YYYY-Www)을 "8월 1주" 같이 변환
-    const parseYearWeek = (yw: string) => {
-      const parts = yw.split('-W');
-      if (parts.length !== 2) return yw;
-      const year = parseInt(parts[0]);
-      const week = parseInt(parts[1]);
-      if (isNaN(year) || isNaN(week)) return yw;
-      const firstJan = new Date(year, 0, 1);
-      const target = new Date(firstJan.getTime() + (week - 1) * 7 * 24 * 60 * 60 * 1000);
-      const month = target.getMonth() + 1;
-      return `${month}월 ${week}주`;
-    };
-
+  const formatChartData = (trendData: any[], period: string) => {
     return trendData.map(item => {
       let formattedDate = '';
       
@@ -350,7 +243,7 @@ const BodyData: React.FC = () => {
           // 월별: 백엔드에서 "YYYY-MM" 형식의 문자열을 보냄
           if (typeof item[0] === 'string' && item[0].match(/^\d{4}-\d{2}$/)) {
             // YYYY-MM 형식 처리
-            const [year, month] = item[0].split('-');
+            const [year, month] = (item[0] as string).split('-');
             formattedDate = `${parseInt(month)}월`;
           } else {
             // 기존 방식 (Date 객체)
@@ -545,7 +438,7 @@ const BodyData: React.FC = () => {
           
           <div className="chart-container">
             <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={formatChartData(filteredMuscleTrend, 'muscleMass', activeTabs.muscle)}>
+              <LineChart data={formatChartData(filteredMuscleTrend, activeTabs.muscle)}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" />
                 <YAxis tickFormatter={(v) => Number(v).toFixed(1)} domain={[round1(muscleMinMax.min - 0.5), round1(muscleMinMax.max + 0.5)]} />
@@ -597,7 +490,7 @@ const BodyData: React.FC = () => {
           
           <div className="chart-container">
             <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={formatChartData(filteredBodyFatTrend, 'bodyFat', activeTabs.bodyFat)}>
+              <LineChart data={formatChartData(filteredBodyFatTrend, activeTabs.bodyFat)}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" />
                 <YAxis tickFormatter={(v) => Number(v).toFixed(1)} domain={[round1(bodyFatMinMax.min - 0.5), round1(bodyFatMinMax.max + 0.5)]} />
@@ -649,7 +542,7 @@ const BodyData: React.FC = () => {
           
           <div className="chart-container">
             <ResponsiveContainer width="100%" height={200}>
-              <LineChart data={formatChartData(filteredWeightTrend, 'weight', activeTabs.weight)}>
+              <LineChart data={formatChartData(filteredWeightTrend, activeTabs.weight)}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" />
                 <YAxis tickFormatter={(v) => Number(v).toFixed(1)} domain={[round1(weightMinMax.min - 0.5), round1(weightMinMax.max + 0.5)]} />

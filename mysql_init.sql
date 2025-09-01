@@ -20,10 +20,17 @@ FLUSH PRIVILEGES;
 -- 5. 데이터베이스 선택
 USE personalproject;
 
--- 6. 테이블 생성 확인 (JPA가 자동으로 생성할 예정)
+-- 6. 한국 시간대 설정 (KST/UTC+9)
+SET GLOBAL time_zone = '+09:00';
+SET SESSION time_zone = '+09:00';
+
+-- 7. 시간대 설정 확인
+SELECT @@global.time_zone as global_tz, @@session.time_zone as session_tz;
+
+-- 8. 테이블 생성 확인 (JPA가 자동으로 생성할 예정)
 -- spring.jpa.hibernate.ddl-auto=update 설정으로 인해 자동 생성됨
 
--- 7. 현재 상태 확인
+-- 9. 현재 상태 확인
 SHOW DATABASES;
 SELECT User, Host FROM mysql.user WHERE User = 'fitmate_user';
 SHOW GRANTS FOR 'fitmate_user'@'%';

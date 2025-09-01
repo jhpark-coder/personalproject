@@ -6,7 +6,7 @@
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: var(--primary);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -114,7 +114,7 @@
 
 .rest-timer-button-primary {
   background: rgba(255, 255, 255, 0.9);
-  color: #667eea;
+  color: var(--primary);
 }
 
 .rest-timer-button-primary:hover {

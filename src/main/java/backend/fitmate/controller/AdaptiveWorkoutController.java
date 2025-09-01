@@ -316,8 +316,15 @@ public class AdaptiveWorkoutController {
             throw new IllegalStateException("인증되지 않은 요청입니다");
         }
         
-        String email = authentication.getName();
-        return userService.findByEmail(email)
-                .orElseThrow(() -> new IllegalStateException("사용자를 찾을 수 없습니다: " + email));
+        String userIdStr = authentication.getName();
+        try {
+            Long userId = Long.parseLong(userIdStr);
+            return userService.findById(userId)
+                    .orElseThrow(() -> new IllegalStateException("사용자를 찾을 수 없습니다: " + userId));
+        } catch (NumberFormatException e) {
+            // If not a number, try as email (fallback for older tokens)
+            return userService.findByEmail(userIdStr)
+                    .orElseThrow(() -> new IllegalStateException("사용자를 찾을 수 없습니다: " + userIdStr));
+        }
     }
 }

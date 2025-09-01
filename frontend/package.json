@@ -5,12 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "prebuild": "node scripts/copy-mediapipe-wasm.mjs",
     "build": "tsc && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "dev:mobile": "concurrently -k -n VITE,TUNNEL -c green,blue \"vite\" \"lt --port 5173\""
+    "dev:mobile": "concurrently -k -n VITE,TUNNEL -c green,blue \"vite\" \"lt --port 5173\"",
+    "test:sim": "concurrently -k -s first -n PREVIEW,TEST -c green,blue \"vite preview --port 4173\" \"node scripts/sim-e2e.mjs\""
   },
   "dependencies": {
+    "@mediapipe/pose": "^0.5.1675469404",
     "@mediapipe/tasks-vision": "^0.10.22-rc.20250304",
     "axios": "^1.11.0",
     "firebase": "^12.0.0",
@@ -33,6 +36,7 @@
     "eslint-plugin-react-hooks": "^4.6.2",
     "eslint-plugin-react-refresh": "^0.4.20",
     "localtunnel": "^2.0.2",
+    "playwright": "^1.46.0",
     "typescript": "^5.5.0",
     "typescript-eslint": "^8.39.1",
     "vite": "^7.0.6"

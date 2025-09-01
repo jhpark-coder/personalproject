@@ -2,13 +2,14 @@
 FROM maven:3.9.8-eclipse-temurin-21 AS builder
 WORKDIR /app
 
-# 의존성 캐시 최적화: pom.xml만 먼저 복사 후 오프라인 의존성 준비
+# 의존성 캐시 최적화: pom.xml만 먼저 복사 후 캐시 사용
 COPY pom.xml .
-RUN mvn -B -DskipTests dependency:go-offline
+# BuildKit 캐시 마운트로 의존성 설치 가속
+RUN --mount=type=cache,target=/root/.m2 mvn -B -DskipTests dependency:go-offline
 
-# 소스 코드 복사 후 빌드 (테스트 스킵)
+# 소스 코드 복사 후 빌드 (테스트 스킵, 병렬 빌드)
 COPY src ./src
-RUN mvn -B -DskipTests clean package
+RUN --mount=type=cache,target=/root/.m2 mvn -B -DskipTests -T 1C clean package
 
 # 2. 실행 단계 - 경량 JDK 런타임 사용
 FROM openjdk:21-jdk-slim

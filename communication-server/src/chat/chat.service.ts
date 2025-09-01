@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
+import { format } from 'date-fns';
+import { ko } from 'date-fns/locale';
 import { ChatMessageDto, ChatMessageType } from './dto/chat-message.dto';
 import {
   ChatMessage,
@@ -24,10 +26,19 @@ export class ChatService {
     private chatMessageModel: Model<ChatMessageDocument>,
   ) {}
 
+  /**
+   * 한국 시간대(KST)로 현재 시간을 반환
+   */
+  private getKoreaTime(): Date {
+    const now = new Date();
+    const koreaTime = new Date(now.getTime() + (9 * 60 * 60 * 1000)); // UTC+9
+    return koreaTime;
+  }
+
   async saveMessage(messageData: ChatMessageDto): Promise<ChatMessageDto> {
     const message = new this.chatMessageModel({
       ...messageData,
-      timestamp: new Date(),
+      timestamp: this.getKoreaTime(),
     });
 
     // MongoDB에 직접 저장
@@ -111,8 +122,8 @@ export class ChatService {
     const user: OnlineUser = {
       username,
       socketId,
-      joinedAt: new Date(),
-      lastActivity: new Date(),
+      joinedAt: this.getKoreaTime(),
+      lastActivity: this.getKoreaTime(),
     };
 
     this.onlineUsers.set(username, user);
@@ -143,7 +154,7 @@ export class ChatService {
   updateUserActivity(username: string): void {
     const user = this.onlineUsers.get(username);
     if (user) {
-      user.lastActivity = new Date();
+      user.lastActivity = this.getKoreaTime();
       this.onlineUsers.set(username, user);
     }
   }
@@ -190,7 +201,7 @@ export class ChatService {
   }
 
   cleanupInactiveUsers(): void {
-    const now = new Date();
+    const now = this.getKoreaTime();
     const threshold = new Date(now.getTime() - 30 * 60 * 1000); // 30분
 
     for (const [username, user] of this.onlineUsers.entries()) {

@@ -16,7 +16,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import backend.fitmate.Exercise.entity.Exercise;
 import backend.fitmate.Exercise.repository.ExerciseRepository;
-import backend.fitmate.Exercise.service.ExerciseService;
 import backend.fitmate.User.entity.BodyRecord;
 import backend.fitmate.User.entity.User;
 import backend.fitmate.User.entity.WorkoutRecord;
@@ -34,7 +33,7 @@ public class DataLoader {
     private final BodyRecordService bodyRecordService;
     // Wger API 제거
     // private final WgerApiService wgerApiService;
-    private final ExerciseService exerciseService;
+    // private final ExerciseService exerciseService; // unused
     private final ExerciseRepository exerciseRepository;
     private final PasswordEncoder passwordEncoder;
     private final MetsDataLoader metsDataLoader;

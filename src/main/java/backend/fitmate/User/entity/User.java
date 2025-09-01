@@ -74,18 +74,19 @@ public class User implements Serializable {
 	@Column(name = "profile_image")
 	private String profileImage; // 프로필 이미지 URL
 
-	// Google-specific fields
+	// Google Calendar 연동 전용 필드들 (각 계정에서 독립적으로 구글 캘린더 연동 가능)
+	// 주 로그인 방식과 무관하게 모든 계정(로컬/네이버/카카오)에서 구글 캘린더를 연동할 수 있음
 	@Column(name = "google_oauth_id")
-	private String googleOAuthId;
-
-	@Column(name = "google_email")
-	private String googleEmail;
-
+	private String googleOAuthId; // 구글 캘린더 연동용 OAuth ID
+	
+	@Column(name = "google_email") 
+	private String googleEmail; // 구글 캘린더 연동용 이메일
+	
 	@Column(name = "google_name")
-	private String googleName;
-
+	private String googleName; // 구글 캘린더 연동용 사용자명
+	
 	@Column(name = "google_picture")
-	private String googlePicture;
+	private String googlePicture; // 구글 캘린더 연동용 프로필 이미지
 
 	public String getGoogleOAuthId() {
 		return googleOAuthId;

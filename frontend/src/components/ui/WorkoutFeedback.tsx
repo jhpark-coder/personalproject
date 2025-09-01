@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import { apiClient } from '../../utils/axiosConfig';
 import './WorkoutFeedback.css';
 
@@ -38,12 +38,12 @@ interface WorkoutFeedbackProps {
   onClose?: () => void;
 }
 
-const WorkoutFeedback: React.FC<WorkoutFeedbackProps> = ({ 
+function WorkoutFeedback({ 
   sessionId, 
   exercises, 
   onComplete, 
   onClose 
-}) => {
+}: WorkoutFeedbackProps) {
   const [feedback, setFeedback] = useState<SessionFeedback>({
     completionRate: 0.8,
     overallDifficulty: 3,
@@ -108,20 +108,20 @@ const WorkoutFeedback: React.FC<WorkoutFeedbackProps> = ({
   };
 
   // 전체 완료율 자동 계산
-  const calculateOverallCompletionRate = () => {
+  const calculateOverallCompletionRate = useCallback(() => {
     const totalPlanned = feedback.exerciseFeedbacks.reduce((sum, ex) => 
       sum + (ex.plannedSets || 0) * (ex.plannedReps || 0), 0);
     const totalCompleted = feedback.exerciseFeedbacks.reduce((sum, ex) => 
       sum + (ex.completedSets || 0) * (ex.completedReps || 0), 0);
     
     return totalPlanned > 0 ? Math.round((totalCompleted / totalPlanned) * 100) / 100 : 0.8;
-  };
+  }, [feedback.exerciseFeedbacks]);
 
   // 완료율 자동 업데이트
   React.useEffect(() => {
     const newCompletionRate = calculateOverallCompletionRate();
     setFeedback(prev => ({ ...prev, completionRate: newCompletionRate }));
-  }, [feedback.exerciseFeedbacks]);
+  }, [calculateOverallCompletionRate]);
 
   return (
     <div className="workout-feedback-overlay">
