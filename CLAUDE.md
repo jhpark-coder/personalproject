@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 📌 Project Summary
 
-**FitMate** is an AI-powered fitness platform that combines real-time pose detection, personalized workout recommendations, and comprehensive health tracking. Built with microservices architecture using Spring Boot (Java 17), React 19, and NestJS 11, the platform delivers an enterprise-grade fitness solution with OAuth2 authentication, real-time communication, and cloud deployment on AWS.
+**FitMate** is a rule-based fitness platform that combines real-time pose detection using computer vision, personalized workout recommendations based on user data analysis, and comprehensive health tracking. Built with microservices architecture using Spring Boot (Java), React (TypeScript), and NestJS, the platform delivers an enterprise-grade fitness solution with OAuth2 authentication, real-time communication, and cloud deployment on AWS.
 
 ### Key Achievements
 - **7 Exercise Types** with MediaPipe pose detection (97%+ accuracy)
@@ -450,7 +450,7 @@ communication-server/src/
 - **Detailed Information**: Exercise instructions, muscle targeting, equipment requirements
 - **Infinite Scroll**: Paginated loading for large exercise datasets
 - **Mobile Optimization**: Touch-friendly scroll controls and responsive design
-- **AI Integration**: Advanced workout recommendations based on user behavior and performance
+- **Smart Recommendations**: Rule-based workout recommendations based on user behavior and performance metrics
 
 ### Exercise API Endpoints
 - `GET /api/exercises` - Paginated exercise list with filtering
@@ -992,12 +992,12 @@ cd frontend && npm run build
 ## 🎯 Project Goals & Vision
 
 ### Mission Statement
-To democratize fitness through AI technology, making professional-grade workout guidance accessible to everyone, regardless of location or budget.
+To democratize fitness through advanced computer vision technology, making professional-grade workout guidance accessible to everyone, regardless of location or budget.
 
 ### Core Values
 1. **Accessibility**: Free tier with core features for all users
 2. **Accuracy**: Professional-grade pose detection and form correction
-3. **Personalization**: AI-driven recommendations based on individual progress
+3. **Personalization**: Data-driven recommendations based on individual progress and performance metrics
 4. **Community**: Social features for motivation and accountability
 5. **Privacy**: Secure data handling with user control
 
@@ -1046,7 +1046,7 @@ To democratize fitness through AI technology, making professional-grade workout 
 - 📋 Expand to 15+ exercise types
 - 📋 Apple Watch / Galaxy Watch integration
 - 📋 Social features (friend system, challenges)
-- 📋 Advanced analytics with AI insights
+- 📋 Advanced analytics with performance insights and trend analysis
 - 📋 Video tutorials and form guides
 
 ### Q3 2025
@@ -1057,7 +1057,7 @@ To democratize fitness through AI technology, making professional-grade workout 
 - 📋 Export data to Apple Health / Google Fit
 
 ### Q4 2025
-- 📋 AI personal trainer with voice interaction
+- 📋 Virtual personal trainer with voice interaction and rule-based coaching
 - 📋 Computer vision for equipment detection
 - 📋 Virtual reality workout support
 - 📋 Corporate wellness program features
