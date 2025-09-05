@@ -1,6 +1,8 @@
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { PoseLandmarker, DrawingUtils } from '@mediapipe/tasks-vision';
+import mediaPipeManager from '../services/mediapipeManager';
+import streamManager from '../services/streamManager';
 import { loadVisionFileset } from '../../../utils/mediapipe';
 import { useUser } from '@context/UserContext';
 import NavigationBar from '@components/ui/NavigationBar';
@@ -85,10 +87,13 @@ const PoseDetector: React.FC<PoseDetectorProps> = ({ embedded = false, autoStart
   const processingRef = useRef<boolean>(false);
   const firstDetectionLogged = useRef<boolean>(false);
   const startSimulatorRef = useRef<() => void>(() => {});
+  const timestampRef = useRef<number>(0);
+  const autoStartProcessedRef = useRef<boolean>(false);
 
-  const [selectedExercise, setSelectedExercise] = useState<ExerciseType>('squat');
+  const [selectedExercise, setSelectedExercise] = useState<ExerciseType>(exerciseType || 'squat');
 
   const [isDetecting, setIsDetecting] = useState(false);
+  const isDetectingRef = useRef(false); // RAF 루프에서 사용할 ref 추가
   const [pose, setPose] = useState<any>(null);
   const [exerciseAnalysis, setExerciseAnalysis] = useState<ExerciseAnalysis>({
     exerciseType: 'squat',
@@ -99,60 +104,59 @@ const PoseDetector: React.FC<PoseDetectorProps> = ({ embedded = false, autoStart
   });
 
   // 운동별 상태(히스테리시스)
-  const stateRef = useRef<{ phase: 'up' | 'down'; count: number }>({ phase: 'up', count: 0 });
+  const stateRef = useRef<{ phase: 'up' | 'down'; count: number; side?: 'left' | 'right' }>({ phase: 'up', count: 0 });
 
   // 디버그 로그 패널 상태
   const [logs, setLogs] = useState<string[]>([]);
   const [debugOpen, setDebugOpen] = useState<boolean>(false);
+  const [detectionCount, setDetectionCount] = useState(0);
+  const [cameraError, setCameraError] = useState<string | null>(null);
   const addLog = useCallback((msg: string, data?: any) => {
     // 내장 모드에서는 로그 축소로 렌더/메모리 오버헤드 절감
     if (embedded) return;
     const time = formatKoreaTimeOnly(new Date());
     const line = `[${time}] ${msg}${data !== undefined ? ` | ${JSON.stringify(data)}` : ''}`;
-    console.log(line);
-    setLogs(prev => [...prev.slice(-300), line]);
+    if (import.meta.env.DEV) console.log(line);
+    // 성능 최적화: 로그 배열 업데이트 주기 감소
+    if (Math.random() < 0.1) { // 10% 확률로만 업데이트
+      setLogs(prev => [...prev.slice(-100), line]);
+    }
   }, [embedded]);
 
 
-  // Pose 인스턴스 생성 (tasks-vision 사용)
-  const createPose = useCallback(async () => {
-    const vision = await loadVisionFileset();
-    
-    // 모바일 환경 체크
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    
-    const instance = await PoseLandmarker.createFromOptions(vision, {
-      baseOptions: {
-        modelAssetPath: `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task`,
-        // 모바일에서는 CPU 사용 (GPU 이슈 회피)
-        delegate: isMobile ? "CPU" : "GPU"
-      },
-      runningMode: "VIDEO",
-      numPoses: 1,
-      // 모바일에서는 신뢰도 임계값을 낮춤
-      minPoseDetectionConfidence: isMobile ? 0.2 : 0.3,
-      minPosePresenceConfidence: isMobile ? 0.2 : 0.3,
-      minTrackingConfidence: isMobile ? 0.2 : 0.3
-    });
-    
-    return instance;
+  // MediaPipe Manager를 통해 Pose 인스턴스 가져오기 (싱글톤)
+  const getPoseInstance = useCallback(async () => {
+    try {
+      const instance = await mediaPipeManager.getPoseLandmarker();
+      return instance;
+    } catch (error) {
+      console.error('Pose 인스턴스 가져오기 실패:', error);
+      throw error;
+    }
   }, []);
 
-  // MediaPipe 초기화 (tasks-vision 사용)
+  // MediaPipe 초기화 (매니저 사용으로 중복 방지)
   const initializeMediaPipe = useCallback(async () => {
     try {
-      if (!embedded && import.meta.env.DEV) console.log('📱 [모바일 디버그] MediaPipe 초기화 시작');
+      if (!embedded && import.meta.env.DEV) console.log('📱 [모바일 디버그] MediaPipe 초기화 요청');
       addLog('MediaPipe Pose 모델 로드 시작', { version: MEDIAPIPE_VERSION });
-      const instance = await createPose();
+      
+      // 매니저를 통해 인스턴스 가져오기 (중복 생성 방지)
+      const instance = await getPoseInstance();
       setPose(instance);
+      
       if (!embedded && import.meta.env.DEV) console.log('📱 [모바일 디버그] MediaPipe 로드 성공');
       addLog('✅ MediaPipe Pose 모델 로드 완료');
     } catch (error) {
       const msg = String((error as any)?.message || error);
+      if (msg.includes('Too frequent')) {
+        console.warn('MediaPipe 초기화 빈도 제한');
+        return;
+      }
       if (!embedded && import.meta.env.DEV) console.error('📱 [모바일 디버그] MediaPipe 로드 실패:', msg);
       addLog('❌ MediaPipe 모델 로드 실패', { error: msg });
     }
-  }, [addLog, createPose, embedded]);
+  }, [addLog, getPoseInstance, embedded]);
 
   // 캔버스 크기를 비디오 해상도와 동기화
   const syncCanvasToVideo = useCallback(() => {
@@ -162,24 +166,80 @@ const PoseDetector: React.FC<PoseDetectorProps> = ({ embedded = false, autoStart
     
     // 비디오가 준비될 때까지 대기
     if (video.videoWidth === 0 || video.videoHeight === 0) {
+      console.log('📷 비디오 크기 아직 0, 100ms 후 재시도');
       setTimeout(() => syncCanvasToVideo(), 100);
       return;
     }
     
     const vw = video.videoWidth;
     const vh = video.videoHeight;
-    canvas.width = vw;
-    canvas.height = vh;
     
-    // 모바일에서 캔버스 스타일 조정
-    const container = canvas.parentElement;
-    if (container) {
-      const containerRect = container.getBoundingClientRect();
-      canvas.style.width = `${containerRect.width}px`;
-      canvas.style.height = `${containerRect.height}px`;
+    // 비디오의 실제 표시 크기 가져오기
+    const videoRect = video.getBoundingClientRect();
+    const containerWidth = videoRect.width;
+    const containerHeight = videoRect.height;
+    
+    // 비디오의 종횡비
+    const videoAspectRatio = vw / vh;
+    // 컨테이너의 종횡비
+    const containerAspectRatio = containerWidth / containerHeight;
+    
+    let scaleX = 1;
+    let scaleY = 1;
+    let offsetX = 0;
+    let offsetY = 0;
+    
+    // object-fit: cover를 고려한 스케일 계산
+    if (videoAspectRatio > containerAspectRatio) {
+      // 비디오가 더 넓음 - 세로에 맞추고 가로를 자름
+      scaleY = containerHeight / vh;
+      scaleX = scaleY;
+      const scaledWidth = vw * scaleX;
+      offsetX = (containerWidth - scaledWidth) / 2;
+    } else {
+      // 비디오가 더 좁음 - 가로에 맞추고 세로를 자름
+      scaleX = containerWidth / vw;
+      scaleY = scaleX;
+      const scaledHeight = vh * scaleY;
+      offsetY = (containerHeight - scaledHeight) / 2;
     }
     
-    addLog('캔버스 동기화', { videoWidth: vw, videoHeight: vh, dpr: window.devicePixelRatio });
+    // 캔버스 실제 크기는 컨테이너 크기로 설정
+    canvas.width = containerWidth;
+    canvas.height = containerHeight;
+    
+    // 캔버스 스타일 설정
+    canvas.style.width = `${containerWidth}px`;
+    canvas.style.height = `${containerHeight}px`;
+    canvas.style.position = 'absolute';
+    canvas.style.top = '0';
+    canvas.style.left = '0';
+    canvas.style.pointerEvents = 'none';
+    canvas.style.zIndex = '10';
+    
+    // 스케일 정보를 저장 (drawPoseOnCanvas에서 사용)
+    canvas.dataset.scaleX = String(scaleX);
+    canvas.dataset.scaleY = String(scaleY);
+    canvas.dataset.offsetX = String(offsetX);
+    canvas.dataset.offsetY = String(offsetY);
+    
+    // console.log('📷 캔버스 동기화 완료', { 
+    //   videoSize: `${vw}x${vh}`, 
+    //   displaySize: `${videoRect.width}x${videoRect.height}`,
+    //   canvasSize: `${canvas.width}x${canvas.height}`,
+    //   canvasStyle: {
+    //     width: canvas.style.width,
+    //     height: canvas.style.height,
+    //     position: canvas.style.position
+    //   }
+    // });
+    
+    addLog('캔버스 동기화', { 
+      videoWidth: vw, 
+      videoHeight: vh, 
+      displayWidth: videoRect.width,
+      displayHeight: videoRect.height
+    });
   }, [addLog]);
 
   // 권한 상태 확인
@@ -190,6 +250,12 @@ const PoseDetector: React.FC<PoseDetectorProps> = ({ embedded = false, autoStart
         // @ts-ignore
         const status = await navigator.permissions.query({ name: 'camera' as PermissionName });
         addLog('카메라 권한 상태', { state: status.state });
+        
+        // 권한이 거부된 경우 경고
+        if (status.state === 'denied') {
+          console.error('🚫 [모바일] 카메라 권한이 거부됨');
+          setCameraError('카메라 권한이 거부되었습니다. 브라우저 설정에서 권한을 허용해주세요.');
+        }
       } else {
         addLog('permissions API 미지원');
       }
@@ -223,38 +289,93 @@ const PoseDetector: React.FC<PoseDetectorProps> = ({ embedded = false, autoStart
     }
   }, [addLog]);
 
+  // 카메라 정지 함수
+  const stopCamera = useCallback(() => {
+    console.log('🛑 Stopping camera');
+    
+    // RAF 중단
+    if (rafId.current) {
+      cancelAnimationFrame(rafId.current);
+      rafId.current = null;
+    }
+    
+    // 비디오 스트림 정지
+    const video = videoRef.current;
+    if (video && video.srcObject) {
+      const stream = video.srcObject as MediaStream;
+      stream.getTracks().forEach(track => track.stop());
+      video.srcObject = null;
+    }
+    
+    // 상태 리셋
+    setIsDetecting(false);
+    isDetectingRef.current = false;
+    rafStartedRef.current = false;
+    stateRef.current = { phase: 'up', count: 0 };
+    
+    // Canvas 클리어
+    const canvas = canvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+    
+    console.log('✅ Camera stopped');
+  }, []);
+  
   // 웹캠 시작 (전면 → 실패 시 후면 폴백)
   const startCamera = useCallback(async () => {
-    console.log('🎥 [모바일] startCamera 호출됨');
+    console.log('🎥 startCamera 호출됨 - isDetecting:', isDetecting, 'embedded:', embedded);
+    
+    // 이미 감지 중이면 무시
+    if (isDetecting) {
+      console.log('📷 이미 카메라가 실행 중');
+      return Promise.resolve(); // Promise 반환 명시
+    }
+    
     await checkPermissions();
     await logDevices();
     addLog('보안 컨텍스트', { isSecureContext: window.isSecureContext, protocol: location.protocol });
 
-    const tryOpen = async (facingMode: 'user' | 'environment') => {
+    const tryOpen = async (facingMode: 'user' | 'environment' | 'default') => {
       addLog('카메라 시도', { facingMode });
-      console.log(`📷 [모바일] 카메라 열기 시도: ${facingMode}`);
+      console.log(`📷 카메라 열기 시도: ${facingMode}`);
       
       // 모바일 환경 체크
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       
-      // 모바일에서는 더 간단한 constraints 사용
-      const constraints = isMobile ? {
-        video: {
-          facingMode: { ideal: facingMode }  // exact 대신 ideal 사용
-        },
-        audio: false
-      } : {
-        video: {
-          width: { ideal: 640, min: 480 },
-          height: { ideal: 480, min: 360 },
-          facingMode,
-          frameRate: { ideal: 24 }
-        }
-      };
+      let constraints: MediaStreamConstraints;
       
-      console.log('📷 [모바일] Constraints:', JSON.stringify(constraints));
+      if (facingMode === 'default') {
+        // 가장 기본적인 constraints - PC에서 fallback
+        constraints = {
+          video: true,
+          audio: false
+        };
+      } else if (isMobile) {
+        // 모바일에서는 facingMode만 설정
+        constraints = {
+          video: { facingMode },
+          audio: false
+        };
+      } else {
+        // PC에서는 더 높은 해상도로 정확도 향상
+        constraints = {
+          video: {
+            width: { ideal: 1280, min: 640 },
+            height: { ideal: 720, min: 480 },
+            frameRate: { ideal: 30, max: 30 },
+            facingMode
+          },
+          audio: false
+        };
+      }
+      
+      console.log('📷 Constraints:', JSON.stringify(constraints));
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      console.log('📷 [모바일] Stream 획득 성공:', stream.id);
+      console.log('📷 Stream 획득 성공:', stream.id);
       return stream;
     };
 
@@ -263,78 +384,182 @@ const PoseDetector: React.FC<PoseDetectorProps> = ({ embedded = false, autoStart
       const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
       
       try {
-        stream = await tryOpen('user');
+        // StreamManager를 통해 스트림 획득 (재사용 가능)
+        stream = await streamManager.getStream('user');
+        console.log('📷 StreamManager로 스트림 획득 성공');
       } catch (e1) {
-        console.error('📷 [모바일] 전면 카메라 실패:', e1);
+        console.error('📷 StreamManager 스트림 획득 실패:', e1);
         handleGumError(e1, 'user');
         
-        // 모바일에서는 후면 카메라로 재시도
-        if (isMobile) {
-          try {
+        // 폴백: 직접 getUserMedia 시도
+        try {
+          // 두 번째 시도
+          if (isMobile) {
+            // 모바일: 후면 카메라
             stream = await tryOpen('environment');
-          } catch (e2) {
-            console.error('📷 [모바일] 후면 카메라도 실패:', e2);
-            handleGumError(e2, 'environment');
-            
-            // 모바일에서는 시뮬레이터 대신 에러 표시
+          } else {
+            // PC: 기본 카메라 설정
+            stream = await tryOpen('default');
+          }
+        } catch (e2) {
+          console.error('📷 두 번째 시도도 실패:', e2);
+          handleGumError(e2, isMobile ? 'environment' : 'default');
+          
+          // 모두 실패 시
+          if (isMobile) {
+            // 모바일: 에러 메시지
             const errorMsg = '카메라 권한 거부 또는 사용 불가';
             addLog('❌ ' + errorMsg);
             setCameraError(errorMsg);
             alert('카메라 권한을 허용해주세요. 브라우저 설정에서 카메라 권한을 확인하세요.');
-            return;
+          } else {
+            // PC: 시뮬레이터 폴백
+            console.log('🎮 [PC] 카메라 사용 불가, 시뮬레이터 모드로 전환');
+            addLog('카메라 최종 실패, 시뮬레이터 폴백');
+            startSimulatorRef.current();
           }
-        } else {
-          // 데스크톱에서만 시뮬레이터 폴백
-          addLog('카메라 최종 실패, 시뮬레이터 폴백');
-          startSimulatorRef.current();
           return;
         }
       }
 
       if (videoRef.current && stream) {
-        console.log('📷 [모바일] 비디오에 스트림 연결 시작');
-        videoRef.current.srcObject = stream;
+        console.log('📷 비디오에 스트림 연결 시작');
+        const video = videoRef.current;
+        
+        // 이전 스트림이 있으면 연결만 해제 (stop 하지 않음 - StreamManager가 관리)
+        if (video.srcObject) {
+          console.log('📷 기존 스트림 연결 해제');
+          video.srcObject = null; // 연결만 해제
+        }
+        
+        // 스트림 설정 전 짧은 지연 (일부 브라우저에서 필요)
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        video.srcObject = stream;
+        
+        // 모바일에서 중요한 속성 설정 (스트림 설정 후에 재설정)
+        video.setAttribute('autoplay', 'true');
+        video.setAttribute('playsinline', 'true');
+        video.setAttribute('webkit-playsinline', 'true');
+        video.setAttribute('muted', 'true');
+        video.muted = true; // 속성과 프로퍼티 둘 다 설정
         
         // 비디오 메타데이터 로드 대기 (타임아웃 추가)
         const metadataPromise = new Promise((resolve, reject) => {
-          const timeout = setTimeout(() => reject('메타데이터 로드 타임아웃'), 5000);
-          videoRef.current!.onloadedmetadata = () => {
+          const timeout = setTimeout(() => {
+            console.warn('📷 메타데이터 타임아웃, 강제 진행');
+            resolve(true); // reject 대신 resolve로 진행
+          }, 5000);
+          
+          video.onloadedmetadata = () => {
             clearTimeout(timeout);
+            console.log('📷 메타데이터 로드 완료');
             syncCanvasToVideo();
             addLog('📐 비디오 메타데이터 로드, 캔버스 동기화');
             resolve(true);
           };
+          
+          // 바로 메타데이터가 로드된 경우 처리
+          if (video.readyState >= 1) {
+            clearTimeout(timeout);
+            console.log('📷 메타데이터 이미 준비됨');
+            syncCanvasToVideo();
+            resolve(true);
+          }
         });
         
         try {
           await metadataPromise;
-          await videoRef.current.play();
-          console.log('📷 [모바일] 비디오 재생 시작');
+          
+          // 모바일에서는 사용자 제스처로 재생을 시도
+          const playVideo = async () => {
+            try {
+              // muted 상태 확인
+              video.muted = true;
+              await video.play();
+              console.log('📷 비디오 재생 시작');
+              return true;
+            } catch (error) {
+              console.warn('📷 자동 재생 실패, 사용자 제스처 필요:', error);
+              return false;
+            }
+          };
+          
+          const playSuccess = await playVideo();
+          
+          if (!playSuccess) {
+            // 자동 재생 실패 시 사용자 상호작용 대기
+            console.log('📷 사용자 터치로 재생 시도');
+            
+            // 모바일에서는 자동 재생을 강제하지 않고 사용자 상호작용 대기
+            // 카메라 버튼 클릭 시 재생되도록 함
+            const userInteraction = new Promise((resolve) => {
+              const handleInteraction = async () => {
+                try {
+                  video.muted = true; // 확실히 muted 상태로
+                  await video.play();
+                  console.log('📷 사용자 상호작용으로 재생 성공');
+                  resolve(true);
+                } catch (e) {
+                  console.warn('터치 재생 실패:', e);
+                  resolve(false);
+                }
+              };
+              
+              // 카메라 버튼 클릭 시 자동으로 재생되도록 설정
+              // 타임아웃 짧게 설정 (3초)
+              setTimeout(() => {
+                console.log('📷 재생 대기 타임아웃');
+                resolve(false);
+              }, 3000);
+            });
+            
+            const interactionResult = await userInteraction;
+            if (!interactionResult) {
+              console.log('📷 대기 중 - 카메라 버튼을 클릭하면 시작됩니다');
+            }
+          }
           
           const track = stream.getVideoTracks()[0];
           addLog('스트림 시작', { label: track?.label, settings: track?.getSettings?.() });
           
           // 즉시 한번 동기화 시도
           syncCanvasToVideo();
+          console.log('📷 setIsDetecting(true) 호출');
           setIsDetecting(true);
+          isDetectingRef.current = true; // ref도 함께 업데이트
           stateRef.current = { phase: 'up', count: 0 };
           firstDetectionLogged.current = false;
           addLog('✅ 웹캠 시작 완료');
+          console.log('📷 카메라 시작 완료, isDetecting이 true로 설정됨');
+          
+          // RAF 루프 시작 확인 (pose가 준비된 경우에만)
+          if (!rafStartedRef.current && pose && loopRef.current) {
+            console.log('🎬 포즈 감지 루프 시작 (카메라 시작 시점)');
+            rafStartedRef.current = true;
+            rafId.current = requestAnimationFrame(loopRef.current);
+          } else if (!rafStartedRef.current) {
+            console.log('⏳ RAF 루프는 pose 준비 후 시작됨');
+            // pose가 준비되면 자동으로 시작되도록 useEffect 추가
+          }
         } catch (playError) {
-          console.error('📷 [모바일] 비디오 재생 실패:', playError);
+          console.error('📷 비디오 재생 실패:', playError);
           addLog('❌ 비디오 재생 실패', { error: String(playError) });
+          setCameraError(String(playError));
         }
       }
     } catch (error) {
-      console.error('📷 [모바일] 전체 에러:', error);
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+      console.error('📷 전체 에러:', error);
       addLog('❌ 웹캠 시작 최종 실패', { error: String(error) });
       
-      // 모바일에서는 시뮬레이터 사용하지 않음
+      // PC에서만 시뮬레이터 사용
       if (!isMobile) {
+        console.log('🎮 [PC] 시뮬레이터 모드로 전환');
         startSimulatorRef.current();
       }
     }
-  }, [checkPermissions, logDevices, handleGumError, syncCanvasToVideo, addLog]);
+  }, [checkPermissions, logDevices, handleGumError, syncCanvasToVideo, addLog, isDetecting, embedded, pose]);
 
   // 분석기 인스턴스들을 카테고리별로 그룹화
   const analyzers = useMemo(() => {
@@ -410,34 +635,72 @@ const PoseDetector: React.FC<PoseDetectorProps> = ({ embedded = false, autoStart
   const drawPoseOnCanvas = (landmarks: any[]) => {
     const canvas = canvasRef.current;
     const ctx = canvas?.getContext('2d');
-    if (!canvas || !ctx) return;
+    if (!canvas || !ctx) {
+      console.log('❌ Canvas or context not available');
+      return;
+    }
+
 
     // 항상 캔버스를 먼저 클리어
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
     // landmarks가 없거나 비어있으면 대기 메시지만 표시
     if (!landmarks || landmarks.length === 0) {
-      if (embedded) {
-        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-        ctx.font = '20px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText('포즈 감지 중...', canvas.width / 2, canvas.height / 2);
-      }
       return;
     }
     
-    // 내장 모드에서도 가독성 높은 흰색 적용
-    ctx.fillStyle = '#FFFFFF';
-    ctx.strokeStyle = '#FFFFFF';
-    ctx.lineWidth = 2;
+    // PC에서는 더 낮은 threshold로 더 많은 포인트 표시
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    
+    // 카메라 거리 체크 (PC용)
+    if (!isMobile && landmarks.length >= 33) {
+      // 몸통 높이 계산 (어깨에서 엉덩이까지)
+      const leftShoulder = landmarks[LEFT_SHOULDER];
+      const rightShoulder = landmarks[RIGHT_SHOULDER];
+      const leftHip = landmarks[LEFT_HIP];
+      const rightHip = landmarks[RIGHT_HIP];
+      
+      if (leftShoulder && rightShoulder && leftHip && rightHip) {
+        const shoulderY = (leftShoulder.y + rightShoulder.y) / 2;
+        const hipY = (leftHip.y + rightHip.y) / 2;
+        const torsoHeight = Math.abs(hipY - shoulderY);
+        
+        // 몸통이 화면의 20% 미만이면 너무 멀리 있음
+        if (torsoHeight < 0.2) {
+          ctx.fillStyle = 'red';
+          ctx.font = '20px Arial';
+          ctx.fillText('카메라에 더 가까이 오세요', canvas.width / 2 - 100, 50);
+        }
+        // 몸통이 화면의 60% 이상이면 너무 가까이 있음
+        else if (torsoHeight > 0.6) {
+          ctx.fillStyle = 'red';
+          ctx.font = '20px Arial';
+          ctx.fillText('카메라에서 조금 멀어지세요', canvas.width / 2 - 100, 50);
+        }
+      }
+    }
+    
+    // 굵고 밝은 색상으로 변경하여 잘 보이도록
+    ctx.fillStyle = '#00FF00';  // 밝은 초록색
+    ctx.strokeStyle = '#00FF00';
+    ctx.lineWidth = 4;  // 더 굵게
 
-    const visibilityThreshold = 0.3;
-    landmarks.forEach((landmark) => {
+    // 스케일 정보 가져오기
+    const scaleX = parseFloat(canvas.dataset.scaleX || '1');
+    const scaleY = parseFloat(canvas.dataset.scaleY || '1');
+    const offsetX = parseFloat(canvas.dataset.offsetX || '0');
+    const offsetY = parseFloat(canvas.dataset.offsetY || '0');
+    const visibilityThreshold = isMobile ? 0.3 : 0.2;  // PC는 0.2로 더 관대하게
+    let visiblePoints = 0;
+    landmarks.forEach((landmark, idx) => {
       if ((landmark.visibility || 0) > visibilityThreshold) {
+        visiblePoints++;
+        // MediaPipe는 0-1 범위의 정규화된 좌표를 반환
+        // 캔버스 크기에 맞게 변환 (캔버스는 이미 화면 크기로 조정됨)
         const x = landmark.x * canvas.width;
         const y = landmark.y * canvas.height;
         ctx.beginPath();
-        ctx.arc(x, y, 3, 0, 2 * Math.PI);
+        ctx.arc(x, y, 6, 0, 2 * Math.PI);  // 적절한 크기로 조정
         ctx.fill();
       }
     });
@@ -464,8 +727,13 @@ const PoseDetector: React.FC<PoseDetectorProps> = ({ embedded = false, autoStart
           (startPoint.visibility || 0) > visibilityThreshold &&
           (endPoint.visibility || 0) > visibilityThreshold) {
         ctx.beginPath();
-        ctx.moveTo(startPoint.x * canvas.width, startPoint.y * canvas.height);
-        ctx.lineTo(endPoint.x * canvas.width, endPoint.y * canvas.height);
+        // 캔버스가 이미 화면 크기로 조정되었으므로 직접 변환
+        const x1 = startPoint.x * canvas.width;
+        const y1 = startPoint.y * canvas.height;
+        const x2 = endPoint.x * canvas.width;
+        const y2 = endPoint.y * canvas.height;
+        ctx.moveTo(x1, y1);
+        ctx.lineTo(x2, y2);
         ctx.stroke();
       }
     });
@@ -479,6 +747,7 @@ const PoseDetector: React.FC<PoseDetectorProps> = ({ embedded = false, autoStart
       simulatorRef.current = mod.createSquatSimulator();
       addLog('🧪 시뮬레이터 시작');
       setIsDetecting(true);  // 시뮬레이터도 detecting 상태로 설정
+      isDetectingRef.current = true;  // ref도 업데이트
       const tick = () => {
         const sim = simulatorRef.current;
         if (!sim) return;
@@ -493,93 +762,207 @@ const PoseDetector: React.FC<PoseDetectorProps> = ({ embedded = false, autoStart
     } catch (e) {
       addLog('시뮬레이터 시작 실패', { error: String(e) });
     }
-  }, [analyzeExercise, selectedExercise, onPose]);
+  }, [analyzeExercise, selectedExercise, onPose, addLog]);
   // ref로 노출해 선언 순서 문제 회피
   useEffect(() => { startSimulatorRef.current = () => { startSimulator(); }; }, [startSimulator]);
 
   // Pose 재초기화(에러 복구)
-  const resetPose = useCallback(() => {
+  const resetPose = useCallback(async () => {
     addLog('Pose 재초기화 시도');
-    const instance = createPose();
-    setPose(instance);
-  }, [addLog, createPose]);
+    try {
+      // 매니저가 자동으로 재초기화를 처리
+      const instance = await getPoseInstance();
+      setPose(instance);
+      addLog('Pose 재초기화 성공');
+    } catch (error) {
+      addLog('Pose 재초기화 실패', { error: String(error) });
+    }
+  }, [addLog, getPoseInstance]);
 
   // RAF 기반 감지 루프
   const frameSkipRef = useRef(0);
   const lastProcessTime = useRef(0);
-  const loop = useCallback(async () => {
+  const loopCounter = useRef(0);
+  const lastErrorTime = useRef(0);
+  const errorCount = useRef(0);
+  
+  // loop 함수를 ref로 관리하여 순환 의존성 해결
+  const loopRef = useRef<() => void>();
+  
+  const loop = useCallback(() => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     
-    if (!pose || !video || !isDetecting) {
-      // 디버그: 초기화 상태 확인
-      if (!firstDetectionLogged.current && Math.random() < 0.02) {
-        console.log('🔄 Loop waiting - pose:', !!pose, 'video:', !!video, 'detecting:', isDetecting);
-      }
-      rafId.current = requestAnimationFrame(() => loop());
-      return;
-    }
-
-    // 모바일에서는 프레임 레이트 제한을 더 관대하게 설정
-    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-    const targetFPS = isMobile ? 15 : 30; // 모바일은 15fps, 데스크톱은 30fps
-    const frameInterval = 1000 / targetFPS;
+    // 무한 루프 방지: 프레임 카운터 및 에러 제한
+    loopCounter.current++;
     const now = performance.now();
     
-    if (now - lastProcessTime.current < frameInterval) {
-      rafId.current = requestAnimationFrame(() => loop());
+    // 프레임 스킵으로 성능 최적화 (모바일: 3프레임마다, PC: 매 프레임 처리)
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const skipFrames = isMobile ? 3 : 1;  // PC는 프레임 스킵 안함
+    frameSkipRef.current++;
+    if (frameSkipRef.current % skipFrames !== 0) {
+      rafId.current = requestAnimationFrame(loopRef.current || loop);
+      return;
+    }
+    
+    // 최소 처리 시간 간격 보장 (33ms = 30fps)
+    if (now - lastProcessTime.current < 33) {
+      rafId.current = requestAnimationFrame(loopRef.current || loop);
       return;
     }
     lastProcessTime.current = now;
+    
+    // 에러가 연속으로 발생하는 경우 경고만 표시 (루프는 계속)
+    if (errorCount.current > 50 && (now - lastErrorTime.current) < 5000) {
+      console.warn('⚠️ 많은 에러 발생 중, 복구 시도...');
+      errorCount.current = 0; // 에러 카운트 리셋
+      lastErrorTime.current = now;
+      // 루프는 계속 진행
+    }
+    
+    // 루프가 명시적으로 중단된 경우만 return
+    if (!rafStartedRef.current) {
+      return;
+    }
+    
+    // 필수 요소가 준비되지 않았으면 대기
+    if (!pose || !video) {
+      rafId.current = requestAnimationFrame(loopRef.current || loop);
+      return;
+    }
 
-    if (!video.videoWidth || !video.videoHeight) {
-      // 모바일에서 비디오 크기가 늦게 설정될 수 있음
-      if (isMobile && canvas) {
-        // 캔버스에 대기 메시지 표시
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-          ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
-          ctx.font = '16px Arial';
-          ctx.textAlign = 'center';
-          ctx.fillText('카메라 준비 중...', canvas.width / 2, canvas.height / 2);
-        }
+    // 성능 최적화: 이미 위에서 프레임 스킵 처리함
+    const currentTime = performance.now();
+
+    // 카메라가 아직 시작되지 않았으면 대기 (ref 사용)
+    if (!isDetectingRef.current) {
+      // 100프레임마다 한 번씩만 로그
+      if (loopCounter.current % 100 === 0) {
+        console.log('⏳ 카메라 대기 중...');
       }
-      rafId.current = requestAnimationFrame(() => loop());
+      rafId.current = requestAnimationFrame(loopRef.current || loop);
+      return;
+    }
+    
+    if (!video.videoWidth || !video.videoHeight) {
+      // 비디오가 아직 준비 안됨
+      if (video.paused && video.srcObject) {
+        video.play().catch(e => {
+          if (loopCounter.current % 30 === 0) {
+            console.log('📷 비디오 재생 대기 중...');
+          }
+        });
+      }
+      rafId.current = requestAnimationFrame(loopRef.current || loop);
       return;
     }
     
     // 비디오가 실제로 재생 중인지 확인
     if (video.paused || video.ended) {
-      addLog('⚠️ 비디오가 일시정지 또는 종료됨');
+      // 로그를 너무 자주 출력하지 않도록
+      if (loopCounter.current % 60 === 0) {
+        console.log('⚠️ 비디오가 일시정지 상태');
+      }
       // 모바일에서 자동 재생 시도
       if (isMobile && video.paused) {
-        video.play().catch(e => console.warn('Auto-play failed:', e));
+        video.play().catch(e => {
+          if (loopCounter.current % 60 === 0) {
+            console.warn('Auto-play failed:', e);
+          }
+        });
       }
-      rafId.current = requestAnimationFrame(() => loop());
+      rafId.current = requestAnimationFrame(loopRef.current || loop);
       return;
     }
+    
+    // 캔버스 크기가 비디오와 맞지 않으면 재동기화
+    if (canvas) {
+      // 매 프레임마다 비디오와 캔버스 크기 확인
+      const videoRect = video.getBoundingClientRect();
+      const canvasRect = canvas.getBoundingClientRect();
+      
+      // 캔버스 표시 크기가 비디오와 다르면 재동기화
+      if (Math.abs(canvasRect.width - videoRect.width) > 1 || 
+          Math.abs(canvasRect.height - videoRect.height) > 1 ||
+          canvas.width !== video.videoWidth || 
+          canvas.height !== video.videoHeight) {
+        syncCanvasToVideo();
+      }
+    }
 
-    if (!processingRef.current) {
-      processingRef.current = true;
-      try {
-        // 모바일에서 timestamp 이슈 해결
-        const timestamp = video.currentTime * 1000; // performance.now() 대신 video.currentTime 사용
+    // 이미 처리 중이면 건너뛰기
+    if (processingRef.current) {
+      rafId.current = requestAnimationFrame(loopRef.current || loop);
+      return;
+    }
+    
+    processingRef.current = true;
+    
+    try {
+        // timestamp 이슈 해결: 항상 증가하는 타임스탬프 사용
+        // performance.now()는 페이지 로드 후 경과 시간(밀리초)
+        // MediaPipe는 마이크로초를 기대하므로 * 1000
+        const currentTime = performance.now();
+        const timestamp = Math.floor(currentTime * 1000);
         
-        // 모바일에서 detectForVideo가 동기적으로 작동하도록 처리
-        let results;
-        try {
-          results = pose.detectForVideo(video, timestamp);
-        } catch (detectionError: any) {
-          // 모바일에서 발생할 수 있는 타이밍 이슈 처리
-          console.warn('Detection error, retrying with adjusted timestamp:', detectionError);
-          results = pose.detectForVideo(video, performance.now());
+        // 타임스탬프는 항상 현재 시간 사용 (단조 증가 보장)
+        timestampRef.current = timestamp;
+        
+        // detectForVideo 존재 여부 확인
+        if (!pose || typeof pose.detectForVideo !== 'function') {
+          if (loopCounter.current % 30 === 0) {
+            console.warn('⚠️ Pose detector not ready yet');
+          }
+          processingRef.current = false;
+          rafId.current = requestAnimationFrame(loopRef.current || loop);
+          return;
         }
         
-        // 디버그: 10프레임마다 상태 로깅
-        if (Math.random() < 0.05) {
-          console.log('🎬 Pose detection attempt:', {
-            timestamp,
+        let results;
+        try {
+          results = pose.detectForVideo(video, timestampRef.current);
+          // 성공 시 에러 카운트 리셋
+          if (errorCount.current > 0) {
+            errorCount.current = Math.max(0, errorCount.current - 1);
+          }
+        } catch (detectionError: any) {
+          const msg = String(detectionError?.message || detectionError);
+          errorCount.current++;
+          lastErrorTime.current = currentTime;
+          
+          if (msg.includes('timestamp mismatch') || msg.includes('Current minimum expected timestamp')) {
+            console.log('⚠️ Timestamp mismatch detected, continuing with current time...');
+            // 현재 시간으로 계속 진행
+            processingRef.current = false;
+            rafId.current = requestAnimationFrame(loopRef.current || loop);
+            return;
+          } else if (msg.includes('memory access out of bounds')) {
+            console.warn('🔄 [모바일] Memory error detected, resetting pose...');
+            processingRef.current = false;
+            
+            // 메모리 에러는 심각하므로 초기화 후 잠시 대기
+            setTimeout(async () => {
+              await initializeMediaPipe();
+              rafId.current = requestAnimationFrame(loopRef.current || loop);
+            }, 2000);
+            return;
+          } else {
+            console.error('😨 [모바일] Pose detection error:', detectionError);
+            processingRef.current = false;
+            
+            // 일반 에러는 조금 대기 후 재시도
+            setTimeout(() => {
+              rafId.current = requestAnimationFrame(loopRef.current || loop);
+            }, 100);
+            return;
+          }
+        }
+        
+        // 디버그 로깅 최소화 (개발 모드에서만, 100프레임마다)
+        if (import.meta.env.DEV && loopCounter.current % 100 === 0) {
+          console.log('🎬 Pose detection status:', {
+            timestamp: timestampRef.current,
             videoTime: video.currentTime,
             videoReady: video.readyState,
             videoWidth: video.videoWidth,
@@ -595,7 +978,7 @@ const PoseDetector: React.FC<PoseDetectorProps> = ({ embedded = false, autoStart
           if (!firstDetectionLogged.current) {
             addLog('🎯 첫 포즈 검출', { points: results.landmarks.length });
             firstDetectionLogged.current = true;
-          }
+            }
           const landmarks = results.landmarks[0];
           const analysis = analyzeExercise(landmarks, selectedExercise);
           
@@ -616,10 +999,13 @@ const PoseDetector: React.FC<PoseDetectorProps> = ({ embedded = false, autoStart
             console.log(`🔢 [모바일] 카운트: ${analysis.currentCount}, 자세: ${analysis.isCorrectForm ? 'OK' : 'NG'}`);
           }
           
-          // 프레임 카운터 증가
-          setDetectionCount(prev => prev + 1);
-          
-          setExerciseAnalysis(analysis);
+          // 성능 최적화: 상태 업데이트 최소화
+          // 분석 결과가 실제로 변경되었을 때만 업데이트
+          if (analysis.currentCount !== exerciseAnalysis.currentCount ||
+              analysis.isCorrectForm !== exerciseAnalysis.isCorrectForm ||
+              analysis.feedback !== exerciseAnalysis.feedback) {
+            setExerciseAnalysis(analysis);
+          }
           // 외부 콜백으로 전달 (내장 사용 시 MotionCoach 연동)
           if (onPose) onPose(landmarks, analysis);
           drawPoseOnCanvas(landmarks);
@@ -653,12 +1039,21 @@ const PoseDetector: React.FC<PoseDetectorProps> = ({ embedded = false, autoStart
       } finally {
         processingRef.current = false;
       }
-    }
-    rafId.current = requestAnimationFrame(() => loop());
-  }, [pose, isDetecting, addLog, resetPose, onPose, selectedExercise, embedded]);
+    
+    // 다음 프레임 예약
+    rafId.current = requestAnimationFrame(loopRef.current || loop);
+  }, [pose, addLog, resetPose, onPose, selectedExercise, embedded]); // isDetecting 제거 (ref 사용)
+
+  // loopRef에 loop 함수 할당
+  useEffect(() => {
+    loopRef.current = loop;
+  }, [loop]);
 
   // 컴포넌트 마운트 시 초기화 + 환경 로그
   useEffect(() => {
+    let mounted = true; // 마운트 상태 추적
+    let cleanupPose: PoseLandmarker | null = null; // 정리할 pose 인스턴스 추적
+    
     addLog('페이지 진입', {
       userAgent: navigator.userAgent,
       platform: navigator.platform,
@@ -684,52 +1079,210 @@ const PoseDetector: React.FC<PoseDetectorProps> = ({ embedded = false, autoStart
       console.debug = (...args: any[]) => { if (!shouldSuppress(args[0])) orig.debug.apply(console, args as any); };
       restoreConsole = () => { console.log = orig.log; console.info = orig.info; console.debug = orig.debug; };
     }
-    // 초기화: 마운트당 1회만 실행
-    if (!poseInitRef.current) {
-      initializeMediaPipe();
-      poseInitRef.current = true;
-    }
+    
+    // MediaPipe 초기화 (비동기)
+    const initPose = async () => {
+      if (!mounted) return; // 언마운트된 경우 중단
+      
+      try {
+        if (!embedded && import.meta.env.DEV) console.log('📱 [모바일 디버그] MediaPipe 초기화 시작');
+        addLog('MediaPipe Pose 모델 로드 시작', { version: MEDIAPIPE_VERSION });
+        
+        // 매니저를 통해 인스턴스 가져오기 (중복 생성 방지)
+        const instance = await mediaPipeManager.getPoseLandmarker();
+        
+        if (!mounted) {
+          // 언마운트된 경우 매니저가 관리하므로 별도 정리 불필요
+          return;
+        }
+        
+        cleanupPose = instance; // 참조만 보관 (매니저가 실제 관리)
+        setPose(instance);
+        if (!embedded && import.meta.env.DEV) console.log('📱 [모바일 디버그] MediaPipe 로드 성공');
+        addLog('✅ MediaPipe Pose 모델 로드 완료');
+      } catch (error) {
+        if (!mounted) return;
+        const msg = String((error as any)?.message || error);
+        if (msg.includes('Too frequent')) {
+          console.warn('MediaPipe 초기화 빈도 제한');
+          return;
+        }
+        if (!embedded && import.meta.env.DEV) console.error('📱 [모바일 디버그] MediaPipe 로드 실패:', msg);
+        addLog('❌ MediaPipe 모델 로드 실패', { error: msg });
+      }
+    };
+    
+    // 초기화 실행
+    initPose();
+    
     // 외부에서 운동 타입을 지정한 경우 동기화
     if (exerciseType) setSelectedExercise(exerciseType);
-    // RAF 루프 시작: 중복 방지
-    if (!rafStartedRef.current) {
-      rafId.current = requestAnimationFrame(() => loop());
-      rafStartedRef.current = true;
-    }
+    
+    // RAF 루프 시작: pose가 준비된 후에만 시작
+    const startLoopTimer = setTimeout(() => {
+      if (mounted && !rafStartedRef.current && pose && loopRef.current) {
+        console.log('🎬 초기 루프 시작 (pose 준비됨)');
+        rafStartedRef.current = true;
+        rafId.current = requestAnimationFrame(loopRef.current);
+      } else if (mounted && !rafStartedRef.current) {
+        console.log('⏳ RAF 루프 대기 중 (pose 아직 준비 안됨)');
+      }
+    }, 500); // 지연 시간 증가
+    
     return () => {
-      if (rafId.current) cancelAnimationFrame(rafId.current);
-      if (simRafId.current) cancelAnimationFrame(simRafId.current);
+      mounted = false; // 언마운트 상태로 변경
+      clearTimeout(startLoopTimer);
+      // 카메라 정지
+      stopCamera();
+      
+      // 루프 중단 플래그 설정
       rafStartedRef.current = false;
+      
+      // 루프 정리
+      if (rafId.current) {
+        cancelAnimationFrame(rafId.current);
+        rafId.current = null;
+      }
+      if (simRafId.current) {
+        cancelAnimationFrame(simRafId.current);
+        simRafId.current = null;
+      };
+      processingRef.current = false;
+      loopCounter.current = 0;
+      errorCount.current = 0;
+      
+      // MediaPipe 매니저에 사용자 해제 알림
+      mediaPipeManager.releaseUser();
+      cleanupPose = null;
+      
+      // StreamManager에 사용자 해제 알림 (스트림은 유지됨)
+      streamManager.releaseUser();
+      
+      // 비디오 엘리먼트에서 스트림 분리만 수행 (스트림 자체는 StreamManager가 관리)
+      if (videoRef.current && videoRef.current.srcObject) {
+        videoRef.current.srcObject = null;
+      }
+      
       if (restoreConsole) restoreConsole();
     };
-  }, [initializeMediaPipe, addLog, exerciseType, loop]);
+  }, [addLog, exerciseType, embedded, pose]); // loop 제거하고 pose 추가
 
   // 내장 모드 + 자동 시작이면 마운트 후 카메라 자동 시작
+  // startCameraRef를 사용하여 최신 startCamera 함수 참조
+  const startCameraRef = useRef(startCamera);
   useEffect(() => {
-    if (autoStart && !isDetecting && pose) {
-      console.log('🎥 Auto-starting camera - embedded:', embedded, 'autoStart:', autoStart, 'pose ready:', !!pose);
-      // 약간의 딜레이 후 시작 (모바일 대응)
-      const timer = setTimeout(() => {
-        startCamera();
-      }, 1000);
-      return () => clearTimeout(timer);
+    startCameraRef.current = startCamera;
+  }, [startCamera]);
+  
+  useEffect(() => {
+    console.log('🚀 AutoStart Effect - autoStart:', autoStart, 'embedded:', embedded, 'processed:', autoStartProcessedRef.current);
+    
+    // autoStart가 false면 처리 플래그 리셋
+    if (!autoStart) {
+      autoStartProcessedRef.current = false;
+      return;
     }
-  }, [autoStart, isDetecting, startCamera, embedded, pose]);
-
-  // 카메라 자동 재시도(최대 3회) - 일부 환경에서 최초 호출이 무시되는 문제 보완
-  useEffect(() => {
-    if (!autoStart) return;
-    let tries = 0;
-    const id = setInterval(() => {
-      if (isDetecting || tries >= 3) {
-        clearInterval(id);
+    
+    // 이미 처리했으면 무시
+    if (autoStartProcessedRef.current) {
+      console.log('⚠️ AutoStart already processed, skipping');
+      return;
+    }
+    
+    autoStartProcessedRef.current = true;
+    
+    let mounted = true;
+    let startAttempts = 0;
+    const maxAttempts = 3;
+    
+    const tryStartCamera = async () => {
+      if (!mounted) {
+        console.log('❌ Component unmounted, canceling auto-start');
         return;
       }
-      tries += 1;
-      startCamera();
-    }, 2000);
-    return () => clearInterval(id);
-  }, [autoStart, isDetecting, startCamera]);
+      
+      // 이미 감지 중이면 무시
+      if (isDetectingRef.current) {
+        console.log('✅ Already detecting, skipping auto-start');
+        return;
+      }
+      
+      if (startAttempts >= maxAttempts) {
+        console.log('❌ Max attempts reached, giving up');
+        return;
+      }
+      
+      startAttempts++;
+      console.log(`🎥 Auto-start attempt ${startAttempts}/${maxAttempts}`);
+      
+      // pose가 준비될 때까지 대기 (최대 3초로 증가)
+      let waitTime = 0;
+      const checkInterval = 100;
+      const maxWaitTime = 3000;
+      
+      while (waitTime < maxWaitTime && mounted) {
+        // pose가 준비되었는지 확인
+        const poseReady = mediaPipeManager.isReady();
+        if (poseReady) {
+          console.log('✅ Pose is ready, proceeding with camera start');
+          break;
+        }
+        await new Promise(resolve => setTimeout(resolve, checkInterval));
+        waitTime += checkInterval;
+      }
+      
+      if (mounted) {
+        console.log('📷 Calling startCamera from auto-start');
+        // ref를 통해 최신 startCamera 함수 호출
+        await startCameraRef.current();
+        
+        // 잠시 대기 후 상태 확인
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // 재시도가 필요한지 확인 (여전히 카메라가 시작되지 않은 경우)
+        const video = videoRef.current;
+        if (!video?.srcObject && startAttempts < maxAttempts) {
+          console.log('⏰ Camera not started, scheduling retry in 2 seconds');
+          setTimeout(() => tryStartCamera(), 2000);
+        } else if (video?.srcObject) {
+          console.log('✅ Camera started successfully');
+        }
+      }
+    };
+    
+    // 초기 시도를 약간 지연
+    console.log('⏰ Scheduling initial auto-start in 1000ms');
+    const timer = setTimeout(() => tryStartCamera(), 1000);
+    
+    return () => {
+      console.log('🧹 Cleaning up auto-start effect');
+      mounted = false;
+      clearTimeout(timer);
+    };
+  }, [autoStart, embedded]); // 의존성 최소화
+
+  // pose가 준비되면 RAF 루프 시작 (autoStart이고 카메라가 켜진 경우)
+  useEffect(() => {
+    if (!pose || !loopRef.current) return;
+    
+    // isDetectingRef는 ref이므로 변경을 감지하려면 주기적으로 체크
+    const checkInterval = setInterval(() => {
+      if (isDetectingRef.current && !rafStartedRef.current) {
+        console.log('🎬 [Pose Ready] RAF 루프 시작 (pose 준비 완료, 카메라 활성)');
+        rafStartedRef.current = true;
+        rafId.current = requestAnimationFrame(loopRef.current);
+        clearInterval(checkInterval);
+      }
+    }, 100);
+    
+    // 5초 후에는 자동으로 정리
+    const timeout = setTimeout(() => clearInterval(checkInterval), 5000);
+    
+    return () => {
+      clearInterval(checkInterval);
+      clearTimeout(timeout);
+    };
+  }, [pose]); // pose가 변경될 때마다 체크 시작
 
   // 뷰포트 변경 시 캔버스 재동기화
   useEffect(() => {
@@ -742,6 +1295,8 @@ const PoseDetector: React.FC<PoseDetectorProps> = ({ embedded = false, autoStart
   useEffect(() => {
     stateRef.current = { phase: 'up', count: 0 };
     setExerciseAnalysis(a => ({ ...a, exerciseType: selectedExercise, currentCount: 0 }));
+    // 타임스탬프는 performance.now() 기반이므로 별도 리셋 불필요
+    console.log('🔄 Exercise changed');
   }, [selectedExercise]);
 
   // 개발용 Shift+S 시뮬레이터 토글
@@ -760,8 +1315,6 @@ const PoseDetector: React.FC<PoseDetectorProps> = ({ embedded = false, autoStart
   // 모바일 디버그 정보
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   const [mobileDebugInfo, setMobileDebugInfo] = useState<string>('');
-  const [cameraError, setCameraError] = useState<string>('');
-  const [detectionCount, setDetectionCount] = useState<number>(0);
   
   useEffect(() => {
     if (isMobile) {
@@ -807,25 +1360,61 @@ const PoseDetector: React.FC<PoseDetectorProps> = ({ embedded = false, autoStart
         </div>
       )}
 
-      <div className="video-container" onClick={(e) => { 
-        // 버튼이 클릭된 경우 컨테이너 클릭 무시
-        if (e.target !== e.currentTarget) return;
-        if (!isDetecting) {
-          console.log('📱 [모바일] 비디오 컨테이너 클릭됨');
-          startCamera();
-        }
-      }}>
+      <div className="video-container" 
+        onClick={(e) => { 
+          // 버튼이 클릭된 경우 컨테이너 클릭 무시
+          if (e.target !== e.currentTarget) return;
+          if (!isDetecting && isMobile) {
+            console.log('📱 [모바일] 비디오 컨테이너 클릭됨');
+            startCamera();
+          }
+        }}
+        style={{
+          position: 'relative',
+          width: '100%',
+          height: '100%',
+          backgroundColor: '#000',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}>
         <video
           ref={videoRef}
           autoPlay
           playsInline
           muted
-          webkit-playsinline="true"
-          x5-playsinline="true"
-          x5-video-player-type="h5"
-          x5-video-player-fullscreen="true"
+          data-webkit-playsinline="true"
+          data-x5-playsinline="true"
+          data-x5-video-player-type="h5"
+          data-x5-video-player-fullscreen="true"
           className="pose-video"
-          style={{ objectFit: 'cover' }}
+          style={{ 
+            objectFit: 'cover',
+            width: '100%',
+            height: '100%',
+            backgroundColor: '#000',
+            position: 'relative',
+            zIndex: 1
+          }}
+          onLoadedMetadata={(e) => {
+            const video = e.currentTarget;
+            console.log('📷 [모바일] onLoadedMetadata 이벤트:', {
+              width: video.videoWidth,
+              height: video.videoHeight,
+              readyState: video.readyState
+            });
+          }}
+          onCanPlay={(e) => {
+            console.log('📷 [모바일] onCanPlay 이벤트 발생');
+          }}
+          onPlay={(e) => {
+            console.log('📷 [모바일] onPlay 이벤트 발생');
+          }}
+          onError={(e) => {
+            const video = e.currentTarget;
+            console.error('📷 [모바일] 비디오 에러:', video.error);
+            setCameraError(`비디오 에러: ${video.error?.message || 'Unknown'}`);
+          }}
         />
         <canvas
           ref={canvasRef}
@@ -860,13 +1449,11 @@ const PoseDetector: React.FC<PoseDetectorProps> = ({ embedded = false, autoStart
               e.stopPropagation();
               startCamera();
             }}
-            onTouchStart={(e) => {
-              console.log('📱 [모바일] 카메라 버튼 터치 시작!');
-              e.preventDefault();
-            }}
             onTouchEnd={(e) => {
-              console.log('📱 [모바일] 카메라 버튼 터치 끝!');
+              console.log('📱 [모버일] 카메라 버튼 터치!');
               e.preventDefault();
+              e.stopPropagation();
+              // 터치 이벤트에서도 startCamera 호출
               startCamera();
             }}
             className="camera-start-button"

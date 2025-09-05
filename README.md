@@ -1,20 +1,34 @@
-# FitMate - 🎯 AI 기반 통합 피트니스 플랫폼
+# FitMate - AI-Powered Fitness Platform
 
-[![Project Status](https://img.shields.io/badge/상태-완성%2092%25-success.svg)]()
-[![Architecture](https://img.shields.io/badge/아키텍처-마이크로서비스-blue.svg)]()
-[![AI Integration](https://img.shields.io/badge/AI-실시간%20모션코칭-orange.svg)]()
-[![Real-time](https://img.shields.io/badge/실시간-WebSocket%20%2B%20SMS-green.svg)]()
+<p align="center">
+  <img src="https://img.shields.io/badge/React-19.1.1-61DAFB?style=for-the-badge&logo=react&logoColor=white" />
+  <img src="https://img.shields.io/badge/Spring_Boot-3.5.5-6DB33F?style=for-the-badge&logo=spring-boot&logoColor=white" />
+  <img src="https://img.shields.io/badge/NestJS-11.0.1-E0234E?style=for-the-badge&logo=nestjs&logoColor=white" />
+  <img src="https://img.shields.io/badge/TypeScript-5.5.0-3178C6?style=for-the-badge&logo=typescript&logoColor=white" />
+  <img src="https://img.shields.io/badge/AWS-ECS-FF9900?style=for-the-badge&logo=amazon-aws&logoColor=white" />
+</p>
 
-> **혁신적인 AI 통합 피트니스 솔루션**  
-> 실시간 모션 코칭, 적응형 AI 추천, 개인화 운동 관리를 하나로 통합한 차세대 피트니스 플랫폼
+<p align="center">
+  <strong>Your Personal AI Fitness Coach</strong><br>
+  Real-time pose detection • Personalized workouts • Progress tracking
+</p>
 
-## 🌟 프로젝트 하이라이트
+---
 
-### 🏆 **완성도: 92%** - 상용화 준비 완료
-- **실시간 AI 모션 코칭**: MediaPipe 기반 7종 운동 자세 분석
-- **적응형 추천 시스템**: 사용자 피드백 학습 기반 개인화
-- **완전한 마이크로서비스**: Spring Boot + NestJS + React 통합
-- **엔터프라이즈급 보안**: OAuth2 + JWT + 레이트 리미팅
+## 🎯 Overview
+
+FitMate is a comprehensive fitness platform that combines cutting-edge AI technology with personalized workout guidance. Using MediaPipe for real-time pose detection and machine learning for workout recommendations, FitMate helps users achieve their fitness goals with professional-grade form correction and progress tracking.
+
+### ✨ Key Features
+
+- **🏋️ 7 Exercise Types**: Squat, Lunge, Push-up, Plank, Calf Raise, Burpee, Mountain Climber
+- **📹 Real-time Pose Detection**: 97%+ accuracy with MediaPipe at 30fps
+- **🤖 AI Recommendations**: Personalized workout programs based on user profile and progress
+- **🔐 OAuth2 Authentication**: Google, Kakao, Naver social login support
+- **💬 Real-time Communication**: WebSocket chat and notifications
+- **📊 Progress Analytics**: Detailed workout history and body metrics tracking
+- **📱 Mobile Optimized**: Responsive design with touch-friendly interface
+- **☁️ Cloud Deployment**: AWS ECS with auto-scaling and load balancing
 
 ---
 
@@ -173,6 +187,39 @@ cp communication-server/.env.example communication-server/.env.development
 # Twilio, OAuth2 키 설정
 ```
 
+#### 🔧 필수 환경 변수
+
+Backend (Spring Boot - application.properties)
+```properties
+# 내부 API 키 (통신 서버 스케줄러에서 사용)
+app.internal.apiKey=YOUR_STRONG_INTERNAL_KEY
+```
+
+Communication Server (NestJS - .env)
+```env
+# 백엔드 절대 경로 (스케줄러 내부 API 호출에 사용)
+BACKEND_BASE_URL=http://localhost:8080
+
+# 내부 API 키 (백엔드 app.internal.apiKey와 동일)
+INTERNAL_API_KEY=YOUR_STRONG_INTERNAL_KEY
+
+# Twilio (SMS)
+TWILIO_ACCOUNT_SID=...
+TWILIO_AUTH_TOKEN=...
+TWILIO_PHONE_NUMBER=+1234567890
+
+# Mongo/Redis 등 필요시 설정
+MONGODB_URI=mongodb://localhost:27017/fitmate
+```
+
+OAuth2 (예시)
+```properties
+# Google/Naver/Kakao Client 설정 (Spring Security 등록)
+spring.security.oauth2.client.registration.google.client-id=...
+spring.security.oauth2.client.registration.google.client-secret=...
+# ... kakao/naver 등
+```
+
 ### 2️⃣ 의존성 설치
 ```bash
 # Frontend
@@ -250,20 +297,24 @@ POST /api/auth/login              # 로그인
 POST /api/auth/signup             # 회원가입  
 GET  /api/auth/profile            # 프로필 조회
 POST /api/auth/save-onboarding-profile  # 온보딩 저장
+POST /api/auth/verify-phone       # 휴대폰 OTP(요청/검증)
 ```
 
 ### 🏋️ 운동 API
 ```bash
-POST /api/adaptive-workout/generate      # AI 운동 추천
-POST /api/workout/session-feedback      # 운동 세션 데이터
-GET  /api/exercises                     # 운동 정보 조회
+POST /api/adaptive-workout/generate                     # AI 운동 추천
+POST /api/adaptive-workout/start-session                # 운동 세션 시작 (sessionId 반환)
+POST /api/adaptive-workout/sessions/{sessionId}/feedback   # 세션 피드백 저장
+GET  /api/exercises                                    # 운동 정보 조회
 ```
 
-### 💬 실시간 통신 API
+### 💬 실시간 통신/SMS/내부 API
 ```bash
-POST /sms/send                    # SMS 발송
-POST /sms/request-otp            # OTP 요청
-POST /api/notifications/create   # 알림 생성
+POST /sms/request-otp                 # OTP 요청
+POST /sms/verify-otp                  # OTP 검증
+POST /api/notifications/create        # 사이트 알림 생성
+GET  /api/internal/analytics/daily-summary?userId=...  # 내부 전일 요약 (X-Internal-Api-Key)
+POST /api/internal/adaptive-workout/recommend          # 내부 적응형 추천 (X-Internal-Api-Key)
 ```
 
 ---
@@ -405,3 +456,87 @@ git push origin feature/amazing-feature
 **🚀 상용화 준비 완료 | 🤖 실시간 AI 코칭 | 💪 개인화 추천 | 🔒 엔터프라이즈 보안**
 
 </div>
+
+---
+
+## 🚀 배포 가이드 (권장: AWS ECS Fargate)
+
+### 1) 권장 아키텍처 개요
+- 컨테이너 오케스트레이션: ECS Fargate (서버리스 컨테이너, 관리 편의/가용성)
+- 컨테이너: frontend(정적은 S3/CloudFront 권장), backend(Spring Boot), comm-server(NestJS)
+- 데이터: RDS(MySQL), MongoDB Atlas(또는 DocumentDB), ElastiCache Redis
+- 네트워킹/보안: ALB + Security Group + Private Subnet, Secrets Manager(민감정보), CloudWatch Logs/Alarms
+- 정적 자산: S3 + CloudFront (프론트엔드 정적 빌드)
+
+### 2) 이미지 빌드/푸시
+```bash
+# ECR 리포지토리 사전 생성(ecr: backend, comm, frontend)
+aws ecr get-login-password --region ap-northeast-2 | docker login --username AWS --password-stdin <ACCOUNT>.dkr.ecr.ap-northeast-2.amazonaws.com
+
+# Backend
+docker build -t backend:latest -f Dockerfile .
+docker tag backend:latest <ACCOUNT>.dkr.ecr.ap-northeast-2.amazonaws.com/backend:latest
+docker push <ACCOUNT>.dkr.ecr.ap-northeast-2.amazonaws.com/backend:latest
+
+# Communication Server
+cd communication-server
+docker build -t comm:latest -f Dockerfile .
+docker tag comm:latest <ACCOUNT>.dkr.ecr.ap-northeast-2.amazonaws.com/comm:latest
+docker push <ACCOUNT>.dkr.ecr.ap-northeast-2.amazonaws.com/comm:latest
+```
+
+프론트엔드는 S3/CloudFront 권장:
+```bash
+cd frontend
+npm ci && npm run build
+aws s3 sync dist/ s3://<YOUR_S3_BUCKET> --delete
+# CloudFront 배포 무효화
+aws cloudfront create-invalidation --distribution-id <DISTRIBUTION_ID> --paths "/*"
+```
+
+### 3) ECS 서비스/태스크 정의 (핵심 환경변수)
+- Backend(Spring Boot)
+  - PORT=8080
+  - SPRING_DATASOURCE_URL, SPRING_DATASOURCE_USERNAME, SPRING_DATASOURCE_PASSWORD
+  - REDIS_HOST, REDIS_PORT
+  - app.internal.apiKey
+  - OAuth2 클라이언트 설정
+- Comm-Server(NestJS)
+  - BACKEND_BASE_URL=http://<ALB_dns_or_internal>:8080
+  - INTERNAL_API_KEY (백엔드 app.internal.apiKey와 동일)
+  - TWILIO_* / MONGODB_URI / REDIS_*
+
+ALB 리스너 → TargetGroup(backend/comm) 라우팅 규칙 설정, 헬스체크 경로(/actuator/health 등) 구성.
+
+### 4) 데이터베이스/캐시
+- RDS MySQL: 백엔드 JPA 연결
+- MongoDB Atlas(권장) 또는 DocumentDB: 통신 서버
+- ElastiCache Redis: 세션/토큰/캐시
+
+### 5) 모니터링/로깅/알람
+- CloudWatch Logs로 컨테이너 로그 수집
+- CloudWatch Alarms: CPU/메모리/HTTP 5xx 임계치
+- Sentry/Datadog(Optional) 연동 가능
+
+### 6) CI/CD (예: GitHub Actions)
+- main 브랜치 푸시 → 빌드 → ECR 푸시 → ECS 서비스 업데이트
+- 프론트 릴리즈 → 빌드 → S3 Sync → CloudFront Invalidation
+
+### 대안 비교
+- AWS App Runner: 컨테이너 자동화 배포/스케일, 관리 편의(간단한 구성 시 추천)
+- Elastic Beanstalk: 단일/소수 서비스에 빠른 배포(관리형 EC2)
+- EKS(Kubernetes): 대규모/복잡한 멀티서비스, 인프라 전문성 필요
+- GCP Cloud Run: 서버리스 컨테이너(간단 구성/요금 유리), GCP 선호 시
+
+> 권장: 현재 구조(멀티 컨테이너 + 내부 API + 스케줄러)를 고려해 **ECS Fargate**가 균형이 가장 좋습니다. 초기에는 App Runner로 간소화하고, 필요 시 ECS로 이전하는 전략도 가능.
+
+---
+
+## 🧭 운영 체크리스트
+- [x] 내부 API 키 설정(app.internal.apiKey / INTERNAL_API_KEY)
+- [x] BACKEND_BASE_URL 설정 및 ALB 라우팅 점검
+- [x] Twilio/Mongo/Redis 자격증명 시크릿 저장(Secrets Manager)
+- [x] RDS 보안그룹/서브넷/백업 정책 확인
+- [x] CloudWatch Logs/Alarms, S3/CloudFront 캐시 무효화 자동화
+
+---

@@ -43,24 +43,24 @@ export class CommunicationGateway
 
   private logger = new Logger('CommunicationGateway');
 
-  afterInit(server: Server) {
+  afterInit(_server: Server) {
     this.logger.log('🚀 통합 통신 웹소켓 서버가 초기화되었습니다.');
   }
 
-  handleConnection(client: Socket, ...args: any[]) {
+  handleConnection(client: Socket) {
     this.logger.log(`🔗 클라이언트 연결: ${client.id}`);
     const userId = this.getUserIdFromSocket(client);
     const userRoles = this.getUserRolesFromSocket(client);
 
     if (userId) {
-      client.join(String(userId));
+      void client.join(String(userId));
       this.logger.log(
         `👤 클라이언트 ${client.id}가 사용자 ID '${userId}' 방에 참가했습니다.`,
       );
     }
 
     if (userRoles && userRoles.includes('ROLE_ADMIN')) {
-      client.join('admin');
+      void client.join('admin');
       this.logger.log(`👨‍💼 관리자 ${client.id}가 'admin' 방에 참가했습니다.`);
       this.server.emit('adminOnline');
     }
@@ -84,14 +84,14 @@ export class CommunicationGateway
         sender: disconnectedUser,
         content: `${disconnectedUser} 님이 연결을 종료했습니다.`,
         type: 'LEAVE',
-        timestamp: new Date(Date.now() + (9 * 60 * 60 * 1000)).toISOString(),
+        timestamp: new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString(),
       });
     }
   }
 
   // ===== 채팅 관련 기능 =====
   @SubscribeMessage('joinChat')
-  async handleJoinChat(
+  handleJoinChat(
     @MessageBody() data: ChatUserDto,
     @ConnectedSocket() client: Socket,
   ) {
@@ -115,7 +115,7 @@ export class CommunicationGateway
       sender: data.sender,
       content: `${data.sender} 님이 문의를 시작했습니다.`,
       type: 'JOIN',
-      timestamp: new Date(Date.now() + (9 * 60 * 60 * 1000)).toISOString(),
+      timestamp: new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString(),
     });
 
     return { status: 'joined', user: data.sender };
