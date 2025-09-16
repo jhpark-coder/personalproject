@@ -21,11 +21,15 @@ FitMate는 최신 컴퓨터 비전 기술과 맞춤형 운동 가이드를 결�
 
 ### ✨ 핵심 기능
 
-- **🏋️ 7가지 운동**: 스쿼트, 런지, 푸시업, 플랭크, 종아리 운동, 버피, 마운틴 클라이머
+- **🏋️ 17가지 운동 지원**: 
+  - 하체: 스쿼트, 런지, 종아리 운동, 점프 스쿼트, 데드리프트, 월싯, 브릿지
+  - 상체: 푸시업, 풀업
+  - 코어: 플랭크, 사이드 플랭크, 싯업, 크런치
+  - 유산소: 버피, 마운틴 클라이머, 점핑잭, 하이니즈
 - **📹 실시간 자세 감지**: MediaPipe로 30fps에서 97% 이상 정확도
-- **🤖 맞춤형 추천**: 사용자 프로필과 진도에 기반한 규칙 기반 운동 프로그램
+- **🤖 맞춤형 추천**: 사용자 프로필과 진도에 기반한 운동 프로그램
 - **🔐 OAuth2 인증**: Google, Kakao, Naver 소셜 로그인 지원
-- **💬 실시간 통신**: WebSocket 채팅 및 알림
+- **💬 실시간 통신**: WebSocket 채팅 및 SMS 알림 (Twilio)
 - **📊 진도 분석**: 상세한 운동 기록 및 신체 측정 추적
 - **📱 모바일 최적화**: 터치 친화적 인터페이스의 반응형 디자인
 - **☁️ 클라우드 배포**: 자동 확장 및 로드 밸런싱 기능의 AWS ECS
@@ -119,11 +123,12 @@ graph TB
 - **아이콘**: Lucide React 0.535.0
 
 ### Backend
-- **Main API**: Spring Boot 3.5.5 (Java 17)
-- **통신 서버**: NestJS 11.0.1 (TypeScript)
+- **Main API**: Spring Boot 3.5.5 (Java 21)
+- **통신 서버**: NestJS 11.0.1 (TypeScript 5.7.3)
 - **인증**: JWT + OAuth2 (Spring Security)
 - **데이터베이스**: MySQL 8.0, MongoDB 7, Redis 7
-- **레이트 리미팅**: Bucket4j with Redis
+- **레이트 리미팅**: Bucket4j 8.14.0 with Redis
+- **추가 서비스**: Google Cloud Text-to-Speech, Firebase Admin SDK
 
 ### Infrastructure
 - **컨테이너화**: Docker + Docker Compose
@@ -150,7 +155,7 @@ graph TB
 
 ### 필수 요구사항
 - Node.js 18+
-- Java 17+
+- Java 21+
 - Docker & Docker Compose
 - MySQL 8.0, MongoDB 7, Redis 7
 
@@ -294,16 +299,19 @@ const selectExercises = (profile, history) => {
 ## 🔮 향후 계획
 
 ### 2025년 완료
-- ✅ 규칙 기반 모션 코칭 시스템 구현
-- ✅ 7가지 운동 유형 지원
+- ✅ 실시간 모션 코칭 시스템 구현
+- ✅ 17가지 운동 유형 완전 지원
 - ✅ OAuth2 소셜 로그인 (Google, Kakao, Naver)
-- ✅ 실시간 채팅 및 알림 시스템
+- ✅ 실시간 채팅 및 SMS 알림 시스템
 - ✅ 운동 분석 대시보드
+- ✅ 마이크로서비스 아키텍처 구현
+- ✅ AWS ECS 프로덕션 배포
 
 ### Q4 2025 - 현재 개발중
-- 🔄 15+ 운동 유형 확장
 - 🔄 성능 최적화 및 버그 수정
 - 🔄 사용자 경험 개선
+- 🔄 고급 분석 기능 개발
+- 🔄 모바일 앱 개발 (React Native)
 
 ### Q1 2026 - 플랫폼 확장
 - 📋 Apple Watch / Galaxy Watch 통합
