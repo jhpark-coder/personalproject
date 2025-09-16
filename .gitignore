@@ -116,3 +116,22 @@ serviceAccountKey.json
 firebase-service-account.json
 fitmate-467303-firebase-adminsdk-fbsvc-1e63c389f3.json
 src/main/resources/fitmate-467303-firebase-adminsdk-fbsvc-1e63c389f3.json
+
+### Google Cloud Credentials ###
+fitmate-467303-d672fa9243c9.json
+src/main/resources/fitmate-467303-d672fa9243c9.json
+*-google-cloud-*.json
+
+### Sensitive Configuration Files ###
+communication-server/.env.development
+communication-server/.env.production
+.env.development
+.env.production
+src/main/resources/application-dev.properties
+src/main/resources/application-prod.properties
+
+### Private Keys ###
+*.pem
+*.key
+*.crt
+*.p12

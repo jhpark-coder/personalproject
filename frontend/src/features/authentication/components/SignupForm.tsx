@@ -18,12 +18,12 @@ interface ConfirmationResult {
 
 // Firebase 설정 - Twilio OTP 사용으로 주석처리
 // const firebaseConfig = {
-//   apiKey: "AIzaSyDWpoEZA43chfYY0LOOce-Rtwa-tfWnp-8",
-//   authDomain: "fitmate-467303.firebaseapp.com",
-//   projectId: "fitmate-467303",
-//   storageBucket: "fitmate-467303.appspot.com",
-//   messagingSenderId: "581520849563",
-//   appId: "1:581520849563:web:fitmate-app"
+//   apiKey: process.env.REACT_APP_FIREBASE_API_KEY,
+//   authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN,
+//   projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID,
+//   storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET,
+//   messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID,
+//   appId: process.env.REACT_APP_FIREBASE_APP_ID
 // };
 
 // Firebase 초기화 - Twilio OTP 사용으로 주석처리
@@ -801,7 +801,6 @@ const SignupForm: React.FC = () => {
       <div className="signup-form-card">
         <div className="signup-header">
           <h2>회원가입</h2>
-          <Link to="/login" className="back-to-login">로그인으로 돌아가기</Link>
         </div>
 
         <form onSubmit={handleSubmit} className="signup-form">
@@ -1086,9 +1085,19 @@ const SignupForm: React.FC = () => {
             )}
           </div>
 
-          <button type="submit" className="verification-button" disabled={!isSmsVerified}>
-            회원가입
-          </button>
+          {isSmsVerified ? (
+            <button type="submit" className="verification-button">
+              회원가입
+            </button>
+          ) : (
+            <button 
+              type="button" 
+              className="back-button"
+              onClick={() => window.location.href = '/login'}
+            >
+              뒤로가기
+            </button>
+          )}
         </form>
       </div>
       
