@@ -36,6 +36,20 @@ build/
 CLAUDE.md
 GEMINI.md
 
+### Security - NEVER COMMIT ###
+*.crt
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.truststore
+ca.*
+cert.*
+certificate.*
+private.*
+
 ### Node.js ###
 node_modules/
 npm-debug.log*
