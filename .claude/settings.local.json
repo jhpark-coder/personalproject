@@ -27,7 +27,14 @@
       "Bash(docker pull:*)",
       "Bash(cloudflared tunnel:*)",
       "Bash(git checkout:*)",
-      "Bash(git stash:*)"
+      "Bash(git stash:*)",
+      "Bash(git ls-tree:*)",
+      "Bash(grep:*)",
+      "Bash(for branch in fix/calendar-oauth-linking-stability perf-merge-compare)",
+      "Bash(do echo \"=== Checking $branch ===\")",
+      "Bash(done)",
+      "Bash(git push:*)",
+      "Bash(git reset:*)"
     ],
     "deny": [],
     "ask": [],
