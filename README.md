@@ -1,156 +1,143 @@
-# FitMate - AI 피트니스 플랫폼
+# 💪 FitMate - AI Fitness Platform
 
-<p align="center">
-  <img src="https://img.shields.io/badge/React-19.1.1-61DAFB?style=for-the-badge&logo=react&logoColor=white" />
-  <img src="https://img.shields.io/badge/Spring_Boot-3.5.5-6DB33F?style=for-the-badge&logo=spring-boot&logoColor=white" />
-  <img src="https://img.shields.io/badge/NestJS-11.0.1-E0234E?style=for-the-badge&logo=nestjs&logoColor=white" />
-  <img src="https://img.shields.io/badge/TypeScript-5.5.0-3178C6?style=for-the-badge&logo=typescript&logoColor=white" />
-  <img src="https://img.shields.io/badge/AWS-ECS-FF9900?style=for-the-badge&logo=amazon-aws&logoColor=white" />
-</p>
+<div align="center">
 
-<p align="center">
-  <strong>실시간 자세 감지와 맞춤형 운동 추천</strong>
-</p>
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.5-brightgreen?logo=springboot)
+![React](https://img.shields.io/badge/React-19.1.1-61DAFB?logo=react)
+![NestJS](https://img.shields.io/badge/NestJS-11.0.1-E0234E?logo=nestjs)
+![Docker](https://img.shields.io/badge/Docker-Ready-2496ED?logo=docker)
 
-## 🎯 프로젝트 소개
+**실시간 자세 감지와 맞춤형 운동 추천을 위한 AI 피트니스 플랫폼**
 
-FitMate는 MediaPipe 기반 실시간 자세 감지와 맞춤형 운동 추천을 제공하는 종합 피트니스 플랫폼입니다.
+[🚀 시작하기](#-빠른-시작) • [📚 문서](#-프로젝트-구조) • [💡 기능](#-주요-기능)
 
-### ✨ 핵심 기능
-
-- **🏋️ 17가지 운동 지원**: 
-  - 하체: 스쿼트, 런지, 종아리 운동, 점프 스쿼트, 데드리프트, 월싯, 브릿지
-  - 상체: 푸시업, 풀업
-  - 코어: 플랭크, 사이드 플랭크, 싯업, 크런치
-  - 유산소: 버피, 마운틴 클라이머, 점핑잭, 하이니즈
-- **📹 실시간 자세 감지**: MediaPipe로 30fps에서 97% 이상 정확도
-- **🤖 맞춤형 추천**: 사용자 프로필과 진도에 기반한 운동 프로그램
-- **🔐 OAuth2 인증**: Google, Kakao, Naver 소셜 로그인 지원
-- **💬 실시간 통신**: WebSocket 채팅 및 SMS 알림 (Twilio)
-- **📊 진도 분석**: 상세한 운동 기록 및 신체 측정 추적
-- **📱 모바일 최적화**: 터치 친화적 인터페이스의 반응형 디자인
-- **☁️ 클라우드 배포**: 자동 확장 및 로드 밸런싱 기능의 AWS ECS
+</div>
 
 ---
+
+## 📌 프로젝트 소개
+
+**FitMate**는 MediaPipe 기반 실시간 자세 감지와 맞춤형 운동 추천을 제공하는 피트니스 플랫폼입니다. 사용자의 운동 데이터를 분석하여 개인화된 운동 프로그램을 제공하며, 실시간 모션 코칭을 통해 정확한 운동 자세를 유도합니다.
 
 ## 🏗️ 시스템 아키텍처
 
-- **Frontend**: React 19 + TypeScript + MediaPipe
-- **Backend**: Spring Boot + NestJS 마이크로서비스
-- **Database**: MySQL + MongoDB + Redis
-- **Infrastructure**: Docker + AWS ECS + Nginx
-
----
-
-## 💪 주요 기능
-
-### 운동 시스템
-- 17가지 운동 실시간 자세 감지 (MediaPipe 30fps)
-- 사용자 맞춤형 운동 프로그램 추천
-- TTS 음성 가이드 및 실시간 피드백
-- 운동 성과 분석 및 진도 추적
-
-### 실시간 통신
-- WebSocket 기반 실시간 채팅
-- Twilio SMS 알림 시스템
-- 운동 리마인더 및 동기부여 메시지
-
----
-
-## 🛠️ 기술 스택
-
 ### Frontend
-- **Core**: React 19.1.1 + TypeScript 5.5.0
-- **Build**: Vite 7.0.6 (빠른 HMR 및 최적화 빌드)
-- **자세 감지**: @mediapipe/tasks-vision 0.10.22
-- **실시간**: Socket.IO Client 4.8.1
-- **차트**: Recharts 3.1.0
-- **아이콘**: Lucide React 0.535.0
+- **React 19**: SPA 기반 사용자 인터페이스
+- **MediaPipe**: 실시간 자세 감지 (30fps)
+- **TypeScript**: 타입 안정성
 
 ### Backend
-- **Main API**: Spring Boot 3.5.5 (Java 21)
-- **통신 서버**: NestJS 11.0.1 (TypeScript 5.7.3)
-- **인증**: JWT + OAuth2 (Spring Security)
-- **데이터베이스**: MySQL 8.0, MongoDB 7, Redis 7
-- **레이트 리미팅**: Bucket4j 8.14.0 with Redis
-- **추가 서비스**: Google Cloud Text-to-Speech, Firebase Admin SDK
+- **Spring Boot** (Port 8080): 메인 API 서버
+- **NestJS** (Port 3000): WebSocket 실시간 통신
+- **MySQL**: 사용자 데이터 저장
+- **MongoDB**: 채팅/알림 데이터
+- **Redis**: 세션 캐싱 및 레이트 리미팅
 
 ### Infrastructure
-- **컨테이너화**: Docker + Docker Compose
-- **클라우드**: AWS ECS with Auto-scaling
-- **로드 밸런싱**: Nginx
-- **CI/CD**: GitHub Actions
-- **모니터링**: AWS CloudWatch
+- **Docker Compose**: 전체 스택 컨테이너화
+- **Nginx**: 리버스 프록시 및 로드 밸런싱
+- **AWS ECS**: 프로덕션 배포 (옵션)
 
----
+## 💡 주요 기능
 
-## 📈 시스템 성능
+### 🤖 AI 모션 코칭
+- 17가지 운동 자세 실시간 분석
+- MediaPipe Pose 33포인트 트래킹
+- TTS 음성 피드백
 
-| 지표 | 목표 | 현재 | 상태 |
-|------|------|------|------|
-| **페이지 로드** | <3초 | 2.3초 | ✅ |
-| **API 응답** | <200ms | 45ms (P50) | ✅ |
-| **자세 감지 정확도** | >95% | 97% | ✅ |
-| **동시 사용자** | 1,000+ | 5,000 | ✅ |
-| **가용성** | 99.9% | 99.95% | ✅ |
+### 🏋️ 운동 관리
+- 맞춤형 운동 프로그램 추천
+- 운동 기록 및 진도 추적
+- 칼로리 계산 및 통계
 
----
+### 🔐 인증 시스템
+- OAuth2 소셜 로그인 (Google, Kakao, Naver)
+- JWT 기반 인증
+- 프로필 관리 및 온보딩
+
+### 💬 실시간 기능
+- WebSocket 기반 실시간 채팅
+- SMS 알림 (Twilio)
+- 푸시 알림
 
 ## 🚀 빠른 시작
 
-### 필수 요구사항
+### Prerequisites
 - Node.js 18+
-- Java 21+
+- Java 21
 - Docker & Docker Compose
-- MySQL 8.0, MongoDB 7, Redis 7
+- MySQL 8.0
 
-### 설치 방법
+### 설치 및 실행
 
-```bash
-# 1. 저장소 클론
-git clone https://github.com/yourusername/fitmate.git
-cd fitmate
+1. 저장소 클론
+2. 환경 변수 설정 (.env.example 참조)
+3. Docker Compose로 실행
 
-# 2. Docker Compose로 전체 스택 실행 (권장)
-docker compose up -d --build
+## 📁 프로젝트 구조
 
-# 3. 애플리케이션 접속
-# Frontend: http://localhost
-# Backend API: http://localhost/api
-# WebSocket: http://localhost/socket.io
+```
+fitmate/
+├── frontend/                # React 애플리케이션
+│   ├── src/
+│   │   ├── components/     # UI 컴포넌트
+│   │   ├── features/       # 기능별 모듈
+│   │   └── utils/         # 유틸리티
+│   └── package.json
+├── src/                    # Spring Boot 백엔드
+│   └── main/
+│       ├── java/          # Java 소스
+│       └── resources/     # 설정 파일
+├── communication-server/   # NestJS 통신 서버
+│   ├── src/
+│   └── package.json
+├── docker-compose.yml     # Docker 구성
+└── nginx/                 # Nginx 설정
 ```
 
-### 개발 환경 설정
+## 🛠️ 기술 스택
 
-```bash
-# Frontend 개발
-cd frontend
-npm install
-npm run dev  # http://localhost:5173
+| 구분 | 기술 | 버전 |
+|------|------|------|
+| **Frontend** | React, TypeScript, Vite | 19.1.1, 5.5.0, 7.0.6 |
+| **Backend** | Spring Boot, Java | 3.5.5, 21 |
+| **Communication** | NestJS, Socket.IO | 11.0.1, 4.8.1 |
+| **Database** | MySQL, MongoDB, Redis | 8.0, 7, 7 |
+| **AI/ML** | MediaPipe | 0.10.22 |
+| **DevOps** | Docker, Nginx | Latest |
 
-# Backend 개발
-./mvnw spring-boot:run  # http://localhost:8080
+## 📊 API 문서
 
-# Communication Server 개발
-cd communication-server
-npm install
-npm run start:dev  # http://localhost:3000
-```
+### 인증
+- `POST /api/auth/login` - 로그인
+- `POST /api/auth/signup` - 회원가입
+- `GET /api/auth/profile` - 프로필 조회
 
----
+### 운동
+- `GET /api/exercises` - 운동 목록
+- `POST /api/workout/session` - 운동 세션 시작
+- `POST /api/workout/feedback` - 운동 피드백
 
----
+### 실시간 통신
+- `POST /sms/send` - SMS 발송
+- `POST /sms/request-otp` - OTP 요청
+- `WS /socket.io` - WebSocket 연결
 
 
----
+
+## 📝 라이선스
+
+MIT License - 자세한 내용은 [LICENSE](LICENSE) 파일 참조
 
 ## 📞 문의
 
 - **이메일**: pjh133765@gmail.com
-- **웹사이트**: [https://fitmateproject.com](https://fitmateproject.com)
+- **GitHub Issues**: [버그 리포트](https://github.com/jhpark-coder/personalproject/issues)
 
 ---
 
-<p align="center">
-  Made with ❤️ by FitMate Team
-</p>
+<div align="center">
+
+**Built with ❤️ by FitMate Team**
+
+</div>
