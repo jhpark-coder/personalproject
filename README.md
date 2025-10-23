@@ -113,46 +113,6 @@ FitMate는 AI 기술을 활용한 개인 맞춤형 운동 플랫폼입니다. �
 - **Docker 리소스 정리 가이드 및 실행**
   - 안전 프룬 명령으로 미사용 볼륨/네트워크/컨테이너/이미지 정리.
 
-
-## 🔧 설치 및 실행
-
-### 1. 환경 설정
-```bash
-# 환경 변수 파일 생성 (예시)
-cp .env.example communication-server/.env.development
-# Twilio 자격증명과 Redis, MongoDB, 프록시 대상 등을 설정하세요.
-```
-
-### 2. 의존성 설치
-```bash
-# Frontend
-cd frontend
-npm install
-
-# Backend (Spring Boot)
-cd ..
-./mvnw install
-
-# Communication Server (NestJS)
-cd communication-server
-npm install
-```
-
-### 3. 프론트 빌드 (Nginx가 정적 파일을 서빙)
-```bash
-cd frontend
-npm run build
-```
-
-### 4. Docker로 전체 스택 실행
-```bash
-cd ..
-docker compose up -d --build
-```
-- 접속: `http://localhost`
-- 프론트는 Nginx 컨테이너에서 `frontend/dist` 정적 파일로 서빙됩니다.
-- `/sms/*` 요청은 Nginx가 통신 서버(`communication-server:3000`)로 프록시합니다.
-
 ## 📱 API 엔드포인트
 
 ### SMS API (Communication Server)
@@ -169,33 +129,6 @@ docker compose up -d --build
 - `PUT /api/notifications/:id/read` - 알림 읽음 처리
 - `GET /api/notifications/user/:userId/unread-count` - 읽지 않은 알림 개수
 
-## 🐳 Docker 실행
-
-```bash
-# 전체 스택 실행
-docker-compose up -d
-
-# 로그 확인
-docker-compose logs -f
-
-# 특정 서비스 로그
-docker-compose logs -f communication-server
-```
-
-## 📊 모니터링
-
-### 로그 확인
-```bash
-# Communication Server 로그 (개발 모드)
-cd communication-server
-npm run start:dev
-
-# 주요 로그 메시지
-🚀 통신 서버가 실행 중입니다: http://localhost:3000
-📡 WebSocket 서버: ws://localhost:3000
-🌐 CORS 허용 도메인: [reflect request origin] 또는 허용 목록
-```
-
 ### 성능 모니터링
 - **SMS 발송 성공률** - Twilio API 응답 확인
 - **스케줄러 실행 상태** - Cron 작업 실행 로그
@@ -203,104 +136,18 @@ npm run start:dev
 - **데이터베이스 연결** - MongoDB 연결 상태
 
 ## 🔒 보안
-
-### 환경 변수 보안
-- Twilio 자격증명, DB 비밀번호 등 민감한 정보는 `.env`로 관리하고 Git에 커밋하지 마세요.
-- 프로덕션에서는 와일드카드 CORS(`*`)를 사용하지 마세요.
-
 ### API 보안
 - **JWT 인증**: 토큰 기반 사용자 인증
 - **CORS 설정**: 허용된 도메인만 접근 (개발 외 환경에서 화이트리스트 사용)
 - **Rate Limiting**: OTP 요청 등 민감 API에 요청 제한
 
-## 🚀 배포
-
-### 개발 환경
-```bash
-# 개발 모드 실행 (개별)
-cd frontend && npm run dev
-cd communication-server && npm run start:dev
-```
-
-### 프로덕션 환경
-```bash
-# 프론트 빌드
-cd frontend && npm run build
-
-# Docker로 배포
-cd .. && docker compose up -d --build
-```
-
-## ⚡ 빠른 시작
-
-```bash
-# 1) 의존성 설치
-cd frontend && npm install
-cd .. && ./mvnw -q -DskipTests package
-cd communication-server && npm install
-
-# 2) 개발 모드(개별)
-cd ../frontend && npm run dev
-cd ../communication-server && npm run start:dev
-# Spring Boot는 IDE에서 실행하거나 별도 터미널에서 실행하세요.
-```
-
 ### ▶️ 빠른 접근(모션 코칭)
 - 대시보드에서 `운동 시작하기` 버튼 클릭 → 모션 코칭 화면 진입(`/motion`)
 - 카메라 권한 허용 후 웹캠 위로 관절 오버레이 및 실시간 분석 표시
 
-### 📱 모바일 접속(배포 없이, 터널)
-개발 PC에서 다음을 실행해 생성된 퍼블릭 URL로 스마트폰에서 접속하세요.
-
-```bash
-# 프런트엔드 개발 서버가 5173에서 실행 중이어야 합니다.
-cd frontend
-npx localtunnel --port 5173 --subdomain fitmate-dev
-# 예) https://fitmate-dev.loca.lt
-```
-
-- 다른 터널도 사용 가능: ngrok(`.ngrok-free.app`), Cloudflare Tunnel(`.trycloudflare.com`)
-- `frontend/vite.config.ts`의 `server.allowedHosts`는 위 도메인을 허용하도록 구성되어 있습니다.
-- 스마트폰에서 `https://localhost`는 동작하지 않습니다. 반드시 터널 URL을 사용하세요.
-
-## 📈 향후 개발 계획
-
-### 단기 계획 (1-2개월)
-- [ ] 사용자 데이터베이스 연동
-- [ ] 실제 운동 데이터 기반 알림
-- [ ] 사용자 알림 설정 관리
-- [ ] AI 운동 추천 알고리즘 개선
-
-### 중기 계획 (3-6개월)
-- [ ] 모바일 앱 개발 (React Native)
-- [ ] 고급 분석 기능 추가
-- [ ] 소셜 기능 확장
-- [ ] 성능 최적화
-
-### 장기 계획 (6개월 이상)
-- [ ] 머신러닝 기반 개인화
-- [ ] 웨어러블 기기 연동
-- [ ] 다국어 지원
-- [ ] 엔터프라이즈 버전
-
-## 🤝 기여하기
-
-1. Fork the Project
-2. Create your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your Changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the Branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## 📄 라이선스
-
-이 프로젝트는 MIT 라이선스 하에 배포됩니다. 자세한 내용은 `LICENSE` 파일을 참조하세요.
-
 ## 📞 문의
 
-- **프로젝트 관리자**: [이메일 주소]
-- **기술 문의**: [이메일 주소]
-- **버그 리포트**: GitHub Issues
-
+- **기술 문의**: [pjh133765@gmail.com]
 ---
 
 **FitMate** - AI와 함께하는 건강한 운동 라이프스타일 🏃‍♂️💪 
