@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { Loader2 } from 'lucide-react';
 import Modal from './Modal';
 import {
   setAuthToken,
@@ -11,7 +12,7 @@ import {
   parseOAuthCallbackParams,
   resolveOAuthCallbackAction,
 } from '../features/auth/lib/oauthCallback';
-import './OAuth2Callback.css';
+import { logger } from '../shared/lib/logger';
 
 const OAuth2Callback: React.FC = () => {
   const navigate = useNavigate();
@@ -19,7 +20,7 @@ const OAuth2Callback: React.FC = () => {
     isOpen: false,
     title: '',
     message: '',
-    type: 'info' as 'info' | 'success' | 'error'
+    type: 'info' as 'info' | 'success' | 'error',
   });
 
   const showModal = (title: string, message: string, type: 'info' | 'success' | 'error') => {
@@ -37,8 +38,8 @@ const OAuth2Callback: React.FC = () => {
           return;
         }
 
-        setAuthToken(params.token!);
-        
+        setAuthToken(params.token);
+
         if (params.provider) {
           setCurrentProvider(params.provider);
         }
@@ -59,12 +60,12 @@ const OAuth2Callback: React.FC = () => {
           navigate('/');
         }
       } catch (error) {
-        console.error('OAuth2Callback 처리 중 오류:', error);
+        logger.error('OAuth2Callback 처리 중 오류:', error);
         showModal('로그인 실패', '소셜 로그인 처리 중 오류가 발생했습니다.', 'error');
       }
     };
 
-    handleOAuth2Callback();
+    void handleOAuth2Callback();
   }, [navigate]);
 
   const closeModal = () => {
@@ -73,13 +74,13 @@ const OAuth2Callback: React.FC = () => {
   };
 
   return (
-    <div className="oauth2-callback-container">
-      <div className="oauth2-callback-content">
-        <h2>소셜 로그인 처리 중...</h2>
-        <div className="loading-spinner"></div>
-        <p>잠시만 기다려주세요.</p>
+    <div className="flex min-h-dvh w-full items-center justify-center bg-slate-50 px-4 text-foreground">
+      <div className="flex flex-col items-center gap-3 rounded-lg border border-white/80 bg-white p-8 text-center shadow-soft">
+        <Loader2 className="size-7 animate-spin text-primary" />
+        <h2 className="text-lg font-black text-slate-950">소셜 로그인 처리 중</h2>
+        <p className="text-sm font-semibold text-muted-foreground">잠시만 기다려주세요.</p>
       </div>
-      
+
       <Modal
         isOpen={modal.isOpen}
         onClose={closeModal}
@@ -91,4 +92,4 @@ const OAuth2Callback: React.FC = () => {
   );
 };
 
-export default OAuth2Callback; 
+export default OAuth2Callback;

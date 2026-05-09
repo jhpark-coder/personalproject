@@ -33,7 +33,6 @@ public class EmailVerificationService {
             sendEmail(email, verificationCode);
             return true;
         } catch (Exception e) {
-            e.printStackTrace();
             return false;
         }
     }
@@ -42,14 +41,13 @@ public class EmailVerificationService {
         try {
             String key = VERIFICATION_PREFIX + email;
             String storedCode = redisTemplate.opsForValue().get(key);
-            
+
             if (storedCode != null && storedCode.equals(code)) {
                 redisTemplate.delete(key);
                 return true;
             }
             return false;
         } catch (Exception e) {
-            e.printStackTrace();
             return false;
         }
     }
@@ -63,7 +61,7 @@ public class EmailVerificationService {
     private String generateVerificationCode() {
         SecureRandom random = new SecureRandom();
         StringBuilder code = new StringBuilder();
-        
+
         for (int i = 0; i < VERIFICATION_CODE_LENGTH; i++) {
             code.append(random.nextInt(10));
         }
@@ -95,4 +93,4 @@ public class EmailVerificationService {
         return Boolean.TRUE.equals(redisTemplate.hasKey(key));
     }
 }
-*/ 
+*/

@@ -15,6 +15,7 @@ data/
   seed/                  SQL and CSV seed assets
 docs/
   architecture.md        Structure and responsibility notes
+  production-readiness.md Commercial release gates and runbook
 ```
 
 ## Runtime Topology
@@ -44,7 +45,26 @@ docker compose up --build
 ```bash
 cd apps/web && npm install && npm run dev
 cd apps/communication-server && npm install && npm run start:dev
-cd apps/backend && ./mvnw spring-boot:run
+cd apps/backend && SPRING_PROFILES_ACTIVE=dev ./mvnw spring-boot:run
+```
+
+The backend defaults to the production profile when `SPRING_PROFILES_ACTIVE` is omitted, so local backend development should opt into `dev` explicitly.
+On Windows PowerShell, run the backend with:
+
+```powershell
+cd apps/backend
+$env:SPRING_PROFILES_ACTIVE = 'dev'
+.\mvnw.cmd spring-boot:run
+```
+
+## Quality Gates
+
+Run these before merging changes:
+
+```bash
+cd apps/web && npm run lint && npm run test && npm run test:e2e
+cd apps/communication-server && npm run lint && npm run test && npm run build
+cd apps/backend && ./mvnw test
 ```
 
 ## Seed Assets
@@ -61,3 +81,4 @@ cd apps/backend && ./mvnw spring-boot:run
 - Socket.IO event names remain unchanged
 
 See `docs/architecture.md` for the intended internal structure and refactor direction.
+See `docs/production-readiness.md` for the paid-release security, legal, and operations gates.

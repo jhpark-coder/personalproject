@@ -2,20 +2,30 @@ import {
   Controller,
   Post,
   Body,
+  Headers,
   HttpException,
   HttpStatus,
 } from '@nestjs/common';
 import { SmsService } from './sms.service';
+import { JwtAuthService } from '../shared/auth/jwt-auth.service';
 
 @Controller('sms')
 export class SmsController {
-  constructor(private readonly smsService: SmsService) {}
+  constructor(
+    private readonly smsService: SmsService,
+    private readonly jwtAuthService: JwtAuthService,
+  ) {}
 
   /**
    * 기본 SMS 발송
    */
   @Post('send')
-  async sendSms(@Body() body: { to: string; message: string }) {
+  async sendSms(
+    @Body() body: { to: string; message: string },
+    @Headers('authorization') authorization?: string,
+    @Headers('cookie') cookie?: string,
+  ) {
+    this.jwtAuthService.requireAdmin(authorization, cookie);
     try {
       const { to, message } = body;
 
@@ -50,7 +60,10 @@ export class SmsController {
   @Post('workout-recommendation')
   async sendWorkoutRecommendation(
     @Body() body: { to: string; workout: string },
+    @Headers('authorization') authorization?: string,
+    @Headers('cookie') cookie?: string,
   ) {
+    this.jwtAuthService.requireAdmin(authorization, cookie);
     try {
       const { to, workout } = body;
 
@@ -89,7 +102,12 @@ export class SmsController {
    * 맞춤형 메시지 발송
    */
   @Post('custom')
-  async sendCustomMessage(@Body() body: { to: string; message: string }) {
+  async sendCustomMessage(
+    @Body() body: { to: string; message: string },
+    @Headers('authorization') authorization?: string,
+    @Headers('cookie') cookie?: string,
+  ) {
+    this.jwtAuthService.requireAdmin(authorization, cookie);
     try {
       const { to, message } = body;
 

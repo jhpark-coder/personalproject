@@ -11,6 +11,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -22,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import backend.fitmate.service.CurrentUserAccessService;
 import backend.fitmate.user.entity.BodyRecord;
 import backend.fitmate.user.entity.User;
 import backend.fitmate.user.entity.WorkoutRecord;
@@ -30,61 +32,67 @@ import backend.fitmate.user.service.BodyRecordService;
 import backend.fitmate.user.service.UserService;
 import backend.fitmate.user.service.WorkoutRecordService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @RestController
 @RequestMapping("/api/mypage")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
+@Slf4j
+@CrossOrigin(origins = "${app.frontend.url}", allowCredentials = "true")
 public class MyPageController {
 
     private final UserService userService;
     private final WorkoutRecordService workoutRecordService;
     private final BodyRecordService bodyRecordService;
     private final UserRepository userRepository;
+    private final CurrentUserAccessService currentUserAccessService;
 
     /**
      * 마이페이지 대시보드 데이터 조회
      */
     @GetMapping("/{userId}/dashboard")
     public ResponseEntity<Map<String, Object>> getDashboardData(@PathVariable Long userId) {
+        if (!currentUserAccessService.canAccessUser(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
             Map<String, Object> dashboardData = new HashMap<>();
-            
+
             // 사용자 정보
             Optional<User> userOpt = userService.findById(userId);
             if (userOpt.isEmpty()) {
                 return ResponseEntity.notFound().build();
             }
             dashboardData.put("user", userOpt.get());
-            
+
             // 최근 30일 기간 설정
             LocalDate endDate = LocalDate.now();
             LocalDate startDate = endDate.minusDays(30);
-            
+
             // 최근 운동 기록 (최근 10개)
             List<WorkoutRecord> recentWorkouts = workoutRecordService.getRecentWorkoutRecords(userId);
             dashboardData.put("recentWorkouts", recentWorkouts);
-            
+
             // 최근 신체 기록 (최근 5개)
             List<BodyRecord> recentBodyRecords = bodyRecordService.getRecentBodyRecords(userId);
             dashboardData.put("recentBodyRecords", recentBodyRecords);
-            
+
             // 월별 운동 통계
             Object[] monthlyWorkoutStats = workoutRecordService.getMonthlyWorkoutStats(userId, startDate, endDate);
             dashboardData.put("monthlyWorkoutStats", monthlyWorkoutStats);
-            
+
             // 월별 신체 변화 통계
             Object[] monthlyBodyStats = bodyRecordService.getMonthlyBodyStats(userId, startDate, endDate);
             dashboardData.put("monthlyBodyStats", monthlyBodyStats);
-            
+
             // 운동 난이도 분포
             List<Object[]> difficultyDistribution = workoutRecordService.getDifficultyDistribution(userId, startDate, endDate);
             dashboardData.put("difficultyDistribution", difficultyDistribution);
-            
+
             // 운동 종류별 통계
             List<Object[]> workoutTypeStats = workoutRecordService.getWorkoutTypeStats(userId, startDate, endDate);
             dashboardData.put("workoutTypeStats", workoutTypeStats);
-            
+
             return ResponseEntity.ok(dashboardData);
         } catch (Exception e) {
             return ResponseEntity.badRequest().build();
@@ -100,69 +108,66 @@ public class MyPageController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate,
             @RequestParam(defaultValue = "daily") String period) {
+        if (!currentUserAccessService.canAccessUser(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
-            // 로깅 추가
-            System.out.println("=== Trends API 호출 ===");
-            System.out.println("userId: " + userId);
-            System.out.println("startDate: " + startDate);
-            System.out.println("endDate: " + endDate);
-            System.out.println("period: " + period);
-            
+            log.debug("Trends API requested: userId={}, period={}, startDate={}, endDate={}",
+                    userId, period, startDate, endDate);
+
             // 사용자 존재 여부 확인
             if (!userService.findById(userId).isPresent()) {
-                System.err.println("=== 사용자 없음 ===");
-                System.err.println("userId " + userId + "를 찾을 수 없습니다.");
+                log.debug("Trends API user not found: userId={}", userId);
                 return ResponseEntity.notFound().build();
             }
-            
+
             // 각 기간별로 올바른 날짜 범위 계산
             LocalDate calculatedStartDate, calculatedEndDate;
             LocalDate today = LocalDate.now();
-            
+
             switch (period) {
                 case "daily":
                     // 일별: 최근 5일
                     calculatedEndDate = today;
                     calculatedStartDate = today.minusDays(4);
                     break;
-                    
+
                 case "weekly":
                     // 주별: 최근 4주
                     calculatedEndDate = today;
                     calculatedStartDate = today.minusWeeks(3);
                     break;
-                    
+
                 case "monthly":
                     // 월별: 최근 3개월
                     calculatedEndDate = today;
                     calculatedStartDate = today.minusMonths(2);
                     break;
-                    
+
                 default:
                     // 기본값: 일별
                     calculatedEndDate = today;
                     calculatedStartDate = today.minusDays(4);
             }
-            
+
             // 프론트엔드에서 날짜를 보냈다면 그것을 우선 사용
             if (startDate != null && endDate != null) {
                 calculatedStartDate = startDate;
                 calculatedEndDate = endDate;
             }
-            
-            System.out.println("=== 계산된 날짜 범위 ===");
-            System.out.println("calculatedStartDate: " + calculatedStartDate);
-            System.out.println("calculatedEndDate: " + calculatedEndDate);
-            
+
+            log.debug("Calculated trends range: userId={}, startDate={}, endDate={}",
+                    userId, calculatedStartDate, calculatedEndDate);
+
             // 날짜 유효성 검사
             if (calculatedStartDate.isAfter(calculatedEndDate)) {
-                System.err.println("=== 날짜 오류 ===");
-                System.err.println("startDate가 endDate보다 늦습니다: " + calculatedStartDate + " > " + calculatedEndDate);
+                log.debug("Invalid trends date range: userId={}, startDate={}, endDate={}",
+                        userId, calculatedStartDate, calculatedEndDate);
                 return ResponseEntity.badRequest().body(Map.of("error", "시작 날짜가 종료 날짜보다 늦습니다."));
             }
-            
+
             Map<String, Object> trendsData = new HashMap<>();
-            
+
             switch (period) {
                 case "daily":
                     // 일별: 계산된 범위(기본 최근 5일)
@@ -170,37 +175,32 @@ public class MyPageController {
                     trendsData.put("bodyFatTrend", bodyRecordService.getBodyFatTrend(userId, calculatedStartDate, calculatedEndDate));
                     trendsData.put("muscleMassTrend", bodyRecordService.getMuscleMassTrend(userId, calculatedStartDate, calculatedEndDate));
                     break;
-                    
+
                 case "weekly":
                     // 주별: 계산된 범위(기본 최근 4주)
                     trendsData.put("weightTrend", bodyRecordService.getWeightTrendWeekly(userId, calculatedStartDate, calculatedEndDate));
                     trendsData.put("bodyFatTrend", bodyRecordService.getBodyFatTrendWeekly(userId, calculatedStartDate, calculatedEndDate));
                     trendsData.put("muscleMassTrend", bodyRecordService.getMuscleMassTrendWeekly(userId, calculatedStartDate, calculatedEndDate));
                     break;
-                    
+
                 case "monthly":
                     // 월별: 계산된 범위(기본 최근 3개월)
                     trendsData.put("weightTrend", bodyRecordService.getWeightTrendMonthly(userId, calculatedStartDate, calculatedEndDate));
                     trendsData.put("bodyFatTrend", bodyRecordService.getBodyFatTrendMonthly(userId, calculatedStartDate, calculatedEndDate));
                     trendsData.put("muscleMassTrend", bodyRecordService.getMuscleMassTrendMonthly(userId, calculatedStartDate, calculatedEndDate));
                     break;
-                    
+
                 default:
                     // 기본값: 일별 (계산된 범위 적용)
                     trendsData.put("weightTrend", bodyRecordService.getWeightTrend(userId, calculatedStartDate, calculatedEndDate));
                     trendsData.put("bodyFatTrend", bodyRecordService.getBodyFatTrend(userId, calculatedStartDate, calculatedEndDate));
                     trendsData.put("muscleMassTrend", bodyRecordService.getMuscleMassTrend(userId, calculatedStartDate, calculatedEndDate));
             }
-            
-            System.out.println("=== 응답 데이터 ===");
-            System.out.println("trendsData: " + trendsData);
-            
+
             return ResponseEntity.ok(trendsData);
         } catch (Exception e) {
-            System.err.println("=== 에러 발생 ===");
-            System.err.println("Error: " + e.getMessage());
-            e.printStackTrace();
-            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+            log.warn("Failed to load trends data: userId={}", userId, e);
+            return ResponseEntity.badRequest().body(Map.of("error", "추이 데이터 조회에 실패했습니다."));
         }
     }
 
@@ -212,19 +212,22 @@ public class MyPageController {
             @PathVariable Long userId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        if (!currentUserAccessService.canAccessUser(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
             Map<String, Object> workoutData = new HashMap<>();
-            
+
             List<WorkoutRecord> workouts;
             if (startDate != null && endDate != null) {
                 workouts = workoutRecordService.getUserWorkoutRecordsByPeriod(userId, startDate, endDate);
             } else {
                 workouts = workoutRecordService.getUserWorkoutRecords(userId);
             }
-            
+
             workoutData.put("workouts", workouts);
             workoutData.put("totalCount", workouts.size());
-            
+
             return ResponseEntity.ok(workoutData);
         } catch (Exception e) {
             return ResponseEntity.badRequest().build();
@@ -239,19 +242,22 @@ public class MyPageController {
             @PathVariable Long userId,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        if (!currentUserAccessService.canAccessUser(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
             Map<String, Object> bodyData = new HashMap<>();
-            
+
             List<BodyRecord> bodyRecords;
             if (startDate != null && endDate != null) {
                 bodyRecords = bodyRecordService.getUserBodyRecordsByPeriod(userId, startDate, endDate);
             } else {
                 bodyRecords = bodyRecordService.getUserBodyRecords(userId);
             }
-            
+
             bodyData.put("bodyRecords", bodyRecords);
             bodyData.put("totalCount", bodyRecords.size());
-            
+
             return ResponseEntity.ok(bodyData);
         } catch (Exception e) {
             return ResponseEntity.badRequest().build();
@@ -266,49 +272,52 @@ public class MyPageController {
             @PathVariable Long userId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        if (!currentUserAccessService.canAccessUser(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
             Map<String, Object> report = new HashMap<>();
-            
+
             // 사용자 정보
             Optional<User> userOpt = userService.findById(userId);
             if (userOpt.isEmpty()) {
                 return ResponseEntity.notFound().build();
             }
             report.put("user", userOpt.get());
-            
+
             // 기간 정보
             report.put("analysisPeriod", Map.of(
                 "startDate", startDate,
                 "endDate", endDate,
                 "days", java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate) + 1
             ));
-            
+
             // 운동 통계
             Object[] workoutStats = workoutRecordService.getMonthlyWorkoutStats(userId, startDate, endDate);
             report.put("workoutStats", workoutStats);
-            
+
             // 신체 변화 통계
             Object[] bodyStats = bodyRecordService.getMonthlyBodyStats(userId, startDate, endDate);
             report.put("bodyStats", bodyStats);
-            
+
             // 운동 난이도 분포
             List<Object[]> difficultyDistribution = workoutRecordService.getDifficultyDistribution(userId, startDate, endDate);
             report.put("difficultyDistribution", difficultyDistribution);
-            
+
             // 운동 종류별 통계
             List<Object[]> workoutTypeStats = workoutRecordService.getWorkoutTypeStats(userId, startDate, endDate);
             report.put("workoutTypeStats", workoutTypeStats);
-            
+
             // 변화 추이
             List<Object[]> weightTrend = bodyRecordService.getWeightTrend(userId, startDate, endDate);
             report.put("weightTrend", weightTrend);
-            
+
             List<Object[]> bodyFatTrend = bodyRecordService.getBodyFatTrend(userId, startDate, endDate);
             report.put("bodyFatTrend", bodyFatTrend);
-            
+
             List<Object[]> muscleMassTrend = bodyRecordService.getMuscleMassTrend(userId, startDate, endDate);
             report.put("muscleMassTrend", muscleMassTrend);
-            
+
             return ResponseEntity.ok(report);
         } catch (Exception e) {
             return ResponseEntity.badRequest().build();
@@ -317,6 +326,9 @@ public class MyPageController {
 
     @GetMapping("/{userId}/records-room")
     public ResponseEntity<Map<String, Object>> getRecordsRoomSummary(@PathVariable Long userId) {
+        if (!currentUserAccessService.canAccessUser(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
             if (userService.findById(userId).isEmpty()) {
                 return ResponseEntity.notFound().build();
@@ -467,4 +479,4 @@ public class MyPageController {
         body.put("success", true);
         return ResponseEntity.ok(body);
     }
-} 
+}

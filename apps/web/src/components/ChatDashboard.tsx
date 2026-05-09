@@ -1,10 +1,19 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { MessageCircle, MessagesSquare, Wifi, WifiOff } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
 import { CHAT_SERVER_URL } from '../config/api';
+import { getAuthToken } from '../shared/lib/storage';
+import { useUser } from '../context/UserContext';
 import ChatRoom from './ChatRoom';
-import './ChatDashboard.css';
+import NavigationBar from './NavigationBar';
+import { logger } from '../shared/lib/logger';
+import { Badge } from './ui/badge';
+import { Button } from './ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from './ui/card';
+import { Page, PageHeader, PageHeaderContent, PageMain } from './ui/page';
+import { cn } from '../lib/utils';
 
-interface User {
+interface ChatUser {
   username: string;
   status: 'online' | 'offline';
   lastMessage?: {
@@ -18,11 +27,15 @@ interface Message {
   content: string;
   timestamp: string;
   type: string;
+  recipient?: string;
 }
 
+const canUseBrowserNotifications = () => typeof window !== 'undefined' && 'Notification' in window;
+
 const ChatDashboard: React.FC = () => {
+  const { user } = useUser();
   const [socket, setSocket] = useState<Socket | null>(null);
-  const [users, setUsers] = useState<Map<string, User>>(new Map());
+  const [users, setUsers] = useState<Map<string, ChatUser>>(new Map());
   const [currentUser, setCurrentUser] = useState<string | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [allMessages, setAllMessages] = useState<Map<string, Message[]>>(new Map());
@@ -33,7 +46,7 @@ const ChatDashboard: React.FC = () => {
   const joinAsAdmin = useCallback((nextSocket: Socket) => {
     nextSocket.emit('joinAsAdmin', {
       sender: '관리자',
-      type: 'JOIN'
+      type: 'JOIN',
     });
   }, []);
 
@@ -41,60 +54,54 @@ const ChatDashboard: React.FC = () => {
     return username.startsWith('사용자_') ? username : `사용자_${username}`;
   }, []);
 
-  const addUser = useCallback((username: string) => {
-    const fullUsername = normalizeUsername(username);
-    
-    if (fullUsername.includes('관리자') || fullUsername.includes('admin')) {
-      console.log('🚫 관리자 사용자 목록에서 제외:', fullUsername);
-      return;
-    }
-    
-    setUsers(prev => {
-      const newUsers = new Map(prev);
-      if (!newUsers.has(fullUsername)) {
-        newUsers.set(fullUsername, {
+  const addUser = useCallback(
+    (username: string) => {
+      const fullUsername = normalizeUsername(username);
+
+      if (fullUsername.includes('관리자') || fullUsername.includes('admin')) {
+        logger.debug('관리자 사용자 목록에서 제외:', fullUsername);
+        return;
+      }
+
+      setUsers((prev) => {
+        const nextUsers = new Map(prev);
+        const existingUser = nextUsers.get(fullUsername);
+        nextUsers.set(fullUsername, {
           username: fullUsername,
           status: 'online',
-          lastMessage: undefined
+          lastMessage: existingUser?.lastMessage,
         });
-      } else {
-        const existingUser = newUsers.get(fullUsername);
-        if (existingUser) {
-          newUsers.set(fullUsername, {
-            ...existingUser,
-            status: 'online'
-          });
-        }
-      }
-      return newUsers;
-    });
-  }, [normalizeUsername]);
+        return nextUsers;
+      });
+    },
+    [normalizeUsername],
+  );
 
   const removeUser = useCallback((username: string) => {
-    setUsers(prev => {
-      const newUsers = new Map(prev);
-      const user = newUsers.get(username);
-      if (user) {
-        newUsers.set(username, {
-          ...user,
-          status: 'offline'
+    setUsers((prev) => {
+      const nextUsers = new Map(prev);
+      const target = nextUsers.get(username);
+      if (target) {
+        nextUsers.set(username, {
+          ...target,
+          status: 'offline',
         });
       }
-      return newUsers;
+      return nextUsers;
     });
   }, []);
 
   const handleUserMessage = useCallback((data: Message) => {
-    setMessages(prev => [...prev, data]);
+    setMessages((prev) => [...prev, data]);
   }, []);
 
   const showNotification = useCallback((sender: string, content: string) => {
-    if (Notification.permission === 'granted') {
+    if (canUseBrowserNotifications() && Notification.permission === 'granted') {
       const notification = new Notification(`새 메시지: ${sender}`, {
         body: content,
         icon: '/favicon.ico',
         requireInteraction: false,
-        silent: true
+        silent: true,
       });
 
       setTimeout(() => {
@@ -109,273 +116,229 @@ const ChatDashboard: React.FC = () => {
     }, 1000);
   }, []);
 
-  // 새로고침 시 저장된 데이터 복원
   useEffect(() => {
     const savedCurrentUser = localStorage.getItem('chat_currentUser');
     const savedAllMessages = localStorage.getItem('chat_allMessages');
-    
+
     if (savedCurrentUser && savedCurrentUser !== 'null') {
       const parsedUser = JSON.parse(savedCurrentUser);
       setCurrentUser(parsedUser);
-      console.log('🔄 복원된 현재 사용자:', parsedUser);
+      logger.debug('복원된 현재 사용자:', parsedUser);
     }
     if (savedAllMessages) {
-      setAllMessages(new Map(JSON.parse(savedAllMessages)));
+      const restoredMessages = new Map<string, Message[]>(JSON.parse(savedAllMessages));
+      setAllMessages(restoredMessages);
+      setUsers((prev) => {
+        const nextUsers = new Map(prev);
+        restoredMessages.forEach((items, username) => {
+          if (username.includes('관리자') || username.includes('admin')) return;
+
+          const lastMessage = items[items.length - 1];
+          nextUsers.set(username, {
+            username,
+            status: 'offline',
+            lastMessage: lastMessage
+              ? {
+                  content: lastMessage.content,
+                  timestamp: lastMessage.timestamp,
+                }
+              : undefined,
+          });
+        });
+        return nextUsers;
+      });
     }
-    
-    // 기존 사용자 목록에서 관리자 제거
-    setUsers(prev => {
-      const newUsers = new Map(prev);
-      for (const [username] of newUsers.entries()) {
+
+    setUsers((prev) => {
+      const nextUsers = new Map(prev);
+      for (const [username] of nextUsers.entries()) {
         if (username.includes('관리자') || username.includes('admin')) {
-          console.log('🚫 기존 관리자 사용자 제거:', username);
-          newUsers.delete(username);
+          nextUsers.delete(username);
         }
       }
-      return newUsers;
+      return nextUsers;
     });
   }, []);
 
   useEffect(() => {
-    // Socket.IO 연결 (관리자 권한으로)
-    const url = (CHAT_SERVER_URL && CHAT_SERVER_URL.trim().length > 0) ? CHAT_SERVER_URL : undefined;
+    const token = getAuthToken();
+    const userId = user?.id ?? 0;
+    const url = CHAT_SERVER_URL && CHAT_SERVER_URL.trim().length > 0 ? CHAT_SERVER_URL : undefined;
     const newSocket = url
       ? io(url, {
           transports: ['websocket', 'polling'],
-          auth: {
-            userId: 1,
-            roles: ['ROLE_ADMIN']
-          }
+          auth: { token, userId },
+          withCredentials: true,
         })
       : io({
           transports: ['websocket', 'polling'],
-          auth: {
-            userId: 1,
-            roles: ['ROLE_ADMIN']
-          }
+          auth: { token, userId },
+          withCredentials: true,
         });
 
     newSocket.on('connect', () => {
-      console.log('✅ 관리자 대시보드 연결 성공');
+      logger.debug('관리자 대시보드 연결 성공');
       setConnectionStatus('연결됨');
       joinAsAdmin(newSocket);
-      
-      // 연결 성공 후 DB에서 모든 채팅 사용자 목록 요청
-      console.log('📤 모든 채팅 사용자 목록 요청');
       newSocket.emit('getAllChatUsers');
     });
 
     newSocket.on('disconnect', () => {
-      console.log('🔗 관리자 대시보드 연결 해제');
+      logger.debug('관리자 대시보드 연결 해제');
       setConnectionStatus('연결 해제됨');
     });
 
     newSocket.on('connect_error', (error) => {
-      console.error('❌ 관리자 대시보드 연결 오류:', error);
+      logger.error('관리자 대시보드 연결 오류:', error);
       setConnectionStatus('연결 오류');
     });
 
-    // 사용자 관련 이벤트
     newSocket.on('userJoined', (data) => {
-      console.log('👤 사용자 접속:', data.sender);
+      logger.debug('사용자 접속:', data.sender);
       addUser(data.sender);
     });
 
     newSocket.on('userDisconnected', (data) => {
-      console.log('👤 사용자 접속 해제:', data.sender);
+      logger.debug('사용자 접속 해제:', data.sender);
       removeUser(data.sender);
     });
 
-    // 메시지 관련 이벤트
-    newSocket.on('userMessage', (data) => {
-      console.log('📨 사용자 메시지 수신:', data);
-      
-      // 사용자 목록에 최근 메시지 정보 업데이트
-      setUsers(prev => {
-        const newUsers = new Map(prev);
-        const user = newUsers.get(data.sender);
-        if (user) {
-          newUsers.set(data.sender, {
-            ...user,
-            status: 'online', // 메시지를 보낸 사용자는 온라인
-            lastMessage: {
-              content: data.content,
-              timestamp: data.timestamp
-            }
-          });
-        } else {
-          // 사용자가 목록에 없으면 추가
-          newUsers.set(data.sender, {
-            username: data.sender,
-            status: 'online',
-            lastMessage: {
-              content: data.content,
-              timestamp: data.timestamp
-            }
-          });
-        }
-        return newUsers;
+    newSocket.on('userMessage', (data: Message) => {
+      logger.debug('사용자 메시지 수신:', data);
+
+      setUsers((prev) => {
+        const nextUsers = new Map(prev);
+        const target = nextUsers.get(data.sender);
+        nextUsers.set(data.sender, {
+          username: data.sender,
+          status: 'online',
+          lastMessage: {
+            content: data.content,
+            timestamp: data.timestamp,
+          },
+          ...target,
+        });
+        return nextUsers;
       });
 
-      // 안읽은 메시지 수 업데이트 (현재 선택된 사용자가 아닌 경우에만)
       if (currentUserRef.current !== data.sender) {
-        setUnreadCounts(prev => {
-          const newCounts = new Map(prev);
-          const currentCount = newCounts.get(data.sender) || 0;
-          newCounts.set(data.sender, currentCount + 1);
-          return newCounts;
+        setUnreadCounts((prev) => {
+          const nextCounts = new Map(prev);
+          const currentCount = nextCounts.get(data.sender) || 0;
+          nextCounts.set(data.sender, currentCount + 1);
+          return nextCounts;
         });
-
-        // 알림 표시
         showNotification(data.sender, data.content);
       } else {
-        // 현재 선택된 사용자의 메시지라면 채팅방에 표시
         handleUserMessage(data);
       }
     });
 
-    // 관리자 응답 수신 (관리자가 보낸 메시지)
-    newSocket.on('adminReply', (data) => {
+    newSocket.on('adminReply', (data: Message) => {
       if (currentUserRef.current === data.recipient) {
         handleUserMessage(data);
       }
     });
 
-    // 채팅 내역 수신
     newSocket.on('chatHistory', (data) => {
-      console.log('📨 채팅 내역 수신:', data);
-      console.log('🔍 현재 선택된 사용자:', currentUserRef.current);
+      logger.debug('채팅 내역 수신:', data);
       if (data.userId === currentUserRef.current) {
-        console.log('✅ 현재 사용자와 일치하는 채팅 내역:', data.userId);
-        const sorted = (data.history || []).sort((a: Message, b: Message) =>
-          new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+        const sorted = (data.history || []).sort(
+          (a: Message, b: Message) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(),
         );
-        console.log('📋 정렬된 채팅 내역:', sorted);
         setMessages(sorted);
-
-        // DB에서 받은 데이터로 allMessages 업데이트 (중복 방지)
-        setAllMessages(prev => {
-          const newMessages = new Map(prev);
-          newMessages.set(data.userId, sorted);
-          return newMessages;
-        });
-      } else {
-        console.log('❌ 현재 사용자와 일치하지 않는 채팅 내역:', {
-          receivedUserId: data.userId,
-          currentUser: currentUserRef.current
+        setAllMessages((prev) => {
+          const nextMessages = new Map(prev);
+          nextMessages.set(data.userId, sorted);
+          return nextMessages;
         });
       }
     });
 
-    // 모든 채팅 사용자 목록 수신 (새로고침 시 DB에서 복원)
-    newSocket.on('allChatUsers', (users) => {
-      console.log('📨 모든 채팅 사용자 목록 수신:', users);
-      if (users && Array.isArray(users)) {
-        // DB에서 가져온 사용자들을 오프라인 상태로 추가 (관리자 제외)
-        users.forEach(username => {
+    newSocket.on('allChatUsers', (chatUsers: unknown) => {
+      logger.debug('모든 채팅 사용자 목록 수신:', chatUsers);
+      if (Array.isArray(chatUsers)) {
+        chatUsers.forEach((username) => {
+          if (typeof username !== 'string') return;
           const fullUsername = normalizeUsername(username);
-          
-          // 관리자는 사용자 목록에서 제외
-          if (fullUsername.includes('관리자') || fullUsername.includes('admin')) {
-            console.log('🚫 관리자 사용자 목록에서 제외:', fullUsername);
-            return;
-          }
-          
-          setUsers(prev => {
-            const newUsers = new Map(prev);
-            if (!newUsers.has(fullUsername)) {
-              newUsers.set(fullUsername, {
+          if (fullUsername.includes('관리자') || fullUsername.includes('admin')) return;
+
+          setUsers((prev) => {
+            const nextUsers = new Map(prev);
+            if (!nextUsers.has(fullUsername)) {
+              nextUsers.set(fullUsername, {
                 username: fullUsername,
-                status: 'offline', // DB에서 가져온 사용자는 기본적으로 오프라인
-                lastMessage: undefined
+                status: 'offline',
+                lastMessage: undefined,
               });
             }
-            return newUsers;
+            return nextUsers;
           });
-        });
-        console.log('✅ DB에서 사용자 목록 복원 완료');
-        
-        // 각 사용자의 최근 메시지 정보 요청 (관리자 제외)
-        users.forEach(username => {
-          const fullUsername = normalizeUsername(username);
-          
-          // 관리자는 메시지 요청에서도 제외
-          if (fullUsername.includes('관리자') || fullUsername.includes('admin')) {
-            return;
-          }
-          
-          console.log('📤 사용자 최근 메시지 요청:', fullUsername);
+
           newSocket.emit('getUserLastMessage', { userId: fullUsername });
         });
       } else {
-        console.log('⚠️ DB에서 사용자 목록을 가져오지 못함, 테스트 데이터 사용');
-        // 테스트용 하드코딩된 사용자 목록 (DB 연결 실패 시)
         const testUsers = ['사용자_test1', '사용자_test2', '사용자_ljs4mu4jp'];
-        testUsers.forEach(username => {
-          setUsers(prev => {
-            const newUsers = new Map(prev);
-            if (!newUsers.has(username)) {
-              newUsers.set(username, {
-                username: username,
+        testUsers.forEach((username) => {
+          setUsers((prev) => {
+            const nextUsers = new Map(prev);
+            if (!nextUsers.has(username)) {
+              nextUsers.set(username, {
+                username,
                 status: 'offline',
                 lastMessage: {
                   content: '테스트 메시지',
-                  timestamp: new Date().toISOString()
-                }
+                  timestamp: new Date().toISOString(),
+                },
               });
             }
-            return newUsers;
+            return nextUsers;
           });
         });
       }
     });
 
-    // 사용자 최근 메시지 수신
     newSocket.on('userLastMessage', (data) => {
-      console.log('📨 사용자 최근 메시지 수신:', data);
+      logger.debug('사용자 최근 메시지 수신:', data);
       if (data.userId && data.lastMessage) {
-        setUsers(prev => {
-          const newUsers = new Map(prev);
-          const user = newUsers.get(data.userId);
-          if (user) {
-            newUsers.set(data.userId, {
-              ...user,
+        setUsers((prev) => {
+          const nextUsers = new Map(prev);
+          const target = nextUsers.get(data.userId);
+          if (target) {
+            nextUsers.set(data.userId, {
+              ...target,
               lastMessage: {
                 content: data.lastMessage.content,
-                timestamp: data.lastMessage.timestamp
-              }
+                timestamp: data.lastMessage.timestamp,
+              },
             });
           }
-          return newUsers;
+          return nextUsers;
         });
       }
     });
 
     setSocket(newSocket);
 
-    // 알림 권한 요청
-    if (Notification.permission === 'default') {
-      Notification.requestPermission();
+    if (canUseBrowserNotifications() && Notification.permission === 'default') {
+      void Notification.requestPermission();
     }
 
     return () => {
       newSocket.disconnect();
     };
-  }, [addUser, handleUserMessage, joinAsAdmin, normalizeUsername, removeUser, showNotification]);
+  }, [addUser, handleUserMessage, joinAsAdmin, normalizeUsername, removeUser, showNotification, user?.id]);
 
-  // currentUser가 변경될 때마다 ref 업데이트
   useEffect(() => {
     currentUserRef.current = currentUser;
   }, [currentUser]);
 
-  // 현재 사용자가 변경될 때 로컬 스토리지에 저장
   useEffect(() => {
     if (currentUser) {
       localStorage.setItem('chat_currentUser', JSON.stringify(currentUser));
     }
   }, [currentUser]);
 
-  // allMessages가 변경될 때 로컬 스토리지에 저장
   useEffect(() => {
     if (allMessages.size > 0) {
       localStorage.setItem('chat_allMessages', JSON.stringify(Array.from(allMessages.entries())));
@@ -384,26 +347,24 @@ const ChatDashboard: React.FC = () => {
 
   const selectUser = (username: string) => {
     const fullUsername = normalizeUsername(username);
-    console.log('👤 사용자 선택:', { original: username, normalized: fullUsername });
+    logger.debug('사용자 선택:', { original: username, normalized: fullUsername });
     setCurrentUser(fullUsername);
 
-    // 채팅방 진입 시 안읽은 메시지 수 리셋 (읽음 처리)
-    setUnreadCounts(prev => {
-      const newCounts = new Map(prev);
-      newCounts.set(fullUsername, 0);
-      return newCounts;
+    setUnreadCounts((prev) => {
+      const nextCounts = new Map(prev);
+      nextCounts.set(fullUsername, 0);
+      return nextCounts;
     });
 
-    // 항상 DB에서 최신 데이터를 가져오도록 수정
-    setMessages([]); // 로딩 상태 표시
+    setMessages([]);
     if (fullUsername && socket) {
-      console.log('📤 채팅 내역 요청 전송:', { userId: fullUsername, socketConnected: socket.connected });
+      logger.debug('채팅 내역 요청 전송:', { userId: fullUsername, socketConnected: socket.connected });
       socket.emit('getHistory', { userId: fullUsername });
     } else {
-      console.warn('⚠️ 채팅 내역 요청 실패:', {
+      logger.warn('채팅 내역 요청 실패:', {
         fullUsername,
-        socketExists: !!socket,
-        socketConnected: socket?.connected
+        socketExists: Boolean(socket),
+        socketConnected: socket?.connected,
       });
     }
   };
@@ -413,13 +374,10 @@ const ChatDashboard: React.FC = () => {
     setMessages([]);
   };
 
-  // 안읽은 채팅방 수 계산 (상담 대기 중인 고객 수)
   const calculateUnreadChatRooms = () => {
     let count = 0;
     unreadCounts.forEach((unreadCount) => {
-      if (unreadCount > 0) {
-        count++;
-      }
+      if (unreadCount > 0) count += 1;
     });
     return count;
   };
@@ -427,113 +385,115 @@ const ChatDashboard: React.FC = () => {
   const sendMessage = (content: string) => {
     if (!currentUser || !socket) return;
 
-    const messageData = {
+    socket.emit('sendMessage', {
       content,
       sender: '관리자',
       recipient: currentUser,
       type: 'CHAT',
-      timestamp: new Date().toISOString()
-    };
-
-    socket.emit('sendMessage', messageData);
-    // 메시지는 서버에서 DB 저장 후 다시 받아서 표시되므로 여기서는 추가하지 않음
+      timestamp: new Date().toISOString(),
+    });
   };
 
-  return (
-    <div className="chat-dashboard">
-      {/* 헤더 */}
-      <div className="dashboard-header content-wrapper">
-        <div className="header-left">
-          <div className="chat-icon">💬</div>
-          <div className="header-text">
-            <div className="dashboard-title">관리자 채팅 대시보드</div>
-            <div className="connection-status">{connectionStatus}</div>
-          </div>
-        </div>
-        <div className="header-stats">
-          <div className="stat-box">
-            <span className="stat-number">{Array.from(users.values()).filter(user => user.status === 'online').length}</span>
-            <span className="stat-label">온라인</span>
-          </div>
-          <div className="stat-box">
-            <span className="stat-number">{calculateUnreadChatRooms()}</span>
-            <span className="stat-label">대기</span>
-          </div>
-        </div>
-      </div>
+  const usersList = Array.from(users.values());
+  const onlineCount = usersList.filter((chatUser) => chatUser.status === 'online').length;
+  const offlineCount = usersList.filter((chatUser) => chatUser.status === 'offline').length;
+  const waitingCount = calculateUnreadChatRooms();
+  const connected = connectionStatus === '연결됨';
 
-      {/* 메인 콘텐츠 */}
-      <div className="dashboard-content content-wrapper">
-        {!currentUser ? (
-          // 채팅 목록 화면 (카카오톡 스타일)
-          <div className="chat-list-view">
-            <div className="chat-list-header">
-              <h2>사용자 목록 ({Array.from(users.values()).filter(user => user.status === 'online').length} 온라인, {Array.from(users.values()).filter(user => user.status === 'offline').length} 오프라인)</h2>
+  return (
+    <Page className="bg-slate-50 pb-4">
+      <PageHeader>
+        <PageHeaderContent className="justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex size-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <MessagesSquare className="size-5" />
             </div>
-            
-            <div className="chat-list">
-              {Array.from(users.values()).length === 0 ? (
-                <div className="empty-chat-list">
-                  <div className="empty-icon">💬</div>
-                  <div className="empty-text">아직 채팅할 사용자가 없습니다</div>
-                </div>
-              ) : (
-                Array.from(users.values()).map((user) => (
-                  <div
-                    key={user.username}
-                    className={`chat-item ${user.status === 'online' ? 'online' : 'offline'}`}
-                    onClick={() => selectUser(user.username)}
-                  >
-                    <div className="chat-item-avatar">
-                      <div className="avatar-circle">
-                        <span className="avatar-text">{user.username.charAt(0)}</span>
-                      </div>
-                      {user.status === 'online' && <div className="online-indicator"></div>}
-                    </div>
-                    
-                    <div className="chat-item-content">
-                      <div className="chat-item-header">
-                        <span className="chat-item-name">{user.username}</span>
-                        <span className="chat-item-status">
-                          {user.status === 'online' ? '(온라인)' : '(오프라인)'}
-                        </span>
-                      </div>
-                      
-                      {user.lastMessage ? (
-                        <div className="chat-item-message">
-                          {user.lastMessage.content.length > 20 
-                            ? user.lastMessage.content.substring(0, 20) + '...' 
-                            : user.lastMessage.content}
-                        </div>
-                      ) : (
-                        <div className="chat-item-message no-message">메시지 없음</div>
+            <div>
+              <h1 className="text-xl font-bold text-slate-950">관리자 채팅 대시보드</h1>
+              <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+                {connected ? <Wifi className="size-4 text-emerald-600" /> : <WifiOff className="size-4 text-red-500" />}
+                {connectionStatus}
+              </div>
+            </div>
+          </div>
+          <div className="hidden items-center gap-2 sm:flex">
+            <Badge variant="success">{onlineCount} 온라인</Badge>
+            <Badge variant={waitingCount > 0 ? 'default' : 'secondary'}>{waitingCount} 대기</Badge>
+          </div>
+        </PageHeaderContent>
+      </PageHeader>
+
+      <PageMain className={cn('grid gap-4', currentUser ? 'lg:grid-cols-[340px_1fr]' : 'max-w-4xl')}>
+        <Card className={cn('border-white/80 bg-white shadow-sm', currentUser && 'hidden lg:block')}>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between gap-3">
+              <span>사용자 목록</span>
+              <span className="text-sm font-medium text-muted-foreground">
+                {onlineCount} 온라인 / {offlineCount} 오프라인
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            {usersList.length === 0 ? (
+              <div className="flex min-h-64 flex-col items-center justify-center gap-3 p-8 text-center text-muted-foreground">
+                <MessageCircle className="size-10 text-slate-300" />
+                <p className="text-sm font-medium">아직 채팅할 사용자가 없습니다.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100">
+                {usersList.map((chatUser) => {
+                  const unreadCount = unreadCounts.get(chatUser.username) ?? 0;
+                  return (
+                    <Button
+                      key={chatUser.username}
+                      type="button"
+                      variant="ghost"
+                      className={cn(
+                        'h-auto w-full justify-start rounded-none px-4 py-3 text-left',
+                        currentUser === chatUser.username && 'bg-primary/5',
                       )}
-                    </div>
-                    
-                    {(unreadCounts.get(user.username) ?? 0) > 0 && (
-                      <div className="unread-badge">
-                        {unreadCounts.get(user.username) ?? 0}
+                      onClick={() => selectUser(chatUser.username)}
+                    >
+                      <div className="relative flex size-11 shrink-0 items-center justify-center rounded-full bg-slate-100 text-sm font-bold text-slate-700">
+                        {chatUser.username.charAt(0)}
+                        {chatUser.status === 'online' && (
+                          <span className="absolute bottom-0 right-0 size-3 rounded-full border-2 border-white bg-emerald-500" />
+                        )}
                       </div>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate text-sm font-semibold text-slate-950">{chatUser.username}</span>
+                          <span className={cn('text-xs', chatUser.status === 'online' ? 'text-emerald-600' : 'text-muted-foreground')}>
+                            {chatUser.status === 'online' ? '온라인' : '오프라인'}
+                          </span>
+                        </div>
+                        <div className="mt-1 truncate text-xs text-muted-foreground">
+                          {chatUser.lastMessage?.content || '메시지 없음'}
+                        </div>
+                      </div>
+                      {unreadCount > 0 && <Badge>{unreadCount}</Badge>}
+                    </Button>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {currentUser ? (
+          <ChatRoom currentUser={currentUser} messages={messages} onSendMessage={sendMessage} onBack={backToUserList} />
         ) : (
-          // 채팅방 화면 (전체 화면)
-          <div className="chat-room-view">
-            <ChatRoom
-              currentUser={currentUser}
-              messages={messages}
-              onSendMessage={sendMessage}
-              onBack={backToUserList}
-            />
-          </div>
+          <Card className="hidden min-h-[560px] items-center justify-center border-dashed border-slate-200 bg-white shadow-sm lg:flex">
+            <CardContent className="flex flex-col items-center gap-3 text-center text-muted-foreground">
+              <MessagesSquare className="size-12 text-slate-300" />
+              <p className="text-sm font-medium">왼쪽 목록에서 사용자를 선택하면 대화를 볼 수 있습니다.</p>
+            </CardContent>
+          </Card>
         )}
-      </div>
-    </div>
+      </PageMain>
+      <NavigationBar />
+    </Page>
   );
 };
 
-export default ChatDashboard; 
+export default ChatDashboard;

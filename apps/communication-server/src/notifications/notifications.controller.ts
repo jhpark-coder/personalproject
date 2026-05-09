@@ -1,6 +1,17 @@
-import { Controller, Post, Body, Get, Param, Put } from '@nestjs/common';
-import { CreateNotificationDto } from './dto/create-notification.dto';
+import {
+  Body,
+  Controller,
+  Get,
+  Headers,
+  NotFoundException,
+  Param,
+  ParseIntPipe,
+  Post,
+  Put,
+} from '@nestjs/common';
 import { CommunicationGateway } from '../communication/communication.gateway';
+import { JwtAuthService } from '../shared/auth/jwt-auth.service';
+import { CreateNotificationDto } from './dto/create-notification.dto';
 import { NotificationsService } from './notifications.service';
 
 @Controller('api/notifications')
@@ -8,18 +19,20 @@ export class NotificationsController {
   constructor(
     private readonly communicationGateway: CommunicationGateway,
     private readonly notificationsService: NotificationsService,
+    private readonly jwtAuthService: JwtAuthService,
   ) {}
 
-  // Spring Boot에서 보낸 알림을 받아서 MongoDB에 저장하고 WebSocket으로 전송
   @Post('create')
   async createNotification(
     @Body() createNotificationDto: CreateNotificationDto,
+    @Headers('authorization') authorization?: string,
+    @Headers('cookie') cookie?: string,
   ) {
-    // 1. MongoDB에 저장
+    this.jwtAuthService.requireAdmin(authorization, cookie);
+
     const savedNotification =
       await this.notificationsService.createNotification(createNotificationDto);
 
-    // 2. WebSocket으로 실시간 전송
     if (createNotificationDto.targetUserId) {
       this.communicationGateway.sendNotificationToUser(
         createNotificationDto.targetUserId.toString(),
@@ -34,33 +47,57 @@ export class NotificationsController {
     };
   }
 
-  // 사용자 알림 목록 조회
   @Get('user/:userId')
-  async getUserNotifications(@Param('userId') userId: number) {
+  async getUserNotifications(
+    @Param('userId', ParseIntPipe) userId: number,
+    @Headers('authorization') authorization?: string,
+    @Headers('cookie') cookie?: string,
+  ) {
+    this.jwtAuthService.requireUserAccess(authorization, cookie, userId);
     const notifications =
       await this.notificationsService.getUserNotifications(userId);
     return { notifications };
   }
 
-  // 알림 읽음 처리
   @Put(':id/read')
-  async markAsRead(@Param('id') id: string) {
+  async markAsRead(
+    @Param('id') id: string,
+    @Headers('authorization') authorization?: string,
+    @Headers('cookie') cookie?: string,
+  ) {
+    const identity = this.jwtAuthService.requireIdentity(authorization, cookie);
+    const notification = await this.notificationsService.getNotification(id);
+    if (!notification) {
+      throw new NotFoundException('Notification not found');
+    }
+    if (
+      !this.jwtAuthService.canAccessUser(identity, notification.targetUserId)
+    ) {
+      this.jwtAuthService.requireAdmin(authorization, cookie);
+    }
+
     await this.notificationsService.markAsRead(id);
     return { success: true };
   }
 
-  // 읽지 않은 알림 개수 조회
   @Get('user/:userId/unread-count')
-  async getUnreadCount(@Param('userId') userId: number) {
+  async getUnreadCount(
+    @Param('userId', ParseIntPipe) userId: number,
+    @Headers('authorization') authorization?: string,
+    @Headers('cookie') cookie?: string,
+  ) {
+    this.jwtAuthService.requireUserAccess(authorization, cookie, userId);
     const count = await this.notificationsService.getUnreadCount(userId);
     return { unreadCount: count };
   }
 
-  // 관리자 알림 브로드캐스트
   @Post('admin/create')
   async createAdminNotification(
     @Body() createNotificationDto: CreateNotificationDto,
+    @Headers('authorization') authorization?: string,
+    @Headers('cookie') cookie?: string,
   ) {
+    this.jwtAuthService.requireAdmin(authorization, cookie);
     const savedNotification =
       await this.notificationsService.createNotification(createNotificationDto);
     this.communicationGateway.sendNotificationToAdminGroup(savedNotification);
@@ -72,11 +109,13 @@ export class NotificationsController {
     };
   }
 
-  // 전체 브로드캐스트 알림
   @Post('broadcast')
   async broadcastNotification(
     @Body() createNotificationDto: CreateNotificationDto,
+    @Headers('authorization') authorization?: string,
+    @Headers('cookie') cookie?: string,
   ) {
+    this.jwtAuthService.requireAdmin(authorization, cookie);
     const savedNotification =
       await this.notificationsService.createNotification(createNotificationDto);
     this.communicationGateway.broadcastNotification(savedNotification);

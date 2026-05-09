@@ -13,9 +13,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import backend.fitmate.exercise.service.ExerciseService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @RestController
 @RequiredArgsConstructor
+@Slf4j
 @RequestMapping("/api/exercise-information")
 public class ExerciseController {
 
@@ -29,7 +31,7 @@ public class ExerciseController {
             @RequestParam(required = false) String intensity,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
-        
+
         Map<String, Object> result = exerciseService.searchExercisesWithPagination(keyword, muscle, category, intensity, page, size);
         return ResponseEntity.ok(result);
     }
@@ -80,18 +82,15 @@ public class ExerciseController {
             @RequestParam(required = false) String category,
             @RequestParam(required = false) String intensity) {
         try {
-            System.out.println("🔍 ExerciseController.getExercisesWithMets 호출됨");
-            System.out.println("🔍 파라미터 - page: " + page + ", size: " + size + ", keyword: " + keyword + ", muscle: " + muscle + ", category: " + category + ", intensity: " + intensity);
-            // with-mets는 더 이상 별도 의미가 없으므로 통합 검색을 호출
+            log.debug("getExercisesWithMets page={}, size={}, keyword={}, muscle={}, category={}, intensity={}",
+                    page, size, keyword, muscle, category, intensity);
             Map<String, Object> result = exerciseService.searchExercisesWithPagination(keyword, muscle, category, intensity, page, size);
-            System.out.println("🔍 서비스 호출 완료, 결과: " + result);
             return ResponseEntity.ok(result);
         } catch (Exception e) {
-            System.out.println("❌ ExerciseController 예외 발생: " + e.getMessage());
-            e.printStackTrace();
+            log.warn("Failed to load exercises with MET data", e);
             return ResponseEntity.internalServerError().body(Map.of(
                 "success", false,
-                "message", "MET 값이 있는 운동 조회 실패: " + e.getMessage()
+                "message", "MET 값이 있는 운동 조회에 실패했습니다."
             ));
         }
     }
@@ -112,4 +111,4 @@ public class ExerciseController {
     //         ));
     //     }
     // }
-} 
+}

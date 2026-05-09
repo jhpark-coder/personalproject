@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { Activity, BarChart3, Bell, CheckCheck, Dumbbell, Inbox, Mail, Search, Send, Trophy } from 'lucide-react';
 import { useUser } from '../context/UserContext';
 import NavigationBar from './NavigationBar';
-import './NotificationCenter.css';
 import {
   createNotification,
   fetchAllUserIds,
@@ -12,11 +12,62 @@ import {
 } from '../features/notifications/api/notifications';
 import type { AppNotification, SimpleUser } from '../features/notifications/api/notifications';
 import { useNotificationSocket } from '../features/notifications/hooks/useNotificationSocket';
+import { logger } from '../shared/lib/logger';
 import {
   countUnreadNotifications,
   mergeIncomingNotification,
   mergeNotifications,
 } from '../features/notifications/lib/notificationState';
+import { Badge } from './ui/badge';
+import { Button } from './ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { ErrorState, LoadingState } from './ui/feedback';
+import { Input } from './ui/input';
+import { Page, PageHeader, PageHeaderContent, PageMain } from './ui/page';
+import { cn } from '../lib/utils';
+
+const canUseBrowserNotifications = () => typeof window !== 'undefined' && 'Notification' in window;
+
+const getNotificationIcon = (type: string) => {
+  switch (type) {
+    case 'workout_reminder':
+      return Dumbbell;
+    case 'weekly_report':
+      return BarChart3;
+    case 'goal_achievement':
+      return Trophy;
+    case 'workout_habit':
+      return Activity;
+    default:
+      return Bell;
+  }
+};
+
+const getCategoryClassName = (category: string) => {
+  switch (category) {
+    case 'ADMIN':
+      return 'border-sky-200 bg-sky-50 text-sky-800';
+    case 'SOCIAL':
+      return 'border-violet-200 bg-violet-50 text-violet-800';
+    case 'AUCTION':
+      return 'border-amber-200 bg-amber-50 text-amber-800';
+    case 'ORDER':
+      return 'border-emerald-200 bg-emerald-50 text-emerald-800';
+    default:
+      return 'border-slate-200 bg-white text-slate-700';
+  }
+};
+
+const formatDate = (dateString: string) => {
+  const date = new Date(dateString);
+  const now = new Date();
+  const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+
+  if (diffInHours < 1) return '방금 전';
+  if (diffInHours < 24) return `${Math.floor(diffInHours)}시간 전`;
+  if (diffInHours < 48) return '어제';
+  return date.toLocaleDateString('ko-KR');
+};
 
 const NotificationCenter: React.FC = () => {
   const { user } = useUser();
@@ -25,7 +76,6 @@ const NotificationCenter: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Admin sender UI state
   const isAdmin = (user?.role || '').includes('ROLE_ADMIN');
   const [sendScope, setSendScope] = useState<'ALL' | 'PERSON'>('ALL');
   const [emailInput, setEmailInput] = useState('');
@@ -33,13 +83,14 @@ const NotificationCenter: React.FC = () => {
   const [searching, setSearching] = useState(false);
   const [selectedUser, setSelectedUser] = useState<SimpleUser | null>(null);
   const [messageInput, setMessageInput] = useState('');
+  const notificationPermission = canUseBrowserNotifications() ? window.Notification.permission : 'denied';
 
-  // 알림 목록 조회
   const loadNotifications = useCallback(async () => {
     if (!user?.id) return;
 
     try {
       setLoading(true);
+      setError(null);
       const fetchedNotifications = await fetchNotifications(user.id);
       setNotifications((prev) => mergeNotifications(prev, fetchedNotifications));
     } catch (err) {
@@ -49,88 +100,28 @@ const NotificationCenter: React.FC = () => {
     }
   }, [user?.id]);
 
-  // 알림 읽음 처리
   const markAsRead = async (notificationId: string) => {
     try {
       if (await markNotificationRead(notificationId)) {
-        // 로컬 상태 업데이트
-        setNotifications(prev => 
-          prev.map(notification => 
-            notification._id === notificationId 
-              ? { ...notification, isRead: true }
-              : notification
-          )
+        setNotifications((prev) =>
+          prev.map((notification) =>
+            notification._id === notificationId ? { ...notification, isRead: true } : notification,
+          ),
         );
-        
       }
     } catch (err) {
-      console.error('알림 읽음 처리 실패:', err);
+      logger.error('알림 읽음 처리 실패:', err);
     }
   };
 
-  // 모든 알림 읽음 처리
   const markAllAsRead = async () => {
     try {
-      const unreadNotifications = notifications.filter(n => !n.isRead);
+      const unreadNotifications = notifications.filter((notification) => !notification.isRead);
       await markAllNotificationsRead(unreadNotifications.map((notification) => notification._id));
-
-      // 로컬 상태 업데이트
-      setNotifications(prev => 
-        prev.map(notification => ({ ...notification, isRead: true }))
-      );
-      
+      setNotifications((prev) => prev.map((notification) => ({ ...notification, isRead: true })));
       setUnreadCount(0);
     } catch (err) {
-      console.error('모든 알림 읽음 처리 실패:', err);
-    }
-  };
-
-  // 알림 타입에 따른 아이콘 반환
-  const getNotificationIcon = (type: string) => {
-    switch (type) {
-      case 'workout_reminder':
-        return '🏃‍♂️';
-      case 'weekly_report':
-        return '📊';
-      case 'goal_achievement':
-        return '🎯';
-      case 'workout_habit':
-        return '💪';
-      default:
-        return '🔔';
-    }
-  };
-
-  // 알림 카테고리에 따른 배경색 반환
-  const getNotificationCategory = (category: string) => {
-    switch (category) {
-      case 'ADMIN':
-        return 'admin';
-      case 'SOCIAL':
-        return 'social';
-      case 'AUCTION':
-        return 'auction';
-      case 'ORDER':
-        return 'order';
-      default:
-        return 'default';
-    }
-  };
-
-  // 날짜 포맷팅
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
-
-    if (diffInHours < 1) {
-      return '방금 전';
-    } else if (diffInHours < 24) {
-      return `${Math.floor(diffInHours)}시간 전`;
-    } else if (diffInHours < 48) {
-      return '어제';
-    } else {
-      return date.toLocaleDateString('ko-KR');
+      logger.error('모든 알림 읽음 처리 실패:', err);
     }
   };
 
@@ -140,7 +131,7 @@ const NotificationCenter: React.FC = () => {
     onNotification: (notification) => {
       setNotifications((prev) => mergeIncomingNotification(prev, notification));
 
-      if (window.Notification.permission === 'granted') {
+      if (canUseBrowserNotifications() && window.Notification.permission === 'granted') {
         new window.Notification('FitMate 알림', {
           body: notification.message,
           icon: '/favicon.ico',
@@ -154,7 +145,6 @@ const NotificationCenter: React.FC = () => {
   useEffect(() => {
     void loadNotifications();
 
-    // 30초마다 알림 새로고침 (Socket.IO가 실패할 경우를 대비)
     const interval = setInterval(() => {
       void loadNotifications();
     }, 30000);
@@ -168,27 +158,16 @@ const NotificationCenter: React.FC = () => {
     setUnreadCount(countUnreadNotifications(notifications));
   }, [notifications]);
 
-  // 브라우저 알림 권한 요청
   const requestNotificationPermission = async () => {
-    if (window.Notification.permission === 'default') {
+    if (canUseBrowserNotifications() && window.Notification.permission === 'default') {
       const permission = await window.Notification.requestPermission();
-      if (permission === 'granted') {
-        console.log('✅ 브라우저 알림 권한 허용됨');
-      } else {
-        console.log('❌ 브라우저 알림 권한 거부됨');
-      }
+      logger.debug(permission === 'granted' ? '브라우저 알림 권한 허용됨' : '브라우저 알림 권한 거부됨');
     }
   };
 
-  // ===== Admin: 이메일 실시간 검색 =====
   useEffect(() => {
     if (!isAdmin) return;
-    if (sendScope === 'ALL') {
-      setEmailCandidates([]);
-      setSelectedUser(null);
-      return;
-    }
-    if (emailInput.trim().length === 0) {
+    if (sendScope === 'ALL' || emailInput.trim().length === 0) {
       setEmailCandidates([]);
       setSelectedUser(null);
       return;
@@ -200,7 +179,7 @@ const NotificationCenter: React.FC = () => {
     const timeout = setTimeout(async () => {
       try {
         setEmailCandidates(await searchUsers(emailInput.trim(), 5, controller.signal));
-      } catch (e) {
+      } catch {
         setEmailCandidates([]);
       } finally {
         setSearching(false);
@@ -223,13 +202,11 @@ const NotificationCenter: React.FC = () => {
     }
   };
 
-  // ===== Admin: 발송 핸들러 =====
   const sendNotification = async () => {
     if (!isAdmin) return;
     if (!messageInput.trim()) return alert('메시지를 입력하세요.');
 
     try {
-      // 1) 전체 사용자 ID 목록 조회 (관리자 전용)
       const users = await fetchAllUserIds();
 
       if (!Array.isArray(users) || users.length === 0) {
@@ -239,20 +216,15 @@ const NotificationCenter: React.FC = () => {
 
       const senderUserId = user?.id || 0;
       const message = messageInput.trim();
-
-      // 2) 각 사용자별 개별 알림 생성 (DB 저장 + 접속자 실시간 전송)
-      const payloads = users.map(u => ({
+      const payloads = users.map((targetUser) => ({
         senderUserId,
-        targetUserId: u.id,
+        targetUserId: targetUser.id,
         message,
         type: 'admin_message',
         category: 'ADMIN' as const,
       }));
 
-      // 병렬 전송 (너무 많으면 배치로 나눌 수 있음)
-      const requests = payloads.map((payload) => createNotification(payload));
-
-      const results = await Promise.allSettled(requests);
+      const results = await Promise.allSettled(payloads.map((payload) => createNotification(payload)));
       const success = results.filter(
         (result): result is PromiseFulfilledResult<Response> => result.status === 'fulfilled' && result.value.ok,
       ).length;
@@ -269,9 +241,8 @@ const NotificationCenter: React.FC = () => {
     if (!selectedUser?.id) return alert('대상 사용자를 선택하세요.');
     if (!messageInput.trim()) return alert('메시지를 입력하세요.');
 
-    const senderUserId = user?.id || 0;
     const payload = {
-      senderUserId,
+      senderUserId: user?.id || 0,
       targetUserId: selectedUser.id,
       message: messageInput.trim(),
       type: 'direct_message',
@@ -288,168 +259,182 @@ const NotificationCenter: React.FC = () => {
     }
   };
 
-  if (loading) {
-    return (
-      <div className="notification-center">
-        <div className="notification-header">
-          <div className="notification-header-content">
-            <h2>🔔 알림</h2>
-          </div>
-        </div>
-        <div style={{ padding: 16 }}>
-          <div className="skeleton skeleton-bar" style={{ width: '30%', marginBottom: 12 }}></div>
-          <div className="skeleton skeleton-card" style={{ height: 80, marginBottom: 8 }}></div>
-          <div className="skeleton skeleton-card" style={{ height: 80, marginBottom: 8 }}></div>
-          <div className="skeleton skeleton-card" style={{ height: 80 }}></div>
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="notification-center">
-        <div className="notification-header">
-          <div className="notification-header-content">
-            <h2>🔔 알림</h2>
-          </div>
-        </div>
-        <div className="notification-error">
-          <p>❌ {error}</p>
-          <button onClick={loadNotifications} className="retry-button">
-            다시 시도
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="notification-center">
-      <div className="notification-header">
-        <div className="notification-header-content">
-          <h2>🔔 알림</h2>
-          <div className="notification-actions">
-            {window.Notification.permission === 'default' && (
-              <button onClick={requestNotificationPermission} className="notification-permission-btn" aria-label="브라우저 알림 허용">
+    <Page>
+      <PageHeader>
+        <PageHeaderContent className="justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex size-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Bell className="size-5" />
+            </div>
+            <div>
+              <h1 className="text-xl font-bold text-slate-950">알림</h1>
+              <p className="text-sm text-muted-foreground">운동 일정, 리포트, 관리자 메시지를 확인합니다.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {notificationPermission === 'default' && (
+              <Button type="button" variant="outline" onClick={requestNotificationPermission} aria-label="브라우저 알림 허용">
                 알림 허용
-              </button>
+              </Button>
             )}
             {unreadCount > 0 && (
               <>
-                <span className="unread-badge" aria-label={`읽지 않은 알림 ${unreadCount}개`}>{unreadCount}</span>
-                <button onClick={markAllAsRead} className="mark-all-read" aria-label="모든 알림 읽음 처리">
+                <Badge aria-label={`읽지 않은 알림 ${unreadCount}개`}>{unreadCount}</Badge>
+                <Button type="button" variant="secondary" onClick={markAllAsRead} aria-label="모든 알림 읽음 처리">
+                  <CheckCheck className="size-4" />
                   모두 읽음
-                </button>
+                </Button>
               </>
             )}
           </div>
-        </div>
-      </div>
+        </PageHeaderContent>
+      </PageHeader>
 
-      <div className="notification-inner">
-        {isAdmin && (
-          <div className="admin-sender" style={{ padding: 12, border: '1px solid #eee', borderRadius: 8, margin: '8px 12px' }}>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <label>
-                대상
-                <select value={sendScope} onChange={(e) => { setSendScope(e.target.value as 'ALL' | 'PERSON'); setSelectedUser(null); }} style={{ marginLeft: 8 }}>
-                  <option value="ALL">전체</option>
-                  <option value="PERSON">개인</option>
-                </select>
-              </label>
+      <PageMain className="space-y-4">
+        {loading && <LoadingState title="알림을 불러오는 중입니다." />}
+        {!loading && error && <ErrorState message={error} onRetry={loadNotifications} />}
 
-              <textarea
-                placeholder={sendScope === 'ALL' ? '전체 발송에서는 비활성화됩니다' : '이메일/이름 입력'}
-                value={emailInput}
-                onChange={(e) => { setEmailInput(e.target.value); setSelectedUser(null); }}
-                disabled={sendScope === 'ALL'}
-                rows={1}
-                style={{ minWidth: 220, resize: 'vertical' }}
-              />
+        {!loading && !error && isAdmin && (
+          <Card className="border-white/80 bg-white shadow-sm">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Send className="size-5 text-primary" />
+                관리자 알림 발송
+              </CardTitle>
+              <CardDescription>전체 사용자 또는 선택한 사용자에게 알림을 보냅니다.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-[160px_1fr_auto]">
+                <label className="grid gap-1 text-sm font-medium text-slate-700">
+                  대상
+                  <select
+                    value={sendScope}
+                    onChange={(e) => {
+                      setSendScope(e.target.value as 'ALL' | 'PERSON');
+                      setSelectedUser(null);
+                    }}
+                    className="h-11 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
+                    <option value="ALL">전체</option>
+                    <option value="PERSON">개인</option>
+                  </select>
+                </label>
 
-              {sendScope === 'PERSON' && (
-                <button onClick={runFullSearch} disabled={searching}>
-                  {searching ? '검색 중...' : '검색' }
-                </button>
-              )}
-            </div>
+                <label className="grid gap-1 text-sm font-medium text-slate-700">
+                  사용자 검색
+                  <Input
+                    placeholder={sendScope === 'ALL' ? '전체 발송에서는 비활성화됩니다.' : '이메일 또는 이름 입력'}
+                    value={emailInput}
+                    onChange={(e) => {
+                      setEmailInput(e.target.value);
+                      setSelectedUser(null);
+                    }}
+                    disabled={sendScope === 'ALL'}
+                  />
+                </label>
 
-            {sendScope === 'PERSON' && emailCandidates.length > 0 && (
-              <div style={{ marginTop: 8, maxHeight: 160, overflowY: 'auto', borderTop: '1px dashed #ddd', paddingTop: 8 }}>
-                {emailCandidates.map(u => (
-                  <div key={u.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
-                    <div>
-                      <div style={{ fontWeight: 600 }}>{u.name}</div>
-                      <div style={{ fontSize: 12, color: '#666' }}>
-                        {u.email}{u.birthDate ? ` · ${u.birthDate}` : ''}
-                      </div>
-                    </div>
-                    <button onClick={() => setSelectedUser(u)} disabled={selectedUser?.id === u.id}>
-                      {selectedUser?.id === u.id ? '선택됨' : '선택'}
-                    </button>
-                  </div>
-                ))}
+                <Button type="button" variant="outline" className="self-end" onClick={runFullSearch} disabled={sendScope === 'ALL' || searching}>
+                  <Search className="size-4" />
+                  {searching ? '검색 중' : '검색'}
+                </Button>
               </div>
-            )}
 
-            <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-              <input
-                type="text"
-                placeholder="메시지 입력"
-                value={messageInput}
-                onChange={(e) => setMessageInput(e.target.value)}
-                style={{ flex: 1, minWidth: 260 }}
-              />
-              {sendScope === 'ALL' ? (
-                <button onClick={sendNotification}>전체 발송</button>
-              ) : (
-                <button onClick={sendPersonalNotification} disabled={!selectedUser}>개인 발송</button>
+              {sendScope === 'PERSON' && emailCandidates.length > 0 && (
+                <div className="max-h-48 overflow-y-auto rounded-lg border border-dashed border-slate-200 bg-slate-50 p-2">
+                  {emailCandidates.map((candidate) => (
+                    <div key={candidate.id} className="flex items-center justify-between gap-3 rounded-md p-2 hover:bg-white">
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-semibold text-slate-900">{candidate.name}</div>
+                        <div className="truncate text-xs text-muted-foreground">
+                          {candidate.email}
+                          {candidate.birthDate ? ` · ${candidate.birthDate}` : ''}
+                        </div>
+                      </div>
+                      <Button type="button" size="sm" variant={selectedUser?.id === candidate.id ? 'secondary' : 'outline'} onClick={() => setSelectedUser(candidate)} disabled={selectedUser?.id === candidate.id}>
+                        {selectedUser?.id === candidate.id ? '선택됨' : '선택'}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
               )}
-            </div>
-          </div>
+
+              <div className="flex flex-col gap-3 md:flex-row">
+                <Input
+                  type="text"
+                  placeholder="메시지 입력"
+                  value={messageInput}
+                  onChange={(e) => setMessageInput(e.target.value)}
+                  className="md:flex-1"
+                />
+                {sendScope === 'ALL' ? (
+                  <Button type="button" onClick={sendNotification}>
+                    전체 발송
+                  </Button>
+                ) : (
+                  <Button type="button" onClick={sendPersonalNotification} disabled={!selectedUser}>
+                    개인 발송
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
         )}
 
-        <div className="notification-list">
-          {notifications.length === 0 ? (
-            <div className="no-notifications">
-              <div className="no-notifications-icon">📭</div>
-              <p>새로운 알림이 없습니다</p>
-              <span>새로운 알림이 오면 여기에 표시됩니다</span>
-            </div>
-          ) : (
-            notifications.map((notification) => (
-              <div
-                key={notification._id}
-                className={`notification-item ${!notification.isRead ? 'unread' : ''} ${getNotificationCategory(notification.category)}`}
-                onClick={() => !notification.isRead && markAsRead(notification._id)}
-              >
-                <div className="notification-icon">
-                  {getNotificationIcon(notification.type)}
+        {!loading && !error && (
+          <Card className="border-white/80 bg-white shadow-sm">
+            <CardContent className="p-0">
+              {notifications.length === 0 ? (
+                <div className="flex min-h-64 flex-col items-center justify-center gap-2 p-8 text-center text-muted-foreground">
+                  <Inbox className="size-10 text-slate-300" />
+                  <p className="text-sm font-semibold text-slate-700">새로운 알림이 없습니다</p>
+                  <span className="text-sm">새로운 알림이 오면 여기에 표시됩니다.</span>
                 </div>
-                <div className="notification-content">
-                  <div className="notification-message">
-                    {notification.message}
-                  </div>
-                  <div className="notification-meta">
-                    <span className="notification-time">
-                      {formatDate(notification.createdAt)}
-                    </span>
-                    {!notification.isRead && (
-                      <span className="unread-indicator">●</span>
-                    )}
-                  </div>
+              ) : (
+                <div className="divide-y divide-slate-100">
+                  {notifications.map((notification) => {
+                    const Icon = getNotificationIcon(notification.type);
+                    return (
+                      <button
+                        key={notification._id}
+                        type="button"
+                        className={cn(
+                          'notification-item flex w-full items-start gap-3 px-4 py-4 text-left transition-colors hover:bg-slate-50',
+                          !notification.isRead && 'bg-primary/5',
+                        )}
+                        onClick={() => {
+                          if (!notification.isRead) void markAsRead(notification._id);
+                        }}
+                      >
+                        <div className={cn('mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-lg border', getCategoryClassName(notification.category))}>
+                          <Icon className="size-5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-3">
+                            <p className="text-sm font-medium leading-6 text-slate-900">{notification.message}</p>
+                            {!notification.isRead && <span className="mt-2 size-2 shrink-0 rounded-full bg-primary" aria-label="읽지 않음" />}
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                            <Mail className="size-3.5" />
+                            <span>{formatDate(notification.createdAt)}</span>
+                            <Badge variant="outline" className="h-5 px-2 text-[11px]">
+                              {notification.category || 'DEFAULT'}
+                            </Badge>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
                 </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+      </PageMain>
 
-      {/* 하단 네비게이션 */}
       <NavigationBar />
-    </div>
+    </Page>
   );
 };
 
-export default NotificationCenter; 
+export default NotificationCenter;

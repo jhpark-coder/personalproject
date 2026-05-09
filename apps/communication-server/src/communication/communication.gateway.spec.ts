@@ -3,13 +3,17 @@ import { CommunicationGateway } from './communication.gateway';
 import { ChatService } from '../chat/chat.service';
 import { Server, Socket } from 'socket.io';
 import { ChatMessageDto, ChatUserDto } from '../chat/dto/chat-message.dto';
+import { JwtAuthService } from '../shared/auth/jwt-auth.service';
 
 describe('CommunicationGateway', () => {
   let gateway: CommunicationGateway;
   let chatService: ChatService;
+  let jwtAuthService: JwtAuthService;
   let mockServer: Partial<Server>;
   let mockSocket: Partial<Socket>;
   let emitMock: jest.Mock;
+  const userIdentity = { userId: '1', roles: ['ROLE_USER'] };
+  const adminIdentity = { userId: '1', roles: ['ROLE_ADMIN'] };
 
   beforeEach(async () => {
     emitMock = jest.fn();
@@ -23,8 +27,7 @@ describe('CommunicationGateway', () => {
       id: 'test-socket-id',
       handshake: {
         auth: {
-          userId: 1,
-          roles: ['ROLE_USER'],
+          token: 'token',
         },
         headers: {},
         time: new Date().toISOString(),
@@ -35,9 +38,11 @@ describe('CommunicationGateway', () => {
         url: '/',
         query: {},
       },
+      data: { auth: userIdentity },
       join: jest.fn(),
       leave: jest.fn(),
       emit: jest.fn(),
+      disconnect: jest.fn(),
     } as any;
 
     const module: TestingModule = await Test.createTestingModule({
@@ -55,11 +60,23 @@ describe('CommunicationGateway', () => {
             getOnlineUsers: jest.fn(),
           },
         },
+        {
+          provide: JwtAuthService,
+          useValue: {
+            getSocketIdentity: jest.fn().mockReturnValue(userIdentity),
+            isAdmin: jest
+              .fn()
+              .mockImplementation((identity) =>
+                Boolean(identity?.roles?.includes('ROLE_ADMIN')),
+              ),
+          },
+        },
       ],
     }).compile();
 
     gateway = module.get<CommunicationGateway>(CommunicationGateway);
     chatService = module.get<ChatService>(ChatService);
+    jwtAuthService = module.get<JwtAuthService>(JwtAuthService);
 
     // WebSocketServer 데코레이터로 인해 수동으로 설정
     (gateway as any).server = mockServer;
@@ -76,11 +93,12 @@ describe('CommunicationGateway', () => {
         id: 'test-socket-id',
         handshake: {
           auth: {
-            userId: 1,
-            roles: ['ROLE_USER'],
+            token: 'token',
           },
         },
+        data: {},
         join: jest.fn(),
+        disconnect: jest.fn(),
       } as any;
 
       // when
@@ -96,12 +114,16 @@ describe('CommunicationGateway', () => {
         id: 'admin-socket-id',
         handshake: {
           auth: {
-            userId: 1,
-            roles: ['ROLE_ADMIN'],
+            token: 'token',
           },
         },
+        data: {},
         join: jest.fn(),
+        disconnect: jest.fn(),
       } as any;
+      jest
+        .spyOn(jwtAuthService, 'getSocketIdentity')
+        .mockReturnValueOnce(adminIdentity);
 
       // when
       gateway.handleConnection(mockSocket);
@@ -118,12 +140,7 @@ describe('CommunicationGateway', () => {
       // given
       const mockSocket = {
         id: 'test-socket-id',
-        handshake: {
-          auth: {
-            userId: 1,
-            roles: ['ROLE_USER'],
-          },
-        },
+        data: { auth: userIdentity },
       } as any;
 
       jest
@@ -144,12 +161,7 @@ describe('CommunicationGateway', () => {
       // given
       const mockSocket = {
         id: 'admin-socket-id',
-        handshake: {
-          auth: {
-            userId: 1,
-            roles: ['ROLE_ADMIN'],
-          },
-        },
+        data: { auth: adminIdentity },
       } as any;
 
       // when
@@ -174,12 +186,12 @@ describe('CommunicationGateway', () => {
       const result = await gateway.handleJoinChat(data, mockSocket as Socket);
 
       // then
-      expect(mockSocket.join).toHaveBeenCalledWith('testUser');
+      expect(mockSocket.join).toHaveBeenCalledWith('사용자_1');
       expect(chatService.addOnlineUser).toHaveBeenCalledWith(
-        'testUser',
+        '사용자_1',
         'test-socket-id',
       );
-      expect(result).toEqual({ status: 'joined', user: 'testUser' });
+      expect(result).toEqual({ status: 'joined', user: '사용자_1' });
     });
   });
 
@@ -205,7 +217,11 @@ describe('CommunicationGateway', () => {
       );
 
       // then
-      expect(chatService.saveMessage).toHaveBeenCalledWith(data);
+      expect(chatService.saveMessage).toHaveBeenCalledWith({
+        ...data,
+        sender: '사용자_1',
+        recipient: null,
+      });
       expect(result).toEqual({ ...savedMessage, isAdmin: false });
     });
 
@@ -218,27 +234,28 @@ describe('CommunicationGateway', () => {
         recipient: 'testUser',
       };
 
+      const adminSocket = {
+        ...(mockSocket as object),
+        data: { auth: adminIdentity },
+      } as Socket;
       const savedMessage = { ...data, id: 'msg-1', timestamp: new Date() };
       jest
         .spyOn(chatService, 'saveMessage')
         .mockResolvedValue(savedMessage as any);
 
       // when
-      const result = await gateway.handleSendMessage(
-        data,
-        mockSocket as Socket,
-      );
+      const result = await gateway.handleSendMessage(data, adminSocket);
 
       // then
       expect(chatService.saveMessage).toHaveBeenCalledWith(data);
-      expect(result).toEqual({ ...savedMessage, isAdmin: false });
+      expect(result).toEqual({ ...savedMessage, isAdmin: true });
     });
   });
 
   describe('handleGetHistory', () => {
     it('should get chat history correctly', async () => {
       // given
-      const data = { userId: 'testUser' };
+      const data = { userId: '1' };
       const history = [
         { id: '1', content: 'Hello', timestamp: new Date() },
         { id: '2', content: 'Hi', timestamp: new Date() },
@@ -252,9 +269,9 @@ describe('CommunicationGateway', () => {
       await gateway.handleGetHistory(data, mockSocket as Socket);
 
       // then
-      expect(chatService.getChatHistory).toHaveBeenCalledWith('testUser');
+      expect(chatService.getChatHistory).toHaveBeenCalledWith('1');
       expect(mockSocket.emit).toHaveBeenCalledWith('chatHistory', {
-        userId: 'testUser',
+        userId: '1',
         history,
       });
     });

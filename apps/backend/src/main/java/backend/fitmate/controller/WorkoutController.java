@@ -15,7 +15,7 @@ import backend.fitmate.config.RateLimit;
 
 @RestController
 @RequestMapping("/api/workout")
-@CrossOrigin(origins = "*")
+@CrossOrigin(origins = "${app.frontend.url}", allowCredentials = "true")
 public class WorkoutController {
 
     @GetMapping("/programs")
@@ -101,4 +101,4 @@ public class WorkoutController {
             "program", program
         ));
     }
-} 
+}

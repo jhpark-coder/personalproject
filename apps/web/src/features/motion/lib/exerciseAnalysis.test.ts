@@ -4,7 +4,9 @@ import {
   analyzeExercise,
   calculateAngle,
   createExerciseState,
+  EXERCISE_OPTIONS,
   POSE_INDICES,
+  type ExerciseType,
   type PoseLandmark,
 } from './exerciseAnalysis';
 
@@ -92,7 +94,123 @@ const setCalfRaisePose = (
   setPoint(landmarks, POSE_INDICES.RIGHT_FOOT_INDEX, 1, toeY, visibility);
 };
 
+const setBilateralElbowAngles = (landmarks: PoseLandmark[], angle: number, visibility = 1) => {
+  setPoint(landmarks, POSE_INDICES.LEFT_SHOULDER, 1, 1, visibility);
+  setPoint(landmarks, POSE_INDICES.LEFT_ELBOW, 0, 1, visibility);
+  const leftWrist = pointAtAngle(0, 1, 1, 1, angle);
+  setPoint(landmarks, POSE_INDICES.LEFT_WRIST, leftWrist.x, leftWrist.y, visibility);
+
+  setPoint(landmarks, POSE_INDICES.RIGHT_SHOULDER, 4, 1, visibility);
+  setPoint(landmarks, POSE_INDICES.RIGHT_ELBOW, 3, 1, visibility);
+  const rightWrist = pointAtAngle(3, 1, 4, 1, angle);
+  setPoint(landmarks, POSE_INDICES.RIGHT_WRIST, rightWrist.x, rightWrist.y, visibility);
+};
+
+const setShoulderPressPose = (landmarks: PoseLandmark[], phase: 'down' | 'up') => {
+  if (phase === 'down') {
+    setPoint(landmarks, POSE_INDICES.LEFT_SHOULDER, 0, 0.4);
+    setPoint(landmarks, POSE_INDICES.LEFT_ELBOW, 0, 0.55);
+    setPoint(landmarks, POSE_INDICES.LEFT_WRIST, 0.1, 0.45);
+    setPoint(landmarks, POSE_INDICES.RIGHT_SHOULDER, 1, 0.4);
+    setPoint(landmarks, POSE_INDICES.RIGHT_ELBOW, 1, 0.55);
+    setPoint(landmarks, POSE_INDICES.RIGHT_WRIST, 0.9, 0.45);
+    return;
+  }
+
+  setPoint(landmarks, POSE_INDICES.LEFT_SHOULDER, 0, 0.4);
+  setPoint(landmarks, POSE_INDICES.LEFT_ELBOW, 0, 0.2);
+  setPoint(landmarks, POSE_INDICES.LEFT_WRIST, 0, 0.1);
+  setPoint(landmarks, POSE_INDICES.RIGHT_SHOULDER, 1, 0.4);
+  setPoint(landmarks, POSE_INDICES.RIGHT_ELBOW, 1, 0.2);
+  setPoint(landmarks, POSE_INDICES.RIGHT_WRIST, 1, 0.1);
+};
+
+const setRaisePose = (landmarks: PoseLandmark[], phase: 'down' | 'lateral' | 'front') => {
+  setPoint(landmarks, POSE_INDICES.LEFT_SHOULDER, 0.4, 0.3);
+  setPoint(landmarks, POSE_INDICES.RIGHT_SHOULDER, 0.6, 0.3);
+  setPoint(landmarks, POSE_INDICES.LEFT_HIP, 0.42, 0.7);
+  setPoint(landmarks, POSE_INDICES.RIGHT_HIP, 0.58, 0.7);
+
+  if (phase === 'down') {
+    setPoint(landmarks, POSE_INDICES.LEFT_WRIST, 0.43, 0.74);
+    setPoint(landmarks, POSE_INDICES.RIGHT_WRIST, 0.57, 0.74);
+  } else if (phase === 'lateral') {
+    setPoint(landmarks, POSE_INDICES.LEFT_WRIST, -0.6, 0.32);
+    setPoint(landmarks, POSE_INDICES.RIGHT_WRIST, 1.6, 0.32);
+  } else {
+    setPoint(landmarks, POSE_INDICES.LEFT_WRIST, 0.44, 0.32);
+    setPoint(landmarks, POSE_INDICES.RIGHT_WRIST, 0.56, 0.32);
+  }
+};
+
+const setJumpingJackPose = (landmarks: PoseLandmark[], phase: 'closed' | 'open') => {
+  setPoint(landmarks, POSE_INDICES.LEFT_SHOULDER, 0.4, 0.4);
+  setPoint(landmarks, POSE_INDICES.RIGHT_SHOULDER, 0.6, 0.4);
+  if (phase === 'closed') {
+    setPoint(landmarks, POSE_INDICES.LEFT_WRIST, 0.42, 0.65);
+    setPoint(landmarks, POSE_INDICES.RIGHT_WRIST, 0.58, 0.65);
+    setPoint(landmarks, POSE_INDICES.LEFT_ANKLE, 0.46, 0.9);
+    setPoint(landmarks, POSE_INDICES.RIGHT_ANKLE, 0.54, 0.9);
+  } else {
+    setPoint(landmarks, POSE_INDICES.LEFT_WRIST, 0.15, 0.2);
+    setPoint(landmarks, POSE_INDICES.RIGHT_WRIST, 0.85, 0.2);
+    setPoint(landmarks, POSE_INDICES.LEFT_ANKLE, 0.2, 0.9);
+    setPoint(landmarks, POSE_INDICES.RIGHT_ANKLE, 0.8, 0.9);
+  }
+};
+
+const setHighKneePose = (landmarks: PoseLandmark[], phase: 'down' | 'up') => {
+  setPoint(landmarks, POSE_INDICES.LEFT_HIP, 0, 0.5);
+  setPoint(landmarks, POSE_INDICES.RIGHT_HIP, 1, 0.5);
+  setPoint(landmarks, POSE_INDICES.LEFT_ANKLE, 0, 0.95);
+  setPoint(landmarks, POSE_INDICES.RIGHT_ANKLE, 1, 0.95);
+  setPoint(landmarks, POSE_INDICES.LEFT_KNEE, 0, phase === 'up' ? 0.48 : 0.7);
+  setPoint(landmarks, POSE_INDICES.RIGHT_KNEE, 1, 0.72);
+};
+
+const setMountainClimberPose = (landmarks: PoseLandmark[], phase: 'extended' | 'drive') => {
+  setPoint(landmarks, POSE_INDICES.LEFT_SHOULDER, 0, 0.2);
+  setPoint(landmarks, POSE_INDICES.RIGHT_SHOULDER, 0, 0.25);
+  setPoint(landmarks, POSE_INDICES.LEFT_HIP, 1, 0.2);
+  setPoint(landmarks, POSE_INDICES.RIGHT_HIP, 1, 0.25);
+  setPoint(landmarks, POSE_INDICES.LEFT_ANKLE, 2, 0.2);
+  setPoint(landmarks, POSE_INDICES.RIGHT_ANKLE, 2, 0.25);
+  setPoint(landmarks, POSE_INDICES.LEFT_KNEE, 1.45, phase === 'drive' ? 0.2 : 0.35);
+  setPoint(landmarks, POSE_INDICES.RIGHT_KNEE, 1.45, 0.4);
+};
+
+const setTorsoAnglePose = (landmarks: PoseLandmark[], angle: number) => {
+  const leftShoulder = pointAtAngle(0, 0, 1, 0, angle);
+  setPoint(landmarks, POSE_INDICES.LEFT_HIP, 0, 0);
+  setPoint(landmarks, POSE_INDICES.LEFT_KNEE, 1, 0);
+  setPoint(landmarks, POSE_INDICES.LEFT_SHOULDER, leftShoulder.x, leftShoulder.y);
+
+  const rightShoulder = pointAtAngle(3, 0, 4, 0, angle);
+  setPoint(landmarks, POSE_INDICES.RIGHT_HIP, 3, 0);
+  setPoint(landmarks, POSE_INDICES.RIGHT_KNEE, 4, 0);
+  setPoint(landmarks, POSE_INDICES.RIGHT_SHOULDER, rightShoulder.x, rightShoulder.y);
+};
+
+const setDeadliftPose = (landmarks: PoseLandmark[], hipAngle: number) => {
+  setTorsoAnglePose(landmarks, hipAngle);
+  setPoint(landmarks, POSE_INDICES.LEFT_ANKLE, 2, 0);
+  setPoint(landmarks, POSE_INDICES.RIGHT_ANKLE, 5, 0);
+};
+
+const setGluteBridgePose = (landmarks: PoseLandmark[], phase: 'down' | 'up') => {
+  setPoint(landmarks, POSE_INDICES.LEFT_SHOULDER, 0, 0.6);
+  setPoint(landmarks, POSE_INDICES.RIGHT_SHOULDER, 1, 0.6);
+  setPoint(landmarks, POSE_INDICES.LEFT_KNEE, 0, 0.6);
+  setPoint(landmarks, POSE_INDICES.RIGHT_KNEE, 1, 0.6);
+  setPoint(landmarks, POSE_INDICES.LEFT_HIP, 0, phase === 'up' ? 0.5 : 0.6);
+  setPoint(landmarks, POSE_INDICES.RIGHT_HIP, 1, phase === 'up' ? 0.5 : 0.6);
+};
+
 describe('exerciseAnalysis', () => {
+  it('exposes seventeen camera-check exercise types', () => {
+    expect(EXERCISE_OPTIONS).toHaveLength(17);
+  });
+
   it('normalizes reflex angles over 180 degrees', () => {
     const angle = calculateAngle(
       { x: 0, y: -1 },
@@ -194,5 +312,61 @@ describe('exerciseAnalysis', () => {
     expect(analyzeExercise(down, 'calf_raise', state).currentCount).toBe(0);
     expect(analyzeExercise(up, 'calf_raise', state).currentCount).toBe(1);
     expect(analyzeExercise(up, 'calf_raise', state).currentCount).toBe(1);
+  });
+
+  it('does not count a squat by joining frames across lost tracking', () => {
+    const state = createExerciseState();
+    const down = createLandmarks();
+    const missing = createLandmarks();
+    const up = createLandmarks();
+
+    setBilateralKneeAngles(down, 100);
+    setBilateralKneeAngles(missing, 100, 0.1);
+    setBilateralKneeAngles(up, 170);
+
+    expect(analyzeExercise(down, 'squat', state).currentCount).toBe(0);
+    expect(analyzeExercise(missing, 'squat', state).currentCount).toBe(0);
+    expect(analyzeExercise(up, 'squat', state).currentCount).toBe(0);
+  });
+
+  it('does not count a calf raise by joining frames across lost tracking', () => {
+    const state = createExerciseState();
+    const down = createLandmarks();
+    const missing = createLandmarks();
+    const up = createLandmarks();
+
+    setCalfRaisePose(down, 0.095, 0.09);
+    setCalfRaisePose(missing, 0.095, 0.09, 0.1);
+    setCalfRaisePose(up, 0.2, 0.1);
+
+    expect(analyzeExercise(down, 'calf_raise', state).currentCount).toBe(0);
+    expect(analyzeExercise(missing, 'calf_raise', state).currentCount).toBe(0);
+    expect(analyzeExercise(up, 'calf_raise', state).currentCount).toBe(0);
+  });
+
+  it.each<[ExerciseType, (landmarks: PoseLandmark[]) => void, (landmarks: PoseLandmark[]) => void]>([
+    ['bicep_curl', (pose) => setBilateralElbowAngles(pose, 170), (pose) => setBilateralElbowAngles(pose, 50)],
+    ['shoulder_press', (pose) => setShoulderPressPose(pose, 'down'), (pose) => setShoulderPressPose(pose, 'up')],
+    ['lateral_raise', (pose) => setRaisePose(pose, 'down'), (pose) => setRaisePose(pose, 'lateral')],
+    ['front_raise', (pose) => setRaisePose(pose, 'down'), (pose) => setRaisePose(pose, 'front')],
+    ['jumping_jack', (pose) => setJumpingJackPose(pose, 'closed'), (pose) => setJumpingJackPose(pose, 'open')],
+    ['high_knee', (pose) => setHighKneePose(pose, 'down'), (pose) => setHighKneePose(pose, 'up')],
+    ['mountain_climber', (pose) => setMountainClimberPose(pose, 'extended'), (pose) => setMountainClimberPose(pose, 'drive')],
+    ['situp', (pose) => setTorsoAnglePose(pose, 170), (pose) => setTorsoAnglePose(pose, 95)],
+    ['crunch', (pose) => setTorsoAnglePose(pose, 170), (pose) => setTorsoAnglePose(pose, 120)],
+    ['deadlift', (pose) => setDeadliftPose(pose, 110), (pose) => setDeadliftPose(pose, 170)],
+    ['glute_bridge', (pose) => setGluteBridgePose(pose, 'down'), (pose) => setGluteBridgePose(pose, 'up')],
+    ['tricep_dip', (pose) => setBilateralElbowAngles(pose, 80), (pose) => setBilateralElbowAngles(pose, 170)],
+  ])('counts a full %s repetition', (type, setDown, setUp) => {
+    const state = createExerciseState();
+    const down = createLandmarks();
+    const up = createLandmarks();
+
+    setDown(down);
+    setUp(up);
+
+    expect(analyzeExercise(down, type, state).currentCount).toBe(0);
+    expect(analyzeExercise(up, type, state).currentCount).toBe(1);
+    expect(analyzeExercise(up, type, state).currentCount).toBe(1);
   });
 });

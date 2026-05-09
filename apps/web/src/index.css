@@ -1,5 +1,29 @@
 /* 전체 디자인 시스템 */
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
+  --background: 210 40% 98%;
+  --foreground: 222 47% 11%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --primary-ui: 224 76% 48%;
+  --primary-foreground: 0 0% 100%;
+  --secondary-ui: 214 32% 91%;
+  --secondary-foreground: 222 47% 11%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 47%;
+  --accent-ui: 173 58% 39%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 214 32% 91%;
+  --input: 214 32% 91%;
+  --ring: 224 76% 48%;
+  --radius: 0.5rem;
   /* ===== Primary (신뢰성 + 활동성) ===== */
   --primary: #2563EB;         /* 더 활기찬 블루 (기존 #334155 대신) */
   --primary-dark: #1D4ED8;    /* 깊이감 있는 블루 */
@@ -106,9 +130,19 @@ body {
   font-family: "Pretendard Variable", "Pretendard", -apple-system, BlinkMacSystemFont, system-ui, "Roboto", "Helvetica Neue", "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", "Malgun Gothic", "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  font-feature-settings: "kern";
   background-color: var(--gray-50);
   color: var(--gray-900);
   line-height: 1.6;
+}
+
+#root {
+  width: 100%;
+  min-height: 100dvh;
+  margin: 0;
+  padding: 0;
+  text-align: initial;
 }
 
 /* 공통: 페이지 컨테이너 마지막 요소 하단 여백 제거 */
@@ -158,6 +192,11 @@ body {
 /* PC 화면에서만 최대폭 제한 */
 @media (min-width: 1024px) {
   .container { max-width: var(--content-max); }
+}
+
+.nav-item span {
+  line-height: 1.15;
+  min-height: 1.15em;
 }
 @media (min-width: 1280px) {
   .container { max-width: 1200px; }
@@ -593,6 +632,46 @@ body {
   background: #ffffff;
   opacity: 0.9;
   border-radius: 6px;
+}
+
+.nav-icon-svg {
+  display: block;
+}
+
+.nav-item span {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.15;
+  min-height: 1.15em;
+  white-space: nowrap;
+}
+
+.sidebar-brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  color: var(--brand-primary);
+  background: #ffffff;
+  border-radius: 8px;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+@media (max-width: 480px) {
+  .navigation-bar {
+    gap: 2px;
+  }
+
+  .nav-item {
+    font-size: 0.62rem;
+  }
+
+  .nav-icon {
+    margin-bottom: 2px;
+  }
 }
 
 /* 배지 대비 향상 */

@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -19,15 +20,17 @@ import org.springframework.web.bind.annotation.RestController;
 
 import backend.fitmate.user.entity.BodyRecord;
 import backend.fitmate.user.service.BodyRecordService;
+import backend.fitmate.service.CurrentUserAccessService;
 import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/body-records")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
+@CrossOrigin(origins = "${app.frontend.url}", allowCredentials = "true")
 public class BodyRecordController {
 
     private final BodyRecordService bodyRecordService;
+    private final CurrentUserAccessService currentUserAccessService;
 
     /**
      * 신체 기록 저장
@@ -36,6 +39,9 @@ public class BodyRecordController {
     public ResponseEntity<BodyRecord> saveBodyRecord(
             @PathVariable Long userId,
             @RequestBody BodyRecord bodyRecord) {
+        if (!currentUserAccessService.canAccessUser(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
             BodyRecord savedRecord = bodyRecordService.saveBodyRecord(userId, bodyRecord);
             return ResponseEntity.ok(savedRecord);
@@ -49,6 +55,9 @@ public class BodyRecordController {
      */
     @GetMapping("/{userId}")
     public ResponseEntity<List<BodyRecord>> getUserBodyRecords(@PathVariable Long userId) {
+        if (!currentUserAccessService.canAccessUser(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
             List<BodyRecord> records = bodyRecordService.getUserBodyRecords(userId);
             return ResponseEntity.ok(records);
@@ -65,6 +74,9 @@ public class BodyRecordController {
             @PathVariable Long userId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        if (!currentUserAccessService.canAccessUser(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
             List<BodyRecord> records = bodyRecordService.getUserBodyRecordsByPeriod(userId, startDate, endDate);
             return ResponseEntity.ok(records);
@@ -80,6 +92,9 @@ public class BodyRecordController {
     public ResponseEntity<BodyRecord> getUserBodyRecordByDate(
             @PathVariable Long userId,
             @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate measureDate) {
+        if (!currentUserAccessService.canAccessUser(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
             Optional<BodyRecord> record = bodyRecordService.getUserBodyRecordByDate(userId, measureDate);
             return record.map(ResponseEntity::ok).orElse(ResponseEntity.notFound().build());
@@ -95,6 +110,13 @@ public class BodyRecordController {
     public ResponseEntity<BodyRecord> updateBodyRecord(
             @PathVariable Long recordId,
             @RequestBody BodyRecord updatedRecord) {
+        Optional<Long> ownerId = bodyRecordService.getBodyRecordOwnerId(recordId);
+        if (ownerId.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        if (!currentUserAccessService.canAccessUser(ownerId.get())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
             BodyRecord updated = bodyRecordService.updateBodyRecord(recordId, updatedRecord);
             return ResponseEntity.ok(updated);
@@ -108,6 +130,13 @@ public class BodyRecordController {
      */
     @DeleteMapping("/{recordId}")
     public ResponseEntity<Void> deleteBodyRecord(@PathVariable Long recordId) {
+        Optional<Long> ownerId = bodyRecordService.getBodyRecordOwnerId(recordId);
+        if (ownerId.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        if (!currentUserAccessService.canAccessUser(ownerId.get())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
             bodyRecordService.deleteBodyRecord(recordId);
             return ResponseEntity.ok().build();
@@ -124,6 +153,9 @@ public class BodyRecordController {
             @PathVariable Long userId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        if (!currentUserAccessService.canAccessUser(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
             Object[] stats = bodyRecordService.getMonthlyBodyStats(userId, startDate, endDate);
             return ResponseEntity.ok(stats);
@@ -140,6 +172,9 @@ public class BodyRecordController {
             @PathVariable Long userId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        if (!currentUserAccessService.canAccessUser(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
             List<Object[]> trend = bodyRecordService.getWeightTrend(userId, startDate, endDate);
             return ResponseEntity.ok(trend);
@@ -156,6 +191,9 @@ public class BodyRecordController {
             @PathVariable Long userId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        if (!currentUserAccessService.canAccessUser(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
             List<Object[]> trend = bodyRecordService.getBodyFatTrend(userId, startDate, endDate);
             return ResponseEntity.ok(trend);
@@ -172,6 +210,9 @@ public class BodyRecordController {
             @PathVariable Long userId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        if (!currentUserAccessService.canAccessUser(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
             List<Object[]> trend = bodyRecordService.getMuscleMassTrend(userId, startDate, endDate);
             return ResponseEntity.ok(trend);
@@ -185,6 +226,9 @@ public class BodyRecordController {
      */
     @GetMapping("/{userId}/recent")
     public ResponseEntity<List<BodyRecord>> getRecentBodyRecords(@PathVariable Long userId) {
+        if (!currentUserAccessService.canAccessUser(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
             List<BodyRecord> records = bodyRecordService.getRecentBodyRecords(userId);
             return ResponseEntity.ok(records);
@@ -198,6 +242,9 @@ public class BodyRecordController {
      */
     @GetMapping("/{userId}/trends/weight/recent")
     public ResponseEntity<List<Object[]>> getRecentWeightTrend(@PathVariable Long userId) {
+        if (!currentUserAccessService.canAccessUser(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
             List<Object[]> trend = bodyRecordService.getRecentWeightTrend(userId);
             return ResponseEntity.ok(trend);
@@ -211,6 +258,9 @@ public class BodyRecordController {
      */
     @GetMapping("/{userId}/trends/body-fat/recent")
     public ResponseEntity<List<Object[]>> getRecentBodyFatTrend(@PathVariable Long userId) {
+        if (!currentUserAccessService.canAccessUser(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
             List<Object[]> trend = bodyRecordService.getRecentBodyFatTrend(userId);
             return ResponseEntity.ok(trend);
@@ -224,6 +274,9 @@ public class BodyRecordController {
      */
     @GetMapping("/{userId}/trends/muscle-mass/recent")
     public ResponseEntity<List<Object[]>> getRecentMuscleMassTrend(@PathVariable Long userId) {
+        if (!currentUserAccessService.canAccessUser(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
             List<Object[]> trend = bodyRecordService.getRecentMuscleMassTrend(userId);
             return ResponseEntity.ok(trend);
@@ -231,4 +284,4 @@ public class BodyRecordController {
             return ResponseEntity.badRequest().build();
         }
     }
-} 
+}

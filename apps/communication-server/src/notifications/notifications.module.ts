@@ -9,6 +9,7 @@ import {
 } from '../shared/schemas/notification.schema';
 import { SmsModule } from '../sms/sms.module';
 import { CommunicationModule } from '../communication/communication.module';
+import { AuthModule } from '../shared/auth/auth.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { CommunicationModule } from '../communication/communication.module';
     ]),
     SmsModule,
     CommunicationModule,
+    AuthModule,
   ],
   controllers: [NotificationsController],
   providers: [NotificationsService, NotificationSchedulerService],

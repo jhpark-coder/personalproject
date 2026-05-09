@@ -14,6 +14,8 @@ interface OnlineUser {
   lastActivity: Date;
 }
 
+type ChatMessageWithAdminFlag = ChatMessageDto & { isAdmin?: boolean };
+
 @Injectable()
 export class ChatService {
   private onlineUsers: Map<string, OnlineUser> = new Map();
@@ -30,10 +32,8 @@ export class ChatService {
       timestamp: new Date(),
     });
 
-    // MongoDB에 직접 저장
     const savedMessage = await message.save();
 
-    // 사용자 활동 업데이트
     if (messageData.sender) {
       this.updateUserActivity(messageData.sender);
     }
@@ -41,35 +41,35 @@ export class ChatService {
     return savedMessage.toObject() as ChatMessageDto;
   }
 
-  async getChatHistory(userId: string): Promise<ChatMessageDto[]> {
-    console.log('🔍 채팅 내역 조회 시작:', userId);
-
+  async getChatHistory(userId: string): Promise<ChatMessageWithAdminFlag[]> {
     try {
-      // userId로 직접 검색하거나 "사용자_${userId}" 형태로 검색
+      const candidates = this.chatUserCandidates(userId);
       const history = await this.chatMessageModel
         .find({
           $or: [
-            { sender: userId },
-            { sender: `사용자_${userId}` },
-            { recipient: userId },
-            { recipient: `사용자_${userId}` },
+            { sender: { $in: candidates } },
+            { recipient: { $in: candidates } },
           ],
         })
         .sort({ timestamp: 1 })
         .exec();
 
-      console.log('✅ MongoDB에서 조회된 채팅 내역:', history);
+      this.logger.debug(`Chat history loaded: count=${history.length}`);
 
-      // 각 메시지에 isAdmin 필드 추가
       return history.map((doc) => {
         const message = doc.toObject() as ChatMessageDto;
-        // sender가 "관리자"로 시작하면 관리자 메시지로 판단
-        const isAdmin = message.sender && message.sender.startsWith('관리자');
+        const isAdmin = Boolean(
+          message.sender &&
+            (message.sender.startsWith('관리자') ||
+              message.sender.toLowerCase().includes('admin')),
+        );
         return { ...message, isAdmin };
       });
     } catch (error) {
-      console.error('❌ MongoDB 조회 중 오류 발생:', error);
-      this.logger.error(`채팅 내역 조회 실패 - 사용자: ${userId}`, error);
+      this.logger.error(
+        'Chat history lookup failed.',
+        error instanceof Error ? error.stack : undefined,
+      );
       return [];
     }
   }
@@ -82,31 +82,33 @@ export class ChatService {
         .exec();
       return messages.map((doc) => doc.toObject() as ChatMessageDto);
     } catch (error) {
-      console.error('❌ 전체 메시지 조회 중 오류 발생:', error);
-      this.logger.error('전체 메시지 조회 실패', error);
+      this.logger.error(
+        'All message lookup failed.',
+        error instanceof Error ? error.stack : undefined,
+      );
       return [];
     }
   }
 
   async clearHistory(userId: string): Promise<void> {
     try {
+      const candidates = this.chatUserCandidates(userId);
       await this.chatMessageModel.deleteMany({
         $or: [
-          { sender: userId },
-          { sender: `사용자_${userId}` },
-          { recipient: userId },
-          { recipient: `사용자_${userId}` },
+          { sender: { $in: candidates } },
+          { recipient: { $in: candidates } },
         ],
       });
-      console.log(`✅ 사용자 ${userId}의 채팅 내역 삭제 완료`);
+      this.logger.debug('Chat history cleared.');
     } catch (error) {
-      console.error('❌ 채팅 내역 삭제 중 오류 발생:', error);
-      this.logger.error(`채팅 내역 삭제 실패 - 사용자: ${userId}`, error);
+      this.logger.error(
+        'Chat history clear failed.',
+        error instanceof Error ? error.stack : undefined,
+      );
       throw error;
     }
   }
 
-  // 온라인 사용자 관리
   addOnlineUser(username: string, socketId: string): void {
     const user: OnlineUser = {
       username,
@@ -159,44 +161,51 @@ export class ChatService {
   async getAllChatUsers(): Promise<string[]> {
     try {
       const users = await this.chatMessageModel.distinct('sender').exec();
-      console.log('📋 모든 채팅 사용자:', users);
+      this.logger.debug(`Chat users loaded: count=${users.length}`);
       return users;
     } catch (error) {
-      console.error('❌ 채팅 사용자 조회 중 오류:', error);
+      this.logger.error(
+        'Chat user lookup failed.',
+        error instanceof Error ? error.stack : undefined,
+      );
       return [];
     }
   }
 
   async getUserLastMessage(userId: string): Promise<ChatMessageDto | null> {
     try {
+      const candidates = this.chatUserCandidates(userId);
       const lastMessage = await this.chatMessageModel
         .findOne({
           $or: [
-            { sender: userId },
-            { sender: `사용자_${userId}` },
-            { recipient: userId },
-            { recipient: `사용자_${userId}` },
+            { sender: { $in: candidates } },
+            { recipient: { $in: candidates } },
           ],
         })
         .sort({ timestamp: -1 })
         .exec();
 
-      console.log('📝 사용자 마지막 메시지:', lastMessage);
       return lastMessage ? (lastMessage.toObject() as ChatMessageDto) : null;
     } catch (error) {
-      console.error('❌ 마지막 메시지 조회 중 오류:', error);
+      this.logger.error(
+        'Last chat message lookup failed.',
+        error instanceof Error ? error.stack : undefined,
+      );
       return null;
     }
   }
 
   cleanupInactiveUsers(): void {
     const now = new Date();
-    const threshold = new Date(now.getTime() - 30 * 60 * 1000); // 30분
-
+    const threshold = new Date(now.getTime() - 30 * 60 * 1000);
     for (const [username, user] of this.onlineUsers.entries()) {
       if (user.lastActivity.getTime() < threshold.getTime()) {
         this.onlineUsers.delete(username);
       }
     }
+  }
+
+  private chatUserCandidates(userId: string): string[] {
+    return Array.from(new Set([userId, `사용자_${userId}`]));
   }
 }

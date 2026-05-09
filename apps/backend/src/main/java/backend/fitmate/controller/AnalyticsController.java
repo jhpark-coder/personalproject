@@ -13,7 +13,7 @@ import backend.fitmate.config.RateLimit;
 
 @RestController
 @RequestMapping("/api/analytics")
-@CrossOrigin(origins = "*")
+@CrossOrigin(origins = "${app.frontend.url}", allowCredentials = "true")
 public class AnalyticsController {
 
     @GetMapping("/body")
@@ -71,4 +71,4 @@ public class AnalyticsController {
             "stats", stats
         ));
     }
-} 
+}

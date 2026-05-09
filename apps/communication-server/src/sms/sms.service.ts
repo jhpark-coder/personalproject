@@ -1,11 +1,12 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import * as twilio from 'twilio';
 import { RedisService } from '../shared/redis/redis.service';
 
 @Injectable()
 export class SmsService implements OnModuleInit {
-  private client: twilio.Twilio;
+  private readonly logger = new Logger(SmsService.name);
+  private client?: twilio.Twilio;
 
   constructor(
     private configService: ConfigService,
@@ -13,26 +14,11 @@ export class SmsService implements OnModuleInit {
   ) {}
 
   async onModuleInit() {
-    // 모듈 초기화 후 Twilio 클라이언트 초기화
     this.initializeTwilioClient();
   }
 
   private initializeTwilioClient() {
     try {
-      // 디버깅을 위한 환경 정보 출력
-      console.log('=== 환경 변수 디버깅 ===');
-      console.log('NODE_ENV:', process.env.NODE_ENV);
-      console.log('현재 작업 디렉토리:', process.cwd());
-      console.log(
-        '모든 TWILIO 관련 환경 변수:',
-        Object.keys(process.env).filter((key) => key.includes('TWILIO')),
-      );
-      console.log('직접 process.env 접근:');
-      console.log('  TWILIO_ACCOUNT_SID:', process.env.TWILIO_ACCOUNT_SID);
-      console.log('  TWILIO_AUTH_TOKEN:', process.env.TWILIO_AUTH_TOKEN);
-      console.log('  TWILIO_PHONE_NUMBER:', process.env.TWILIO_PHONE_NUMBER);
-
-      // ConfigService를 통해 환경 변수 가져오기
       const accountSid =
         this.configService.get<string>('TWILIO_ACCOUNT_SID') ||
         this.configService.get<string>('development.twilio.accountSid');
@@ -43,51 +29,29 @@ export class SmsService implements OnModuleInit {
         this.configService.get<string>('TWILIO_PHONE_NUMBER') ||
         this.configService.get<string>('development.twilio.phoneNumber');
 
-      console.log('=== Twilio 초기화 시작 ===');
-      console.log(
-        'Twilio Account SID:',
-        accountSid ? `${accountSid.substring(0, 10)}...` : 'undefined',
+      this.logger.log(
+        `Twilio configuration: accountSid=${Boolean(accountSid)}, authToken=${Boolean(authToken)}, phoneNumber=${Boolean(phoneNumber)}`,
       );
-      console.log(
-        'Twilio Auth Token:',
-        authToken ? '***설정됨***' : 'undefined',
-      );
-      console.log('Twilio Phone Number:', phoneNumber);
 
-      // 디버깅을 위한 환경 변수 체크
-      console.log(
-        'Available env vars:',
-        Object.keys(process.env).filter((key) => key.includes('TWILIO')),
-      );
-      console.log('ConfigService TWILIO vars:', {
-        accountSid: !!this.configService.get('TWILIO_ACCOUNT_SID'),
-        authToken: !!this.configService.get('TWILIO_AUTH_TOKEN'),
-        phoneNumber: !!this.configService.get('TWILIO_PHONE_NUMBER'),
-      });
-
-      if (accountSid && authToken) {
-        this.client = twilio(accountSid, authToken);
-        console.log('✅ Twilio client initialized successfully');
-      } else {
-        console.error(
-          '❌ Twilio credentials not found in environment variables',
-        );
-        console.error(
-          'Please check your .env.development file and ensure TWILIO_* variables are set',
-        );
+      if (!accountSid || !authToken) {
+        this.logger.warn('Twilio credentials are not configured.');
+        return;
       }
+
+      this.client = twilio(accountSid, authToken);
+      this.logger.log('Twilio client initialized.');
     } catch (error) {
-      console.error('❌ Failed to initialize Twilio client:', error);
+      this.logger.error(
+        'Failed to initialize Twilio client.',
+        error instanceof Error ? error.stack : undefined,
+      );
     }
   }
 
-  /**
-   * SMS 발송
-   */
   async sendSms(to: string, message: string): Promise<boolean> {
     try {
       if (!this.client) {
-        console.error('❌ Twilio client not initialized');
+        this.logger.error('Twilio client is not initialized.');
         return false;
       }
 
@@ -96,60 +60,54 @@ export class SmsService implements OnModuleInit {
         this.configService.get<string>('development.twilio.phoneNumber');
 
       if (!from) {
-        console.error('❌ Twilio phone number not configured');
+        this.logger.error('Twilio phone number is not configured.');
         return false;
       }
 
-      console.log('📱 Sending SMS:', { to, from, message });
+      this.logger.log(
+        `Sending SMS: to=${this.maskPhone(to)}, from=${this.maskPhone(from)}, messageLength=${message.length}`,
+      );
 
       const result = await this.client.messages.create({
         body: message,
-        from: from,
-        to: to,
+        from,
+        to,
       });
 
-      console.log('✅ SMS sent successfully:', result.sid);
+      this.logger.log(
+        `SMS sent successfully: sidReceived=${Boolean(result.sid)}`,
+      );
       return true;
     } catch (error) {
-      console.error('❌ SMS sending failed:', error);
+      this.logger.error(
+        'SMS sending failed.',
+        error instanceof Error ? error.stack : undefined,
+      );
       return false;
     }
   }
 
-  /**
-   * 운동 추천 SMS 발송
-   */
   async sendWorkoutRecommendation(
     to: string,
     workout: string,
   ): Promise<boolean> {
-    const message = `[FitMate] 오늘 추천운동은 ${workout}입니다! 함께 운동해요 💪`;
+    const message = `[FitMate] Today workout recommendation: ${workout}`;
     return this.sendSms(to, message);
   }
 
-  /**
-   * 맞춤형 메시지 발송
-   */
   async sendCustomMessage(to: string, message: string): Promise<boolean> {
     const formattedMessage = `[FitMate] ${message}`;
     return this.sendSms(to, formattedMessage);
   }
 
-  /**
-   * 6자리 OTP 생성
-   */
   private generateOtp(): string {
     return Math.floor(100000 + Math.random() * 900000).toString();
   }
 
-  /**
-   * OTP 인증 코드 요청
-   */
   async requestOtp(
     phone: string,
   ): Promise<{ success: boolean; message?: string }> {
     try {
-      // Redis 레이트 리밋 체크
       const rateLimitCheck = await this.redisService.checkRateLimit(phone);
       if (!rateLimitCheck.allowed) {
         const remainingMinutes = Math.ceil(
@@ -157,85 +115,89 @@ export class SmsService implements OnModuleInit {
         );
         return {
           success: false,
-          message: `요청이 너무 많습니다. ${remainingMinutes}분 후 다시 시도해주세요.`,
+          message: `Too many requests. Try again in ${remainingMinutes} minutes.`,
         };
       }
 
-      // OTP 생성
       const otp = this.generateOtp();
-      const otpConfig = this.configService.get('redis.otp');
+      const otpConfig = this.configService.get<{
+        ttl: number;
+        rateLimitWindow: number;
+      }>('redis.otp') ?? { ttl: 300, rateLimitWindow: 3600 };
 
-      // Redis에 OTP 저장
       await this.redisService.setOtp(phone, otp, otpConfig.ttl);
-
-      // 레이트 리밋 증가
       await this.redisService.incrementRateLimit(
         phone,
         otpConfig.rateLimitWindow,
       );
 
-      // SMS 발송
-      const message = `[FitMate] 인증번호: ${otp}`;
-      const smsResult = await this.sendSms(phone, message);
+      const smsResult = await this.sendSms(
+        phone,
+        `[FitMate] Verification code: ${otp}`,
+      );
 
       if (smsResult) {
-        console.log(`✅ OTP sent to ${phone}: ${otp}`);
-        return { success: true, message: '인증 코드가 발송되었습니다.' };
-      } else {
-        // SMS 발송 실패 시 OTP 삭제
-        await this.redisService.deleteOtp(phone);
-        return { success: false, message: 'SMS 발송에 실패했습니다.' };
+        this.logger.log(`OTP sent: phone=${this.maskPhone(phone)}`);
+        return { success: true, message: 'Verification code sent.' };
       }
+
+      await this.redisService.deleteOtp(phone);
+      return { success: false, message: 'SMS sending failed.' };
     } catch (error) {
-      console.error('❌ OTP request failed:', error);
+      this.logger.error(
+        'OTP request failed.',
+        error instanceof Error ? error.stack : undefined,
+      );
       return {
         success: false,
-        message: '인증 코드 발송 중 오류가 발생했습니다.',
+        message: 'Failed to send verification code.',
       };
     }
   }
 
-  /**
-   * OTP 인증 코드 확인
-   */
   async verifyOtp(
     phone: string,
     code: string,
   ): Promise<{ success: boolean; message?: string }> {
     try {
-      // Redis에서 OTP 조회
       const storedOtp = await this.redisService.getOtp(phone);
 
       if (!storedOtp) {
         return {
           success: false,
-          message: '인증 코드가 만료되었습니다. 다시 요청해주세요.',
+          message: 'Verification code expired. Request a new code.',
         };
       }
 
-      // 코드 확인
       if (storedOtp !== code) {
-        return { success: false, message: '인증 코드가 올바르지 않습니다.' };
+        return { success: false, message: 'Invalid verification code.' };
       }
 
-      // 성공 시 OTP 삭제
       await this.redisService.deleteOtp(phone);
 
-      console.log(`✅ OTP verified for ${phone}`);
-      return { success: true, message: '인증이 완료되었습니다.' };
+      this.logger.log(`OTP verified: phone=${this.maskPhone(phone)}`);
+      return { success: true, message: 'Verification completed.' };
     } catch (error) {
-      console.error('❌ OTP verification failed:', error);
+      this.logger.error(
+        'OTP verification failed.',
+        error instanceof Error ? error.stack : undefined,
+      );
       return {
         success: false,
-        message: '인증 코드 확인 중 오류가 발생했습니다.',
+        message: 'Failed to verify code.',
       };
     }
   }
 
-  /**
-   * 만료된 OTP 정리 (정기적으로 호출)
-   */
   async cleanupExpiredOtps(): Promise<number> {
-    return await this.redisService.cleanupExpiredKeys();
+    return this.redisService.cleanupExpiredKeys();
+  }
+
+  private maskPhone(phone: string): string {
+    const digits = phone.replace(/\D/g, '');
+    if (digits.length <= 4) {
+      return '***';
+    }
+    return `***${digits.slice(-4)}`;
   }
 }

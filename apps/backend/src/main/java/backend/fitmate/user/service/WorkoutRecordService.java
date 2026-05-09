@@ -2,6 +2,7 @@ package backend.fitmate.user.service;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,7 +26,7 @@ public class WorkoutRecordService {
     public WorkoutRecord saveWorkoutRecord(Long userId, WorkoutRecord workoutRecord) {
         User user = userService.findById(userId)
             .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
-        
+
         workoutRecord.setUser(user);
         return workoutRecordRepository.save(workoutRecord);
     }
@@ -60,7 +61,7 @@ public class WorkoutRecordService {
     public WorkoutRecord updateWorkoutRecord(Long recordId, WorkoutRecord updatedRecord) {
         WorkoutRecord existingRecord = workoutRecordRepository.findById(recordId)
             .orElseThrow(() -> new RuntimeException("운동 기록을 찾을 수 없습니다."));
-        
+
         // 업데이트할 필드들 설정
         if (updatedRecord.getWorkoutType() != null) {
             existingRecord.setWorkoutType(updatedRecord.getWorkoutType());
@@ -89,8 +90,14 @@ public class WorkoutRecordService {
         if (updatedRecord.getNotes() != null) {
             existingRecord.setNotes(updatedRecord.getNotes());
         }
-        
+
         return workoutRecordRepository.save(existingRecord);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<Long> getWorkoutRecordOwnerId(Long recordId) {
+        return workoutRecordRepository.findById(recordId)
+            .map(record -> record.getUser().getId());
     }
 
     /**
@@ -163,4 +170,4 @@ public class WorkoutRecordService {
     public long countByUserId(Long userId) {
         return workoutRecordRepository.countByUserId(userId);
     }
-} 
+}

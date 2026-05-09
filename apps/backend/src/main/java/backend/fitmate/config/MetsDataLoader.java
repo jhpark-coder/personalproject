@@ -9,24 +9,22 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 
 import backend.fitmate.exercise.entity.Exercise;
 import backend.fitmate.exercise.repository.ExerciseRepository;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 @Component
+@RequiredArgsConstructor
 @Slf4j
-public class MetsDataLoader implements CommandLineRunner {
+public class MetsDataLoader {
 
-    @Autowired
-    private ExerciseRepository exerciseRepository;
+    private final ExerciseRepository exerciseRepository;
 
-    @Override
-    public void run(String... args) throws Exception {
+    public void run() throws Exception {
         log.info("🔍 MET 데이터 로더 시작");
         rebuildExercisesFromSeedCsv();
         log.info("✅ 시드 CSV를 기반으로 운동 테이블 재구성 완료");
@@ -140,4 +138,4 @@ public class MetsDataLoader implements CommandLineRunner {
             List<String> secondaryMuscles,
             String description
     ) {}
-} 
+}

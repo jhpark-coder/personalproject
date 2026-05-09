@@ -1,116 +1,109 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import './OnboardingExperience.css';
+import { ArrowLeft, Dumbbell, Flame, ShieldCheck } from 'lucide-react';
+import { Button } from '../ui/button';
+import { Card, CardContent } from '../ui/card';
+import { Progress } from '../ui/progress';
+import { Page, PageHeader, PageHeaderContent, PageMain } from '../ui/page';
+import { cn } from '../../lib/utils';
 
-interface ExperienceOption {
-  id: string;
-  title: string;
-  description: string;
-  icon: string;
-  color: string;
-}
-
-const experienceOptions: ExperienceOption[] = [
+const experienceOptions = [
   {
     id: 'beginner',
     title: '초보자',
-    description: '운동을 처음 시작하는 분이에요.',
-    icon: '🌱',
-    color: '#34C759'
+    description: '운동을 처음 시작하거나 다시 시작하는 단계입니다.',
+    icon: ShieldCheck,
+    tone: 'bg-emerald-50 text-emerald-700',
   },
   {
     id: 'intermediate',
     title: '중급자',
-    description: '운동 경험이 있는 분이에요.',
-    icon: '🌿',
-    color: '#007AFF'
+    description: '규칙적으로 운동한 경험이 있고 기본 동작에 익숙합니다.',
+    icon: Dumbbell,
+    tone: 'bg-blue-50 text-blue-700',
   },
   {
     id: 'advanced',
     title: '고급자',
-    description: '운동에 익숙한 분이에요.',
-    icon: '🌳',
-    color: '#FF3B30'
-  }
+    description: '강도 높은 루틴과 기록 관리를 원합니다.',
+    icon: Flame,
+    tone: 'bg-orange-50 text-orange-700',
+  },
 ];
 
 const OnboardingExperience: React.FC = () => {
   const [selectedExperience, setSelectedExperience] = useState<string>('');
   const navigate = useNavigate();
 
-  const handleExperienceSelect = (experienceId: string) => {
-    setSelectedExperience(experienceId);
-  };
-
   const handleNext = () => {
     if (selectedExperience) {
-      // 선택된 경험을 저장하고 다음 페이지로 이동
       localStorage.setItem('userExperience', selectedExperience);
       navigate('/onboarding/goal');
     }
   };
 
   return (
-    <div className="onboarding-container">
-      {/* 헤더 */}
-      <div className="header">
-        <div className="header-content">
-          <button className="back-button" onClick={() => navigate('/login')}>
-            ←
-          </button>
-          <div className="header-title">운동 경험</div>
-          <div></div>
-        </div>
-        <div className="progress-bar">
-          <div className="progress-fill" style={{ width: '25%' }}></div>
-        </div>
-      </div>
-
-      {/* 메인 콘텐츠 */}
-      <div className="onboarding-content">
-        <div className="question-section">
-          <h1 className="question-title">운동 경험이 어느 정도인가요?</h1>
-          <p className="question-subtitle">경험에 맞는 운동을 추천해드릴게요.</p>
-        </div>
-
-        <div className="options-section">
-          {experienceOptions.map((experience) => (
-            <div
-              key={experience.id}
-              className={`option-card ${selectedExperience === experience.id ? 'selected' : ''}`}
-              onClick={() => handleExperienceSelect(experience.id)}
-            >
-              <div className="option-content">
-                <div className="experience-icon" style={{ backgroundColor: experience.color }}>
-                  {experience.icon}
-                </div>
-                <div className="option-text">
-                  <h3 className="option-title">{experience.title}</h3>
-                  <p className="option-description">{experience.description}</p>
-                </div>
-              </div>
-              {selectedExperience === experience.id && (
-                <div className="selected-indicator">
-                  <div className="check-icon">✓</div>
-                </div>
-              )}
+    <Page>
+      <PageHeader>
+        <PageHeaderContent className="flex-col items-stretch gap-4">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={() => navigate('/login')} aria-label="로그인으로 돌아가기">
+              <ArrowLeft size={18} />
+            </Button>
+            <div>
+              <h1 className="text-xl font-black text-slate-950">운동 경험</h1>
+              <p className="mt-1 text-sm text-muted-foreground">1 / 4 단계</p>
             </div>
-          ))}
-        </div>
-      </div>
+          </div>
+          <Progress value={25} />
+        </PageHeaderContent>
+      </PageHeader>
 
-      {/* 하단 버튼 */}
-      <div className="bottom-button-container">
-        <button
-          className={`button button-primary button-full ${!selectedExperience ? 'disabled' : ''}`}
-          onClick={handleNext}
-          disabled={!selectedExperience}
-        >
-          다음
-        </button>
-      </div>
-    </div>
+      <PageMain className="grid max-w-3xl gap-5 py-8">
+        <div>
+          <h2 className="text-2xl font-black leading-tight text-slate-950">운동 경험이 어느 정도인가요?</h2>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">경험에 맞는 운동 루틴을 추천해드립니다.</p>
+        </div>
+
+        <div className="grid gap-3">
+          {experienceOptions.map((experience) => {
+            const Icon = experience.icon;
+            const selected = selectedExperience === experience.id;
+            return (
+              <button
+                key={experience.id}
+                type="button"
+                className={cn(
+                  'w-full rounded-lg border bg-white p-4 text-left transition-colors',
+                  selected ? 'border-primary ring-2 ring-primary/20' : 'border-border hover:bg-muted',
+                )}
+                onClick={() => setSelectedExperience(experience.id)}
+              >
+                <span className="flex items-center gap-3">
+                  <span className={`flex size-11 shrink-0 items-center justify-center rounded-lg ${experience.tone}`} aria-hidden="true">
+                    <Icon size={20} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-base font-black text-slate-950">{experience.title}</span>
+                    <span className="mt-1 block text-sm leading-6 text-muted-foreground">{experience.description}</span>
+                  </span>
+                  {selected && <span className="size-3 rounded-full bg-primary" aria-hidden="true" />}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <Card className="sticky bottom-4 border-white/80 bg-white/95 shadow-soft backdrop-blur">
+          <CardContent className="p-3">
+            <Button className="h-11 w-full" onClick={handleNext} disabled={!selectedExperience}>
+              다음
+            </Button>
+          </CardContent>
+        </Card>
+      </PageMain>
+    </Page>
   );
 };
 
-export default OnboardingExperience; 
+export default OnboardingExperience;

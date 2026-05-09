@@ -1,22 +1,14 @@
 import { expect, test } from '@playwright/test';
 
-import { createFakeJwt } from './support/auth';
 import { mockCalendarApis, mockProfileApi } from './support/session';
 
 test.describe('OAuth callback', () => {
   test('calendar-only callback stores auth state and redirects to calendar', async ({ page }) => {
-    const token = createFakeJwt({
-      userId: 11,
-      sub: '11',
-      role: 'ROLE_USER',
-      email: 'calendar-user@fitmate.test',
-    });
-
     await mockCalendarApis(page, false);
     await mockProfileApi(page);
 
     await page.goto(
-      `/#/auth/callback?success=true&token=${token}&provider=google&calendarOnly=true`,
+      '/#/auth/callback?success=true&provider=google&calendarOnly=true',
     );
 
     await expect(page).toHaveURL(/#\/calendar$/);
@@ -27,24 +19,17 @@ test.describe('OAuth callback', () => {
         page.evaluate(() => ({
           currentProvider: window.localStorage.getItem('currentProvider'),
           onboardingCompleted: window.localStorage.getItem('onboardingCompleted'),
-          token: window.localStorage.getItem('token'),
+          authSession: window.localStorage.getItem('authSession'),
         })),
       )
       .toEqual({
         currentProvider: 'google',
         onboardingCompleted: 'true',
-        token,
+        authSession: 'true',
       });
   });
 
   test('new user callback keeps onboarding incomplete and redirects to onboarding', async ({ page }) => {
-    const token = createFakeJwt({
-      userId: 12,
-      sub: '12',
-      role: 'ROLE_USER',
-      email: 'new-user@fitmate.test',
-    });
-
     await mockProfileApi(page, {
       id: 12,
       email: 'new-user@fitmate.test',
@@ -54,7 +39,7 @@ test.describe('OAuth callback', () => {
     });
 
     await page.goto(
-      `/#/auth/callback?success=true&token=${token}&provider=kakao&isNewUser=true`,
+      '/#/auth/callback?success=true&provider=kakao&isNewUser=true',
     );
 
     await expect(page).toHaveURL(/#\/onboarding\/experience$/);
@@ -65,13 +50,13 @@ test.describe('OAuth callback', () => {
         page.evaluate(() => ({
           currentProvider: window.localStorage.getItem('currentProvider'),
           onboardingCompleted: window.localStorage.getItem('onboardingCompleted'),
-          token: window.localStorage.getItem('token'),
+          authSession: window.localStorage.getItem('authSession'),
         })),
       )
       .toEqual({
         currentProvider: 'kakao',
         onboardingCompleted: null,
-        token,
+        authSession: 'true',
       });
   });
 });

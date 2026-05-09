@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import type { ExerciseAnalysis, ExerciseType } from '../lib/exerciseAnalysis';
+import { EXERCISE_LABELS, type ExerciseAnalysis, type ExerciseType } from '../lib/exerciseAnalysis';
 import {
   choosePreferredKoreanVoice,
   createBrowserSpeechEngine,
@@ -13,14 +13,6 @@ interface UseMotionSpeechCoachOptions {
   exerciseType: ExerciseType;
   isDetecting: boolean;
 }
-
-const EXERCISE_LABELS: Record<ExerciseType, string> = {
-  squat: '스쿼트',
-  lunge: '런지',
-  pushup: '푸시업',
-  plank: '플랭크',
-  calf_raise: '카프 레이즈',
-};
 
 const createCountMessage = (exerciseType: ExerciseType, count: number) =>
   `${EXERCISE_LABELS[exerciseType]} ${count}회`;
@@ -63,6 +55,7 @@ export const useMotionSpeechCoach = ({
     return () => {
       if (feedbackTimerRef.current) {
         clearTimeout(feedbackTimerRef.current);
+        feedbackTimerRef.current = null;
       }
       controllerRef.current?.stop();
       speech.removeEventListener?.('voiceschanged', refreshVoiceLabel);
@@ -72,14 +65,18 @@ export const useMotionSpeechCoach = ({
   useEffect(() => {
     if (previousExerciseRef.current !== exerciseType) {
       previousExerciseRef.current = exerciseType;
-      previousCountRef.current = 0;
+      previousCountRef.current = analysis.currentCount;
       previousFeedbackRef.current = analysis.feedback;
       controllerRef.current?.stop();
     }
-  }, [analysis.feedback, exerciseType]);
+  }, [analysis.currentCount, analysis.feedback, exerciseType]);
 
   useEffect(() => {
     if (!isEnabled || !isDetecting) {
+      if (feedbackTimerRef.current) {
+        clearTimeout(feedbackTimerRef.current);
+        feedbackTimerRef.current = null;
+      }
       controllerRef.current?.stop();
     }
   }, [isDetecting, isEnabled]);
@@ -116,6 +113,7 @@ export const useMotionSpeechCoach = ({
     }
 
     feedbackTimerRef.current = setTimeout(() => {
+      feedbackTimerRef.current = null;
       controllerRef.current?.enqueue({
         text: analysis.feedback,
         channel: 'feedback',
@@ -127,6 +125,7 @@ export const useMotionSpeechCoach = ({
     return () => {
       if (feedbackTimerRef.current) {
         clearTimeout(feedbackTimerRef.current);
+        feedbackTimerRef.current = null;
       }
     };
   }, [analysis.confidence, analysis.feedback, isDetecting, isEnabled]);

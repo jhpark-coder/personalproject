@@ -7,7 +7,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -19,6 +22,8 @@ import backend.fitmate.config.RateLimit;
 @RestController
 @RequestMapping("/api/dashboard")
 public class DashboardController {
+
+    private static final Logger log = LoggerFactory.getLogger(DashboardController.class);
 
     @Autowired
     private WorkoutRecordService workoutRecordService;
@@ -55,22 +60,22 @@ public class DashboardController {
             );
 
             // 실제 운동 데이터 조회
-            System.out.println("🔍 Dashboard - 사용자 ID: " + userId);
+            log.debug("Dashboard data requested: userId={}", userId);
             List<Object[]> weeklyStats = workoutRecordService.getWeeklyWorkoutStats(userId);
             List<Object[]> weeklyComparisonList = workoutRecordService.getWeeklyComparison(userId);
 
-            System.out.println("🔍 Dashboard - 주별 통계: " + (weeklyStats != null ? weeklyStats.size() : "null"));
+            log.debug("Dashboard weekly stats loaded: count={}", weeklyStats != null ? weeklyStats.size() : null);
             if (weeklyStats != null) {
                 for (int i = 0; i < weeklyStats.size(); i++) {
                     Object[] stat = weeklyStats.get(i);
-                    System.out.println("🔍 Dashboard - 주별 통계[" + i + "]: " + Arrays.toString(stat));
+                    log.trace("Dashboard weekly stat[{}]={}", i, Arrays.toString(stat));
                 }
             }
-            System.out.println("🔍 Dashboard - 주별 비교 Raw: " + (weeklyComparisonList != null && !weeklyComparisonList.isEmpty() ? Arrays.toString(weeklyComparisonList.get(0)) : "null"));
+            log.debug("Dashboard weekly comparison loaded: hasData={}", weeklyComparisonList != null && !weeklyComparisonList.isEmpty());
             
             // 운동 통계 데이터 생성
             Map<String, Object> workoutStats = createWorkoutStats(weeklyStats, weeklyComparisonList);
-            System.out.println("🔍 Dashboard - 생성된 운동 통계: " + workoutStats);
+            log.trace("Dashboard workout stats created: {}", workoutStats);
 
             // 추천 데이터
             Map<String, Object> recommendation = Map.of(
@@ -92,17 +97,18 @@ public class DashboardController {
                 "data", dashboardData
             ));
         } catch (Exception e) {
-            return ResponseEntity.ok(Map.of(
-                "success", true,
-                "data", getFallbackData()
+            log.warn("Dashboard data load failed.", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of(
+                "success", false,
+                "message", "Failed to load dashboard data."
             ));
         }
     }
 
     private Map<String, Object> createWorkoutStats(List<Object[]> weeklyStats, List<Object[]> weeklyComparisonList) {
-        System.out.println("🔍 createWorkoutStats - 시작");
-        System.out.println("🔍 createWorkoutStats - weeklyStats: " + (weeklyStats != null ? weeklyStats.size() : "null"));
-        System.out.println("🔍 createWorkoutStats - weeklyComparisonList: " + (weeklyComparisonList != null ? weeklyComparisonList.size() : "null"));
+        log.trace("createWorkoutStats started: weeklyStats={}, weeklyComparison={}",
+                weeklyStats != null ? weeklyStats.size() : null,
+                weeklyComparisonList != null ? weeklyComparisonList.size() : null);
         
         // 이번 주 총 운동 시간과 칼로리 계산
         int thisWeekDuration = 0;
@@ -112,13 +118,8 @@ public class DashboardController {
         
         if (weeklyComparisonList != null && !weeklyComparisonList.isEmpty()) {
             Object[] weeklyComparison = weeklyComparisonList.get(0);
-            System.out.println("🔍 createWorkoutStats - weeklyComparison: " + Arrays.toString(weeklyComparison));
+            log.trace("createWorkoutStats weeklyComparison={}", Arrays.toString(weeklyComparison));
             if (weeklyComparison != null && weeklyComparison.length >= 4) {
-                System.out.println("🔍 createWorkoutStats - weeklyComparison[0]: " + weeklyComparison[0]);
-                System.out.println("🔍 createWorkoutStats - weeklyComparison[1]: " + weeklyComparison[1]);
-                System.out.println("🔍 createWorkoutStats - weeklyComparison[2]: " + weeklyComparison[2]);
-                System.out.println("🔍 createWorkoutStats - weeklyComparison[3]: " + weeklyComparison[3]);
-                
                 if (weeklyComparison[0] != null) {
                     try {
                         thisWeekDuration = ((BigDecimal) weeklyComparison[0]).intValueExact();
@@ -151,8 +152,8 @@ public class DashboardController {
                     }
                 }
 
-                System.out.println("🔍 createWorkoutStats - thisWeekDuration: " + thisWeekDuration + ", lastWeekDuration: " + lastWeekDuration);
-                System.out.println("🔍 createWorkoutStats - thisWeekCalories: " + thisWeekCalories + ", lastWeekCalories: " + lastWeekCalories);
+                log.trace("createWorkoutStats totals: thisWeekDuration={}, lastWeekDuration={}, thisWeekCalories={}, lastWeekCalories={}",
+                        thisWeekDuration, lastWeekDuration, thisWeekCalories, lastWeekCalories);
             }
         }
         
@@ -337,4 +338,4 @@ public class DashboardController {
             "recommendation", recommendation
         ));
     }
-} 
+}

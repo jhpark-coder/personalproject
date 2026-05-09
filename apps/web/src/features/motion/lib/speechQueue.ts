@@ -54,6 +54,7 @@ export class SpeechQueueController {
   stop() {
     this.generation += 1;
     this.queue.length = 0;
+    this.processing = false;
     this.engine.cancel();
   }
 
@@ -76,12 +77,20 @@ export class SpeechQueueController {
           continue;
         }
 
-        await this.engine.speak(next.text);
+        try {
+          await this.engine.speak(next.text);
+        } catch {
+          if (runId !== this.generation) {
+            break;
+          }
+        }
       }
     } finally {
-      this.processing = false;
-      if (this.queue.length > 0 && runId === this.generation) {
-        void this.processQueue();
+      if (runId === this.generation) {
+        this.processing = false;
+        if (this.queue.length > 0) {
+          void this.processQueue();
+        }
       }
     }
   }

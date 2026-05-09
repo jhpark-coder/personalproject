@@ -26,13 +26,13 @@ public class BodyRecordService {
     public BodyRecord saveBodyRecord(Long userId, BodyRecord bodyRecord) {
         User user = userService.findById(userId)
             .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다."));
-        
+
         // 체중이 입력된 경우 사용자 프로필의 체중도 업데이트
         if (bodyRecord.getWeight() != null) {
             user.setWeight(String.valueOf(bodyRecord.getWeight()));
             userService.save(user);
         }
-        
+
         bodyRecord.setUser(user);
         return bodyRecordRepository.save(bodyRecord);
     }
@@ -67,14 +67,14 @@ public class BodyRecordService {
     public BodyRecord updateBodyRecord(Long recordId, BodyRecord updatedRecord) {
         BodyRecord existingRecord = bodyRecordRepository.findById(recordId)
             .orElseThrow(() -> new RuntimeException("신체 기록을 찾을 수 없습니다."));
-        
+
         // 체중이 업데이트된 경우 사용자 프로필의 체중도 업데이트
         if (updatedRecord.getWeight() != null && !updatedRecord.getWeight().equals(existingRecord.getWeight())) {
             User user = existingRecord.getUser();
             user.setWeight(String.valueOf(updatedRecord.getWeight()));
             userService.save(user);
         }
-        
+
         // 업데이트할 필드들 설정
         if (updatedRecord.getWeight() != null) {
             existingRecord.setWeight(updatedRecord.getWeight());
@@ -89,8 +89,14 @@ public class BodyRecordService {
         if (updatedRecord.getNotes() != null) {
             existingRecord.setNotes(updatedRecord.getNotes());
         }
-        
+
         return bodyRecordRepository.save(existingRecord);
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<Long> getBodyRecordOwnerId(Long recordId) {
+        return bodyRecordRepository.findById(recordId)
+            .map(record -> record.getUser().getId());
     }
 
     /**
@@ -293,4 +299,4 @@ public class BodyRecordService {
         LocalDate startDate = endDate.minusMonths(3);
         return bodyRecordRepository.getMuscleMassTrendMonthly(userId, startDate, endDate);
     }
-} 
+}

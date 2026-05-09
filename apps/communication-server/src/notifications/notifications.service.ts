@@ -35,6 +35,10 @@ export class NotificationsService {
       .exec();
   }
 
+  async getNotification(notificationId: string): Promise<Notification | null> {
+    return this.notificationModel.findById(notificationId).exec();
+  }
+
   // 알림 읽음 처리
   async markAsRead(notificationId: string): Promise<void> {
     await this.notificationModel.findByIdAndUpdate(notificationId, {

@@ -1,5 +1,6 @@
 const STORAGE_KEYS = {
   token: 'token',
+  authSession: 'authSession',
   user: 'user',
   currentProvider: 'currentProvider',
   onboardingCompleted: 'onboardingCompleted',
@@ -44,10 +45,18 @@ const getKeys = (): string[] => {
   }
 };
 
-export const getAuthToken = () => read(STORAGE_KEYS.token);
+export const getAuthToken = () => null;
 
-export const setAuthToken = (token: string) => {
-  write(STORAGE_KEYS.token, token);
+export const hasAuthSession = () => read(STORAGE_KEYS.authSession) === 'true';
+
+export const setAuthSession = () => {
+  remove(STORAGE_KEYS.token);
+  write(STORAGE_KEYS.authSession, 'true');
+};
+
+export const setAuthToken = (token?: string | null) => {
+  void token;
+  setAuthSession();
 };
 
 export const setStoredUser = (user: unknown) => {
@@ -114,6 +123,7 @@ export const clearOnboardingFlags = () => {
 
 export const clearAuthSession = () => {
   remove(STORAGE_KEYS.token);
+  remove(STORAGE_KEYS.authSession);
   remove(STORAGE_KEYS.user);
   remove(STORAGE_KEYS.currentProvider);
   remove(STORAGE_KEYS.justSignedUp);

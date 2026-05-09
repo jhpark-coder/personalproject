@@ -50,7 +50,7 @@ export const resolveOAuthCallbackAction = (
     return { kind: 'error', message: '소셜 로그인에 실패했습니다. 다시 시도해주세요.' };
   }
 
-  if (params.success !== 'true' || !params.token) {
+  if (params.success !== 'true') {
     return { kind: 'error', message: '인증 정보가 올바르지 않습니다. 다시 시도해주세요.' };
   }
 

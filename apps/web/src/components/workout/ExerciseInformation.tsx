@@ -1,12 +1,20 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+﻿import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Activity, ChevronLeft, ChevronRight, Dumbbell, Flame, Search, Zap } from 'lucide-react';
 import { API_ENDPOINTS } from '../../config/api';
 import { useUser } from '../../context/UserContext';
 import NavigationBar from '../NavigationBar';
 import ChatButton from '../ChatButton';
 import { calculateCaloriesPerMinute } from '../../utils/calorieCalculator';
-import './ExerciseInformation.css';
 import Modal from '../Modal';
 import { searchExerciseByName, getExerciseById } from '../../services/exerciseDb';
+import { authFetch } from '../../shared/lib/http';
+import { logger } from '../../shared/lib/logger';
+import { Badge } from '../ui/badge';
+import { Button } from '../ui/button';
+import { Card, CardContent } from '../ui/card';
+import { ErrorState, LoadingState } from '../ui/feedback';
+import { Input } from '../ui/input';
+import { Page, PageHeader, PageHeaderContent, PageMain } from '../ui/page';
 
 interface Exercise {
   id: number;
@@ -57,23 +65,21 @@ const ExerciseInformation: React.FC = () => {
   const [hasNext, setHasNext] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [totalElements, setTotalElements] = useState(0);
-  
+
   const { user } = useUser();
 
   // 시드 기반 카테고리(=target_areas 1차) 목록 로드
   const loadCategories = useCallback(async () => {
     try {
-      const token = localStorage.getItem('token');
       const headers: HeadersInit = { 'Content-Type': 'application/json' };
-      if (token) headers['Authorization'] = `Bearer ${token}`;
-      const res = await fetch(`${API_ENDPOINTS.EXERCISES}/categories`, { headers });
+      const res = await authFetch(`${API_ENDPOINTS.EXERCISES}/categories`, { headers });
       if (!res.ok) throw new Error('카테고리 불러오기 실패');
       const data: string[] = await res.json();
       // 공백/중복 제거 후 정렬
       const unique = Array.from(new Set((data || []).map((s) => s?.trim()).filter(Boolean)));
       setBodyParts(unique);
     } catch (e) {
-      console.error(e);
+      logger.error(e);
       setBodyParts([]);
     }
   }, []);
@@ -103,14 +109,9 @@ const ExerciseInformation: React.FC = () => {
     try {
       setIsLoadingMore(true);
 
-      const token = localStorage.getItem('token');
       const headers: HeadersInit = {
         'Content-Type': 'application/json'
       };
-
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
 
       // 검색 파라미터 구성
       const params = new URLSearchParams();
@@ -125,7 +126,7 @@ const ExerciseInformation: React.FC = () => {
       params.append('size', '10');
 
       const url = `${API_ENDPOINTS.EXERCISES}?${params.toString()}`;
-      const response = await fetch(url, { headers });
+      const response = await authFetch(url, { headers });
 
       if (!response.ok) {
         throw new Error('추가 데이터 로드에 실패했습니다.');
@@ -144,7 +145,7 @@ const ExerciseInformation: React.FC = () => {
       setHasNext(data.hasNext);
       setTotalElements(data.totalElements);
     } catch (err) {
-      console.error('추가 데이터 로드 실패:', err);
+      logger.error('추가 데이터 로드 실패:', err);
     } finally {
       setIsLoadingMore(false);
     }
@@ -236,7 +237,7 @@ const ExerciseInformation: React.FC = () => {
       'rectus abdominis': '복직근',
       'transverse abdominis': '횡복근',
     };
-    
+
     return muscleTranslations[muscle] || muscle;
   };
 
@@ -249,6 +250,14 @@ const ExerciseInformation: React.FC = () => {
     t = t.replace(/^\s*(?:단계)\s*\d+\s*[:.)-]?\s*/i, ''); // 단계 1:
     return t.trim();
   };
+
+  const escapeHtml = (text: string): string =>
+    String(text)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
 
   useEffect(() => {
     loadExercises();
@@ -280,7 +289,7 @@ const ExerciseInformation: React.FC = () => {
     if (filterContainerRef.current) {
       const container = filterContainerRef.current;
       const scrollAmount = 200; // 한 번에 스크롤할 픽셀 수
-      
+
       if (direction === 'left') {
         container.scrollLeft -= scrollAmount;
       } else {
@@ -293,25 +302,20 @@ const ExerciseInformation: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      
-      const token = localStorage.getItem('token');
+
       const headers: HeadersInit = {
         'Content-Type': 'application/json'
       };
-      
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      
-      const response = await fetch(`${API_ENDPOINTS.EXERCISES}/load-data`, { 
+
+      const response = await authFetch(`${API_ENDPOINTS.EXERCISES}/load-data`, {
         method: 'POST',
-        headers 
+        headers
       });
-      
+
       if (!response.ok) {
         throw new Error('운동 데이터 로드에 실패했습니다.');
       }
-      
+
       const data = await response.json();
       if (data.success) {
         setDataLoaded(true);
@@ -330,24 +334,18 @@ const ExerciseInformation: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       // 페이지네이션 상태 리셋
       setCurrentPage(0);
       setHasNext(true);
       setTotalElements(0);
-      
-      // JWT 토큰 가져오기
-      const token = localStorage.getItem('token');
+
       const headers: HeadersInit = {
         'Content-Type': 'application/json'
       };
-      
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      
+
       // MET 값이 있는 운동들만 조회
-      const response = await fetch(`${API_ENDPOINTS.EXERCISES}?page=0&size=10`, { headers });
+      const response = await authFetch(`${API_ENDPOINTS.EXERCISES}?page=0&size=10`, { headers });
       if (!response.ok) {
         throw new Error('운동 정보를 불러오는데 실패했습니다.');
       }
@@ -367,22 +365,16 @@ const ExerciseInformation: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      
+
       // 페이지네이션 상태 리셋
       setCurrentPage(0);
       setHasNext(true);
       setTotalElements(0);
-      
-      // JWT 토큰 가져오기
-      const token = localStorage.getItem('token');
+
       const headers: HeadersInit = {
         'Content-Type': 'application/json'
       };
-      
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      
+
       // 검색 파라미터 구성
       const params = new URLSearchParams();
       if (searchMode === 'name' && searchTerm.trim()) params.append('keyword', searchTerm);
@@ -395,10 +387,10 @@ const ExerciseInformation: React.FC = () => {
       if (selectedBodyPart) params.append('category', selectedBodyPart);
       params.append('page', '0');
       params.append('size', '10');
-      
+
       const url = `${API_ENDPOINTS.EXERCISES}?${params.toString()}`;
-      const response = await fetch(url, { headers });
-      
+      const response = await authFetch(url, { headers });
+
       if (!response.ok) {
         throw new Error('검색에 실패했습니다.');
       }
@@ -416,23 +408,18 @@ const ExerciseInformation: React.FC = () => {
 
   const loadMuscles = async () => {
     try {
-      const token = localStorage.getItem('token');
       const headers: HeadersInit = {
         'Content-Type': 'application/json'
       };
-      
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      
-      const response = await fetch(`${API_ENDPOINTS.EXERCISES}/muscles`, { headers });
+
+      const response = await authFetch(`${API_ENDPOINTS.EXERCISES}/muscles`, { headers });
       if (response.ok) {
         const data = await response.json();
         setMuscles(data);
         // 카테고리 목록은 별도 API에서 로드
       }
     } catch (err) {
-      console.error('근육 목록 로드 실패:', err);
+      logger.error('근육 목록 로드 실패:', err);
     }
   };
 
@@ -442,26 +429,20 @@ const ExerciseInformation: React.FC = () => {
     setDetailContent('로딩 중...');
     setDetailActions([]);
     setDetailOpen(true);
-    
+
     try {
-      // JWT 토큰 가져오기
-      const token = localStorage.getItem('token');
       const headers: HeadersInit = {
         'Content-Type': 'application/json'
       };
-      
-      if (token) {
-        headers['Authorization'] = `Bearer ${token}`;
-      }
-      
+
       // 로컬 API에서 상세 정보 가져오기
-      const response = await fetch(`${API_ENDPOINTS.EXERCISES}/${exercise.id}`, { headers });
+      const response = await authFetch(`${API_ENDPOINTS.EXERCISES}/${exercise.id}`, { headers });
       if (!response.ok) {
         throw new Error('운동 상세 정보를 불러오는데 실패했습니다.');
       }
-      
+
       const detail = await response.json();
-      
+
       // 근육 정보 한글 변환
       const musclesKo = (detail.muscles || []).map(translateMuscleToKorean);
       const secKo = (detail.musclesSecondary || []).map(translateMuscleToKorean);
@@ -471,43 +452,40 @@ const ExerciseInformation: React.FC = () => {
       const instructionsKo = detail.instructionsKo || [];
       const cleanedSteps = instructionsKo.map(sanitizeInstruction).filter(Boolean);
       const instrHtml = cleanedSteps.length
-        ? `<ol class="instruction-list">${cleanedSteps.map((s: string) => `<li>${s}</li>`).join('')}</ol>`
-        : '<p class="ex-desc">운동 지침 정보가 없습니다.</p>';
+        ? `<ol style="margin:0;padding-left:1.25rem;line-height:1.75;color:#334155;">${cleanedSteps.map((s: string) => `<li style="margin-bottom:.5rem;">${escapeHtml(s)}</li>`).join('')}</ol>`
+        : '<p style="margin:0;color:#64748b;line-height:1.75;">운동 지침 정보가 없습니다.</p>';
 
       // 코치 코멘트는 description에서 [운동 방법] 이전 부분만 사용
       const rawDesc = (detail.description || '').trim();
       const descOnly = rawDesc.split('\n\n[운동 방법]')[0]; // [운동 방법] 이전 부분만 사용
       const descHtml = descOnly
-        ? `<div class="section"><div class="section-title">코치의 코멘트</div><p class="ex-desc">${descOnly.replace(/\n/g, '<br/>')}</p></div>`
+        ? `<section style="margin-top:1rem;border-top:1px solid #e2e8f0;padding-top:1rem;"><h4 style="margin:0 0 .5rem;font-size:.95rem;font-weight:700;color:#0f172a;">코치의 코멘트</h4><p style="margin:0;color:#475569;line-height:1.75;">${escapeHtml(descOnly).replace(/\n/g, '<br/>')}</p></section>`
         : '';
 
-      const metaHtml = (musclesKo.length || secKo.length || eqKo.length || detail.mets) ? [
-        '<div class="ex-meta">',
-        musclesKo.length ? `<div class="ex-meta-row"><span class="label">주요 근육</span><div class="chips">${musclesKo.map((m: string) => `<span class="chip chip--muscle">${m}</span>`).join('')}</div></div>` : '',
-        secKo.length ? `<div class="ex-meta-row"><span class="label">보조 근육</span><div class="chips">${secKo.map((m: string) => `<span class="chip">${m}</span>`).join('')}</div></div>` : '',
-        eqKo.length ? `<div class="ex-meta-row"><span class="label">장비</span><div class="chips">${eqKo.map((e: string) => `<span class="chip chip--equip">${e}</span>`).join('')}</div></div>` : '',
-        detail.mets ? `<div class="ex-meta-row"><span class="label">운동 강도</span><div class="chips"><span class="chip chip--mets">MET: ${detail.mets}</span><span class="chip chip--intensity">${detail.intensity === 'LOW' ? '낮음' : detail.intensity === 'MEDIUM' ? '보통' : '높음'}</span></div></div>` : '',
-        '</div>'
-      ].join('') : '';
+      const chip = (text: string, tone: 'blue' | 'slate' | 'emerald' = 'slate') => {
+        const colors = {
+          blue: 'background:#dbeafe;color:#1e40af;border-color:#bfdbfe;',
+          slate: 'background:#f1f5f9;color:#334155;border-color:#e2e8f0;',
+          emerald: 'background:#d1fae5;color:#065f46;border-color:#a7f3d0;',
+        };
+        return `<span style="display:inline-flex;align-items:center;border:1px solid;border-radius:999px;padding:.2rem .55rem;font-size:.78rem;font-weight:600;${colors[tone]}">${escapeHtml(text)}</span>`;
+      };
 
-      const tabPrefix = `exercise-${exercise.id}`;
-      const tabGuideId = `${tabPrefix}-tab-guide`;
-      const tabInfoId = `${tabPrefix}-tab-info`;
+      const metaRow = (label: string, values: string[], tone: 'blue' | 'slate' | 'emerald' = 'slate') =>
+        values.length
+          ? `<div style="display:grid;gap:.45rem;"><div style="font-size:.78rem;font-weight:700;color:#64748b;">${label}</div><div style="display:flex;flex-wrap:wrap;gap:.35rem;">${values.map((value) => chip(value, tone)).join('')}</div></div>`
+          : '';
 
-      const tabsHtml = [
-        '<div class="ex-tabs">',
-        `<input type="radio" id="${tabGuideId}" name="${tabPrefix}-tabset" checked />`,
-        `<input type="radio" id="${tabInfoId}" name="${tabPrefix}-tabset" />`,
-        '<div class="tab-labels">',
-        `<label class="tab" for="${tabGuideId}">운동 가이드</label>`,
-        `<label class="tab" for="${tabInfoId}">정보</label>`,
-        '</div>',
-        '<div class="panels">',
-        `<section class="panel panel-guide">${instrHtml}</section>`,
-        `<section class="panel panel-info">${metaHtml}${descHtml}</section>`,
-        '</div>',
-        '</div>'
-      ].join('');
+      const metaHtml = (musclesKo.length || secKo.length || eqKo.length || detail.mets)
+        ? [
+            '<section style="display:grid;gap:.8rem;margin-top:1rem;">',
+            metaRow('주요 근육', musclesKo, 'blue'),
+            metaRow('보조 근육', secKo, 'slate'),
+            metaRow('장비', eqKo, 'emerald'),
+            detail.mets ? metaRow('운동 강도', [`MET: ${detail.mets}`, detail.intensity === 'LOW' ? '낮음' : detail.intensity === 'MEDIUM' ? '보통' : '높음'], 'emerald') : '',
+            '</section>',
+          ].join('')
+        : '';
 
       // ExerciseDB에서 GIF 이미지 시도해보기 (선택사항)
       let gifHtml = '';
@@ -516,24 +494,28 @@ const ExerciseInformation: React.FC = () => {
         if (found) {
           const externalDetail = await getExerciseById(found.exerciseId);
           if (externalDetail && externalDetail.gifUrl) {
-            gifHtml = `<img class="ex-image" src="${externalDetail.gifUrl}" alt="${exercise.name}" />`;
+            gifHtml = `<img style="width:100%;max-height:320px;object-fit:contain;border-radius:.5rem;background:#f8fafc;margin-bottom:1rem;" src="${escapeHtml(externalDetail.gifUrl)}" alt="${escapeHtml(exercise.name)}" />`;
           }
         }
       } catch (e) {
         // GIF 로드 실패해도 계속 진행
-        console.log('GIF 이미지 로드 실패 (무시됨):', e);
+        logger.debug('GIF 이미지 로드 실패 (무시됨):', e);
       }
 
       const html = [
         gifHtml,
-        '<div class="ex-detail">',
-        tabsHtml,
+        '<div style="display:grid;gap:1rem;">',
+        '<section><h4 style="margin:0 0 .6rem;font-size:.95rem;font-weight:700;color:#0f172a;">운동 가이드</h4>',
+        instrHtml,
+        '</section>',
+        metaHtml,
+        descHtml,
         '</div>'
       ].join('');
       setDetailContent(html);
-      
+
     } catch (e) {
-      console.error('운동 상세 정보 로드 실패:', e);
+      logger.error('운동 상세 정보 로드 실패:', e);
       setDetailContent('운동 상세 정보를 불러오는 중 오류가 발생했습니다.');
     }
   };
@@ -541,246 +523,248 @@ const ExerciseInformation: React.FC = () => {
   const getCategoryIcon = (category: string) => {
     switch (category?.toLowerCase()) {
       case 'strength':
-        return '💪';
+        return <Dumbbell size={18} strokeWidth={2.2} />;
       case 'cardio':
-        return '❤️';
+        return <Activity size={18} strokeWidth={2.2} />;
       case 'stretching':
-        return '🧘';
+        return <Activity size={18} strokeWidth={2.2} />;
       case 'yoga':
-        return '🧘‍♀️';
+        return <Activity size={18} strokeWidth={2.2} />;
       case 'sports':
-        return '⚽';
+        return <Activity size={18} strokeWidth={2.2} />;
       default:
-        return '🏋️';
+        return <Dumbbell size={18} strokeWidth={2.2} />;
     }
   };
 
+  const selectClassName = 'h-11 rounded-md border border-input bg-background px-3 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
+  const intensityLabel = (value?: string) => value === 'LOW' ? '낮음' : value === 'MEDIUM' ? '보통' : value === 'HIGH' ? '높음' : value;
+
   return (
-    <div className="exercise-information-container">
-      <div className="header">
-        <div className="header-content">
-          <div></div>
-          <div className="header-title">운동 정보</div>
-          <div></div>
-        </div>
-      </div>
-      <div className="header-subtitle">
-        <p>칼로리 계산이 가능한 운동들의 상세 정보를 확인하세요</p>
-      </div>
+    <Page>
+      <PageHeader>
+        <PageHeaderContent className="flex-col items-stretch gap-4">
+          <div>
+            <h1 className="text-xl font-bold text-slate-950">운동 정보</h1>
+            <p className="text-sm text-muted-foreground">칼로리 계산이 가능한 운동들의 상세 정보를 확인하세요.</p>
+          </div>
 
-      <div className="search-section">
-        <div className="search-container">
-          <input
-            type="text"
-            placeholder="운동 이름을 검색하세요..."
-            value={searchTerm}
-            onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
-            onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => { if (e.key === 'Enter') handleSearch(); }}
-            className="search-input"
-          />
-          <button className="search-button" onClick={handleSearch}>
-            🔍
-          </button>
-        </div>
-        
-        <div className="filter-section">
-          {/* 첫 번째 줄: 검색 모드 및 필터 옵션 */}
-          <div className="search-filters">
-            <div className="filter-item">
-              <label>검색 모드</label>
-              <select value={searchMode} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSearchMode(e.target.value as ExerciseSearchMode)}>
-                <option value="name">이름</option>
-                <option value="muscle">근육(주/보조)</option>
-                <option value="name+muscle">이름+근육</option>
-                <option value="intensity">강도</option>
-              </select>
-            </div>
-            
-            {(searchMode === 'muscle' || searchMode === 'name+muscle') && (
-              <div className="filter-item">
-                <label>근육 선택</label>
-                <select value={selectedMuscle} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedMuscle(e.target.value)}>
-                  <option value="">전체</option>
-                  {muscles.map((m: string) => (<option key={m} value={m}>{m}</option>))}
-                </select>
+          <Card className="border-white/80 bg-white shadow-sm">
+            <CardContent className="space-y-4 p-4">
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Input
+                  type="text"
+                  placeholder="운동 이름을 검색하세요."
+                  value={searchTerm}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
+                  onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
+                    if (e.key === 'Enter') handleSearch();
+                  }}
+                  className="sm:flex-1"
+                />
+                <Button type="button" onClick={handleSearch}>
+                  <Search className="size-4" />
+                  검색
+                </Button>
               </div>
-            )}
-            
-            {searchMode === 'intensity' && (
-              <div className="filter-item">
-                <label>강도</label>
-                <select value={intensity} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setIntensity(e.target.value)}>
-                  <option value="">전체</option>
-                  <option value="HIGH">높음</option>
-                  <option value="MEDIUM">보통</option>
-                  <option value="LOW">낮음</option>
-                </select>
+
+              <div className="grid gap-3 md:grid-cols-3">
+                <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+                  검색 모드
+                  <select value={searchMode} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSearchMode(e.target.value as ExerciseSearchMode)} className={selectClassName}>
+                    <option value="name">이름</option>
+                    <option value="muscle">근육(주/보조)</option>
+                    <option value="name+muscle">이름+근육</option>
+                    <option value="intensity">강도</option>
+                  </select>
+                </label>
+
+                {(searchMode === 'muscle' || searchMode === 'name+muscle') && (
+                  <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+                    근육 선택
+                    <select value={selectedMuscle} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setSelectedMuscle(e.target.value)} className={selectClassName}>
+                      <option value="">전체</option>
+                      {muscles.map((muscle: string) => <option key={muscle} value={muscle}>{muscle}</option>)}
+                    </select>
+                  </label>
+                )}
+
+                {searchMode === 'intensity' && (
+                  <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+                    강도
+                    <select value={intensity} onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setIntensity(e.target.value)} className={selectClassName}>
+                      <option value="">전체</option>
+                      <option value="HIGH">높음</option>
+                      <option value="MEDIUM">보통</option>
+                      <option value="LOW">낮음</option>
+                    </select>
+                  </label>
+                )}
               </div>
-            )}
-          </div>
 
-          {/* 두 번째 줄: 부위 태그 */}
-          <div className="body-parts-section">
-            <label>부위</label>
-            <div className="filter-container" ref={filterContainerRef as React.MutableRefObject<HTMLDivElement | null>}>
-              <button className="scroll-button left" onClick={() => scrollFilter('left')}>◀</button>
-              <div className="filter-buttons-container">
-                <button className={`filter-button ${selectedBodyPart === '' ? 'active' : ''}`} onClick={() => setSelectedBodyPart('')}>전체</button>
-                {bodyParts.map((bp: string) => (
-                  <button key={bp} className={`filter-button ${selectedBodyPart === bp ? 'active' : ''}`} onClick={() => setSelectedBodyPart(bp)}>{bp}</button>
-                ))}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-medium text-slate-700">부위</span>
+                  <div className="flex gap-1">
+                    <Button type="button" variant="ghost" size="icon" onClick={() => scrollFilter('left')} aria-label="이전 부위">
+                      <ChevronLeft className="size-4" />
+                    </Button>
+                    <Button type="button" variant="ghost" size="icon" onClick={() => scrollFilter('right')} aria-label="다음 부위">
+                      <ChevronRight className="size-4" />
+                    </Button>
+                  </div>
+                </div>
+                <div ref={filterContainerRef as React.MutableRefObject<HTMLDivElement | null>} className="flex gap-2 overflow-x-auto pb-1">
+                  <Button type="button" size="sm" variant={selectedBodyPart === '' ? 'default' : 'outline'} onClick={() => setSelectedBodyPart('')}>전체</Button>
+                  {bodyParts.map((bodyPart: string) => (
+                    <Button key={bodyPart} type="button" size="sm" variant={selectedBodyPart === bodyPart ? 'default' : 'outline'} onClick={() => setSelectedBodyPart(bodyPart)} className="shrink-0">
+                      {bodyPart}
+                    </Button>
+                  ))}
+                </div>
               </div>
-              <button className="scroll-button right" onClick={() => scrollFilter('right')}>▶</button>
-            </div>
-          </div>
-        </div>
-      </div>
+            </CardContent>
+          </Card>
+        </PageHeaderContent>
+      </PageHeader>
 
-      <div className="content">
-        {loading && (
-          <div className="loading">
-            <div className="spinner"></div>
-            <p>운동 정보를 불러오는 중...</p>
-          </div>
-        )}
+      <PageMain className="space-y-4">
+        {loading && <LoadingState title="운동 정보를 불러오는 중입니다." />}
 
-        {error && (
-          <div className="error">
-            <p>❌ {error}</p>
-            <button onClick={loadExercises} className="retry-button">
-              다시 시도
-            </button>
-          </div>
-        )}
+        {!loading && error && <ErrorState message={error} onRetry={loadExercises} />}
 
         {!loading && !error && (!exercises || exercises.length === 0) && (
-          <div className="no-results">
-            <p>🔍 검색 결과가 없습니다.</p>
-            <p>다른 키워드로 검색해보세요.</p>
-            {!dataLoaded && (
-              <div className="load-data-section">
-                <p>운동 데이터가 없습니다. 데이터를 로드해보세요.</p>
-                <button onClick={loadExerciseData} className="load-data-button">
+          <Card className="border-white/80 bg-white shadow-sm">
+            <CardContent className="flex min-h-64 flex-col items-center justify-center gap-3 p-8 text-center text-muted-foreground">
+              <Search className="size-10 text-slate-300" />
+              <p className="text-sm font-semibold text-slate-700">검색 결과가 없습니다.</p>
+              <p className="text-sm">다른 키워드로 검색해보세요.</p>
+              {!dataLoaded && (
+                <Button type="button" onClick={loadExerciseData}>
                   운동 데이터 로드
-                </button>
-              </div>
-            )}
-          </div>
+                </Button>
+              )}
+            </CardContent>
+          </Card>
         )}
 
         {!loading && !error && exercises && exercises.length > 0 && (
-          <div className="exercises-grid">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {exercises.map((exercise) => (
-              <div 
-                key={exercise.id} 
-                className="exercise-card" 
-                onClick={() => handleExerciseClick(exercise)}
+              <button
+                key={exercise.id}
+                type="button"
+                className="rounded-lg border border-white/80 bg-white p-0 text-left shadow-sm transition-colors hover:border-primary/30 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                onClick={() => void handleExerciseClick(exercise)}
               >
-                <div className="exercise-header">
-                  <span className="category-icon">
-                    {getCategoryIcon(exercise.category)}
-                  </span>
-                  <span className="category-name">{translateCategoryToKorean(exercise.category) || '기타'}</span>
-                </div>
-                
-                <h3 className="exercise-name">{exercise.name}</h3>
-                
-                {exercise.description && (
-                  <p className="exercise-description">
-                    {exercise.description.length > 100 
-                      ? `${exercise.description.substring(0, 100)}...` 
-                      : exercise.description}
-                  </p>
-                )}
-                
-                {exercise.equipment && exercise.equipment.length > 0 && (
-                  <div className="exercise-equipment">
-                    <strong>장비:</strong> {exercise.equipment.join(', ')}
-                  </div>
-                )}
-                
-                {exercise.muscles && exercise.muscles.length > 0 && (
-                  <div className="exercise-muscles">
-                    <strong>주요 근육:</strong> 
-                    <div className="muscle-tags">
-                      {exercise.muscles.map((muscle, index) => (
-                        <span key={index} className="muscle-tag">
-                          {translateMuscleToKorean(muscle)}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {exercise.musclesSecondary && exercise.musclesSecondary.length > 0 && (
-                  <div className="exercise-muscles secondary">
-                    <strong>보조 근육:</strong>
-                    <div className="muscle-tags">
-                      {exercise.musclesSecondary.map((muscle, index) => (
-                        <span key={index} className="muscle-tag secondary">
-                          {translateMuscleToKorean(muscle)}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* MET 정보 */}
-                <div className="exercise-calories">
-                  <strong>운동 강도 (MET):</strong>
-                  <div className="calories-info">
-                    {exercise.mets && (
-                      <span className="calorie-item">
-                        🔥 MET: {exercise.mets}
-                      </span>
-                    )}
-                    {exercise.mets && user && (
-                      <span className="calorie-item">
-                        ⚡ 분당 {calculateCaloriesPerMinute(exercise.mets, {
-                          weight: parseFloat(user.weight || '70'),
-                          height: parseFloat(user.height || '170'),
-                          age: parseInt(user.age || '25'),
-                          gender: user.gender as 'male' | 'female'
-                        })} kcal
-                      </span>
-                    )}
+                <div className="space-y-4 p-5">
+                  <div className="flex items-center justify-between gap-3">
+                    <Badge variant="secondary" className="gap-2">
+                      {getCategoryIcon(exercise.category)}
+                      {translateCategoryToKorean(exercise.category) || '기타'}
+                    </Badge>
                     {exercise.intensity && (
-                      <span className={`intensity-badge intensity-${exercise.intensity.toLowerCase()}`}>
-                        {exercise.intensity === 'LOW' ? '낮음' : 
-                         exercise.intensity === 'MEDIUM' ? '보통' : '높음'}
-                      </span>
+                      <Badge variant={exercise.intensity === 'HIGH' ? 'default' : exercise.intensity === 'MEDIUM' ? 'success' : 'secondary'}>
+                        {intensityLabel(exercise.intensity)}
+                      </Badge>
                     )}
                   </div>
+
+                  <div>
+                    <h2 className="line-clamp-2 text-base font-bold text-slate-950">{exercise.name}</h2>
+                    {exercise.description && (
+                      <p className="mt-2 line-clamp-3 text-sm leading-6 text-muted-foreground">
+                        {exercise.description.length > 100 ? `${exercise.description.substring(0, 100)}...` : exercise.description}
+                      </p>
+                    )}
+                  </div>
+
+                  {exercise.equipment && exercise.equipment.length > 0 && (
+                    <div className="text-sm text-slate-700">
+                      <span className="font-semibold">장비: </span>
+                      {exercise.equipment.map(translateEquipmentToKorean).join(', ')}
+                    </div>
+                  )}
+
+                  {exercise.muscles && exercise.muscles.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="text-sm font-semibold text-slate-700">주요 근육</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {exercise.muscles.map((muscle, index) => (
+                          <Badge key={`${muscle}-${index}`} variant="outline" className="bg-blue-50 text-blue-700">
+                            {translateMuscleToKorean(muscle)}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {exercise.musclesSecondary && exercise.musclesSecondary.length > 0 && (
+                    <div className="space-y-2">
+                      <div className="text-sm font-semibold text-slate-700">보조 근육</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {exercise.musclesSecondary.map((muscle, index) => (
+                          <Badge key={`${muscle}-${index}`} variant="outline" className="bg-slate-50 text-slate-700">
+                            {translateMuscleToKorean(muscle)}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="rounded-lg bg-slate-50 p-3">
+                    <div className="mb-2 text-sm font-semibold text-slate-700">운동 강도</div>
+                    <div className="flex flex-wrap gap-2 text-sm text-muted-foreground">
+                      {exercise.mets && (
+                        <span className="inline-flex items-center gap-1">
+                          <Flame className="size-4 text-orange-500" />
+                          MET: {exercise.mets}
+                        </span>
+                      )}
+                      {exercise.mets && user && (
+                        <span className="inline-flex items-center gap-1">
+                          <Zap className="size-4 text-yellow-500" />
+                          분당 {calculateCaloriesPerMinute(exercise.mets, {
+                            weight: parseFloat(user.weight || '70'),
+                            height: parseFloat(user.height || '170'),
+                            age: parseInt(user.age || '25'),
+                            gender: user.gender as 'male' | 'female',
+                          })} kcal
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
-              </div>
+              </button>
             ))}
-            
-            {/* 추가 로딩 상태 */}
+
             {isLoadingMore && (
-              <div className="loading-more">
-                <div className="spinner"></div>
-                <p>추가 운동 정보를 불러오는 중...</p>
-              </div>
+              <Card className="border-white/80 bg-white shadow-sm md:col-span-2 xl:col-span-3">
+                <CardContent className="p-5">
+                  <LoadingState title="추가 운동 정보를 불러오는 중입니다." />
+                </CardContent>
+              </Card>
             )}
-            
-            {/* 총 개수 표시 */}
+
             {!isLoadingMore && exercises && exercises.length > 0 && (
-              <div className="exercise-count">
-                <p>총 {totalElements}개의 운동 중 {exercises?.length || 0}개 표시</p>
-                                  {!hasNext && exercises && exercises.length > 0 && (
-                  <p className="no-more-data">모든 운동을 불러왔습니다.</p>
-                )}
+              <div className="md:col-span-2 xl:col-span-3">
+                <Card className="border-white/80 bg-white shadow-sm">
+                  <CardContent className="flex flex-col items-center gap-1 p-4 text-sm text-muted-foreground">
+                    <p>총 {totalElements}개의 운동 중 {exercises?.length || 0}개 표시</p>
+                    {!hasNext && exercises && exercises.length > 0 && <p className="font-medium text-slate-700">모든 운동을 불러왔습니다.</p>}
+                  </CardContent>
+                </Card>
               </div>
             )}
           </div>
         )}
-      </div>
-      
+      </PageMain>
+
       <Modal isOpen={detailOpen} onClose={() => setDetailOpen(false)} title={detailTitle} message={detailContent} isHtml actions={detailActions} />
       <NavigationBar />
       <ChatButton />
-    </div>
+    </Page>
   );
 };
 
-export default ExerciseInformation; 
+export default ExerciseInformation;

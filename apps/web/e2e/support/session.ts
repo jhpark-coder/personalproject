@@ -1,7 +1,5 @@
 import type { Page, Route } from '@playwright/test';
 
-import { createFakeJwt } from './auth';
-
 export interface MockUserProfile {
   age?: string;
   birthDate?: string;
@@ -55,28 +53,18 @@ export const installAuthenticatedSession = async (
   page: Page,
   profile: MockUserProfile = defaultUserProfile,
 ) => {
-  const token = createFakeJwt({
-    userId: profile.id,
-    sub: String(profile.id),
-    role: profile.role ?? 'ROLE_USER',
-    email: profile.email,
-  });
-
   await page.addInitScript(
-    ({ storedToken, provider }) => {
-      window.localStorage.setItem('token', storedToken);
+    ({ provider }) => {
+      window.localStorage.setItem('authSession', 'true');
       window.localStorage.setItem('currentProvider', provider);
       window.localStorage.setItem('onboardingCompleted', 'true');
     },
     {
-      storedToken: token,
       provider: profile.provider ?? 'local',
     },
   );
 
   await mockProfileApi(page, profile);
-
-  return token;
 };
 
 export const mockCalendarApis = async (page: Page, connected = false) => {

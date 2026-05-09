@@ -19,9 +19,11 @@ import org.springframework.transaction.annotation.Transactional;
 import backend.fitmate.exercise.entity.Exercise;
 import backend.fitmate.exercise.repository.ExerciseRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class ExerciseService {
     private final ExerciseRepository exerciseRepository;
     // Wger 연동 제거로 인해 더 이상 사용하지 않음
@@ -91,7 +93,7 @@ public class ExerciseService {
             }
         }
         
-        System.out.println("✅ MET 정보 설정: " + exercise.getMets() + " MET, 강도: " + exercise.getIntensity());
+        log.debug("MET info set: mets={}, intensity={}", exercise.getMets(), exercise.getIntensity());
     }
 
     // translations 배열에서 한국어 운동명 가져오기
@@ -966,9 +968,9 @@ public class ExerciseService {
                 }
             }
         } catch (IOException e) {
-            System.err.println("CSV 파일 읽기 실패: " + e.getMessage());
+            log.warn("Failed to read exercise seed CSV", e);
         }
         
         return new ArrayList<>();
     }
-} 
+}

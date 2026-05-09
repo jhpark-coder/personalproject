@@ -8,20 +8,20 @@ import {
 describe('oauthCallback', () => {
   it('parses callback params from the normal search string', () => {
     const params = parseOAuthCallbackParams(
-      'https://fitmate.example.com/oauth2/callback?success=true&token=abc&provider=google',
+      'https://fitmate.example.com/oauth2/callback?success=true&provider=google',
     );
 
     expect(params.success).toBe('true');
-    expect(params.token).toBe('abc');
+    expect(params.token).toBeNull();
     expect(params.provider).toBe('google');
   });
 
   it('parses callback params from a hash router url', () => {
     const params = parseOAuthCallbackParams(
-      'https://fitmate.example.com/#/oauth2/callback?success=true&token=hash-token&calendarOnly=true',
+      'https://fitmate.example.com/#/oauth2/callback?success=true&calendarOnly=true',
     );
 
-    expect(params.token).toBe('hash-token');
+    expect(params.token).toBeNull();
     expect(params.calendarOnly).toBe('true');
   });
 
@@ -49,7 +49,7 @@ describe('oauthCallback', () => {
     expect(action.kind).toBe('onboarding');
   });
 
-  it('returns an error action when token is missing', () => {
+  it('accepts cookie-backed callbacks when token is missing', () => {
     const action = resolveOAuthCallbackAction({
       success: 'true',
       token: null,
@@ -58,6 +58,6 @@ describe('oauthCallback', () => {
       calendarOnly: null,
     });
 
-    expect(action.kind).toBe('error');
+    expect(action.kind).toBe('home');
   });
 });

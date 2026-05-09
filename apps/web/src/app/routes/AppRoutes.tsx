@@ -13,6 +13,10 @@ import ChatPage from '../../features/chat/pages/ChatPage';
 import ChatRoomPage from '../../features/chat/pages/ChatRoomPage';
 import ChatStatsPage from '../../features/chat/pages/ChatStatsPage';
 import DashboardPage from '../../features/dashboard/pages/DashboardPage';
+import PrivacyPage from '../../features/legal/pages/PrivacyPage';
+import TermsPage from '../../features/legal/pages/TermsPage';
+import DataRightsPage from '../../features/legal/pages/DataRightsPage';
+import DietPage from '../../features/diet/pages/DietPage';
 import MotionCoachPage from '../../features/motion/pages/MotionCoachPage';
 import PoseDetectorPage from '../../features/motion/pages/PoseDetectorPage';
 import NotificationCenterPage from '../../features/notifications/pages/NotificationCenterPage';
@@ -36,6 +40,9 @@ const MessageInputPage = lazy(() => import('../../features/chat/pages/MessageInp
 const publicRoutePrefixes = [
   '/login',
   '/signup',
+  '/terms',
+  '/privacy',
+  '/data-rights',
   '/auth/callback',
   '/onboarding/experience',
   '/onboarding/goal',
@@ -53,6 +60,9 @@ export default function AppRoutes() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/signup" element={<SignupPage />} />
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
+        <Route path="/data-rights" element={<DataRightsPage />} />
         <Route path="/auth/callback" element={<OAuthCallbackPage />} />
         <Route path="/onboarding/experience" element={<OnboardingExperiencePage />} />
         <Route path="/onboarding/goal" element={<OnboardingGoalPage />} />
@@ -62,6 +72,7 @@ export default function AppRoutes() {
         <Route path="/" element={<AuthGuard requireAuth={true}><DashboardPage /></AuthGuard>} />
         <Route path="/chat" element={<AuthGuard requireAuth={true}><ChatPage /></AuthGuard>} />
         <Route path="/motion" element={<AuthGuard requireAuth={true}><MotionCoachPage /></AuthGuard>} />
+        <Route path="/diet" element={<AuthGuard requireAuth={true}><DietPage /></AuthGuard>} />
         <Route path="/users" element={<AuthGuard requireAuth={true}><UserListPage /></AuthGuard>} />
         <Route
           path="/chat-dashboard"

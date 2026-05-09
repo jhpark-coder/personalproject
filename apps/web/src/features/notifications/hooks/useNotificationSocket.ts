@@ -1,7 +1,9 @@
-import { useEffect, useRef } from 'react';
+﻿import { useEffect, useRef } from 'react';
 import { io, type Socket } from 'socket.io-client';
 import { API_ENDPOINTS } from '../../../shared/config/api';
+import { getAuthToken } from '../../../shared/lib/storage';
 import type { AppNotification } from '../api/notifications';
+import { logger } from '../../../shared/lib/logger';
 
 interface UseNotificationSocketOptions {
   userId?: number;
@@ -11,7 +13,6 @@ interface UseNotificationSocketOptions {
 
 export const useNotificationSocket = ({
   userId,
-  role,
   onNotification,
 }: UseNotificationSocketOptions) => {
   const socketRef = useRef<Socket | null>(null);
@@ -23,6 +24,7 @@ export const useNotificationSocket = ({
 
   useEffect(() => {
     if (!userId) return undefined;
+    const token = getAuthToken();
 
     try {
       const socket = io(API_ENDPOINTS.COMMUNICATION_SERVER_URL || '', {
@@ -31,30 +33,31 @@ export const useNotificationSocket = ({
         reconnection: true,
         reconnectionDelay: 5000,
         reconnectionAttempts: 5,
-        auth: { userId: String(userId), roles: role ? [role] : [] },
+        auth: { token, userId: String(userId) },
+        withCredentials: true,
       });
 
       socket.on('connect', () => {
-        console.log('🔌 알림 Socket.IO 연결됨');
+        logger.debug('🔌 알림 Socket.IO 연결됨');
         socket.emit('subscribe', { userId });
       });
 
       socket.on('newNotification', (data: AppNotification) => {
-        console.log('📢 새 알림 수신:', data);
+        logger.debug('📢 새 알림 수신:', data);
         notificationHandlerRef.current(data, 'direct');
       });
 
       socket.on('broadcastNotification', (data: AppNotification) => {
-        console.log('📢 전체 브로드캐스트 수신:', data);
+        logger.debug('📢 전체 브로드캐스트 수신:', data);
         notificationHandlerRef.current(data, 'broadcast');
       });
 
       socket.on('connect_error', (error) => {
-        console.error('알림 Socket.IO 연결 에러:', error);
+        logger.error('알림 Socket.IO 연결 에러:', error);
       });
 
       socket.on('disconnect', (reason) => {
-        console.log('🔌 알림 Socket.IO 연결 해제됨:', reason);
+        logger.debug('🔌 알림 Socket.IO 연결 해제됨:', reason);
       });
 
       socketRef.current = socket;
@@ -64,10 +67,10 @@ export const useNotificationSocket = ({
         socketRef.current = null;
       };
     } catch (error) {
-      console.error('알림 Socket.IO 연결 실패:', error);
+      logger.error('알림 Socket.IO 연결 실패:', error);
       return undefined;
     }
-  }, [role, userId]);
+  }, [userId]);
 
   return socketRef;
 };

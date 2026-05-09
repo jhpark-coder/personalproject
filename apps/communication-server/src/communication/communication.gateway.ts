@@ -1,73 +1,90 @@
 import {
-  WebSocketGateway,
-  SubscribeMessage,
-  MessageBody,
-  WebSocketServer,
   ConnectedSocket,
-  OnGatewayInit,
+  MessageBody,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  OnGatewayInit,
+  SubscribeMessage,
+  WebSocketGateway,
+  WebSocketServer,
 } from '@nestjs/websockets';
-import { Server, Socket } from 'socket.io';
 import { Logger } from '@nestjs/common';
-import { ChatService } from '../chat/chat.service';
+import { Server, Socket } from 'socket.io';
 import { ChatMessageDto, ChatUserDto } from '../chat/dto/chat-message.dto';
+import { ChatService } from '../chat/chat.service';
 import { Notification } from '../shared/schemas/notification.schema';
+import { AuthIdentity, JwtAuthService } from '../shared/auth/jwt-auth.service';
+
+const defaultSocketCorsOrigins = [
+  'http://localhost:8080',
+  'http://localhost:5173',
+  'https://localhost:5173',
+  'http://localhost:4000',
+];
+
+const socketCorsOrigins = [
+  ...(process.env.CORS_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+  process.env.FRONTEND_URL,
+].filter((origin): origin is string => Boolean(origin) && origin !== '*');
 
 @WebSocketGateway({
   cors: {
-    origin: [
-      'http://localhost:8080', // Spring Boot 백엔드
-      'http://localhost:5173', // React 프론트엔드 (HTTP)
-      'https://localhost:5173', // React 프론트엔드 (HTTPS)
-      'http://localhost:4000', // 추가 프론트엔드
-      'file://',
-      '*',
-    ],
+    origin:
+      socketCorsOrigins.length > 0
+        ? socketCorsOrigins
+        : defaultSocketCorsOrigins,
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-XSRF-TOKEN'],
   },
 })
 export class CommunicationGateway
   implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
 {
-  constructor(private readonly chatService: ChatService) {}
+  constructor(
+    private readonly chatService: ChatService,
+    private readonly jwtAuthService: JwtAuthService,
+  ) {}
 
   @WebSocketServer()
   server: Server;
 
-  private logger = new Logger('CommunicationGateway');
+  private readonly logger = new Logger('CommunicationGateway');
 
   afterInit() {
-    this.logger.log('🚀 통합 통신 웹소켓 서버가 초기화되었습니다.');
+    this.logger.log('Communication socket server initialized.');
   }
 
   handleConnection(client: Socket) {
-    this.logger.log(`🔗 클라이언트 연결: ${client.id}`);
-    const userId = this.getUserIdFromSocket(client);
-    const userRoles = this.getUserRolesFromSocket(client);
+    const identity = this.jwtAuthService.getSocketIdentity(
+      client.handshake.auth,
+      client.handshake.headers?.authorization,
+      client.handshake.headers?.cookie,
+    );
 
-    if (userId) {
-      client.join(String(userId));
-      this.logger.log(
-        `👤 클라이언트 ${client.id}가 사용자 ID '${userId}' 방에 참가했습니다.`,
-      );
+    if (!identity) {
+      this.logger.warn(`Unauthenticated socket rejected: ${client.id}`);
+      client.disconnect(true);
+      return;
     }
 
-    if (userRoles && userRoles.includes('ROLE_ADMIN')) {
+    client.data.auth = identity;
+    client.join(identity.userId);
+    this.logger.log(`Client ${client.id} joined user room ${identity.userId}.`);
+
+    if (this.jwtAuthService.isAdmin(identity)) {
       client.join('admin');
-      this.logger.log(`👨‍💼 관리자 ${client.id}가 'admin' 방에 참가했습니다.`);
       this.server.emit('adminOnline');
     }
   }
 
   handleDisconnect(client: Socket) {
-    this.logger.log(`🔌 클라이언트 연결 끊김: ${client.id}`);
-    const userRoles = this.getUserRolesFromSocket(client);
+    const identity = this.getSocketIdentity(client);
 
-    if (userRoles && userRoles.includes('ROLE_ADMIN')) {
-      this.logger.log(`👨‍💼 관리자 연결 해제`);
+    if (this.jwtAuthService.isAdmin(identity)) {
       this.server.emit('adminOffline');
     }
 
@@ -75,46 +92,45 @@ export class CommunicationGateway
       client.id,
     );
     if (disconnectedUser) {
-      this.logger.log(`👤 사용자 ${disconnectedUser} 연결 해제`);
       this.server.to('admin').emit('userDisconnected', {
         sender: disconnectedUser,
-        content: `${disconnectedUser} 님이 연결을 종료했습니다.`,
+        content: `${disconnectedUser} 님의 연결이 종료되었습니다.`,
         type: 'LEAVE',
         timestamp: new Date().toISOString(),
       });
     }
   }
 
-  // ===== 채팅 관련 기능 =====
   @SubscribeMessage('joinChat')
   async handleJoinChat(
     @MessageBody() data: ChatUserDto,
     @ConnectedSocket() client: Socket,
   ) {
-    // 관리자가 일반 사용자로 입장하려고 할 때 차단
-    const userRoles = this.getUserRolesFromSocket(client);
-    if (userRoles && userRoles.includes('ROLE_ADMIN')) {
-      this.logger.log(
-        `🚫 관리자가 일반 사용자로 입장 시도 차단: ${data.sender}`,
-      );
+    const identity = this.getSocketIdentity(client);
+    if (!identity) {
+      return { status: 'unauthorized', message: '인증이 필요합니다.' };
+    }
+
+    if (this.jwtAuthService.isAdmin(identity)) {
+      this.logger.log(`Admin joinChat attempt blocked: ${data.sender}`);
       return {
         status: 'blocked',
         message: '관리자는 일반 사용자로 입장할 수 없습니다.',
       };
     }
 
-    client.join(data.sender);
-    this.logger.log(`👤 사용자 ${data.sender}가 채팅에 참가했습니다.`);
-    this.chatService.addOnlineUser(data.sender, client.id);
+    const sender = this.chatUsername(identity.userId);
+    client.join(sender);
+    this.chatService.addOnlineUser(sender, client.id);
 
     this.server.to('admin').emit('userJoined', {
-      sender: data.sender,
-      content: `${data.sender} 님이 문의를 시작했습니다.`,
+      sender,
+      content: `${sender} 님이 문의를 시작했습니다.`,
       type: 'JOIN',
       timestamp: new Date().toISOString(),
     });
 
-    return { status: 'joined', user: data.sender };
+    return { status: 'joined', user: sender };
   }
 
   @SubscribeMessage('joinAsAdmin')
@@ -122,8 +138,16 @@ export class CommunicationGateway
     @MessageBody() data: ChatUserDto,
     @ConnectedSocket() client: Socket,
   ) {
+    const identity = this.getSocketIdentity(client);
+    if (!this.jwtAuthService.isAdmin(identity)) {
+      return {
+        status: 'blocked',
+        message: '관리자 권한이 필요합니다.',
+      };
+    }
+
     client.join('admin');
-    this.logger.log(`👨‍💼 관리자 ${data.sender}가 admin 방에 참가했습니다.`);
+    this.logger.log(`Admin ${data.sender} joined admin room.`);
     this.server.emit('adminOnline');
 
     const onlineUsers = this.chatService.getOnlineUsers();
@@ -134,8 +158,15 @@ export class CommunicationGateway
 
   @SubscribeMessage('leaveAsAdmin')
   async handleLeaveAsAdmin(@ConnectedSocket() client: Socket) {
+    const identity = this.getSocketIdentity(client);
+    if (!this.jwtAuthService.isAdmin(identity)) {
+      return {
+        status: 'blocked',
+        message: '관리자 권한이 필요합니다.',
+      };
+    }
+
     client.leave('admin');
-    this.logger.log(`👨‍💼 관리자가 admin 방에서 나갔습니다.`);
     this.server.emit('adminOffline');
     return { status: 'left', role: 'admin' };
   }
@@ -145,31 +176,37 @@ export class CommunicationGateway
     @MessageBody() data: ChatMessageDto,
     @ConnectedSocket() client: Socket,
   ) {
-    this.logger.log(`📤 메시지 수신:`, data);
-    const savedMessage = await this.chatService.saveMessage(data);
-
-    // 관리자 역할 확인
-    const userRoles = this.getUserRolesFromSocket(client);
-    const isAdmin = userRoles && userRoles.includes('ROLE_ADMIN');
-
-    // isAdmin 필드 추가
-    const messageWithAdminFlag = { ...savedMessage, isAdmin };
-
-    if (data.recipient && data.recipient !== '') {
-      // 관리자가 특정 사용자에게 답장
-      this.server.to(data.recipient).emit('adminReply', messageWithAdminFlag);
-      this.server.to('admin').emit('adminReply', messageWithAdminFlag);
-    } else if (isAdmin) {
-      // 관리자가 보낸 메시지는 관리자 방에만 전송
-      this.server.to('admin').emit('adminReply', messageWithAdminFlag);
-    } else {
-      // 일반 사용자 메시지
-      this.server.to('admin').emit('userMessage', messageWithAdminFlag);
-      // 사용자 자신에게도 메시지 전송 (확인용)
-      this.server.to(data.sender).emit('chatMessage', messageWithAdminFlag);
+    const identity = this.getSocketIdentity(client);
+    if (!identity) {
+      return { status: 'unauthorized', message: '인증이 필요합니다.' };
     }
 
-    this.logger.log(`✅ 메시지 처리 완료:`, messageWithAdminFlag);
+    const isAdmin = this.jwtAuthService.isAdmin(identity);
+    const messageData: ChatMessageDto = isAdmin
+      ? data
+      : {
+          ...data,
+          sender: this.chatUsername(identity.userId),
+          recipient: null,
+        };
+
+    const savedMessage = await this.chatService.saveMessage(messageData);
+    const messageWithAdminFlag = { ...savedMessage, isAdmin };
+
+    if (messageData.recipient) {
+      this.server
+        .to(messageData.recipient)
+        .emit('adminReply', messageWithAdminFlag);
+      this.server.to('admin').emit('adminReply', messageWithAdminFlag);
+    } else if (isAdmin) {
+      this.server.to('admin').emit('adminReply', messageWithAdminFlag);
+    } else {
+      this.server.to('admin').emit('userMessage', messageWithAdminFlag);
+      this.server
+        .to(messageData.sender)
+        .emit('chatMessage', messageWithAdminFlag);
+    }
+
     return messageWithAdminFlag;
   }
 
@@ -178,14 +215,31 @@ export class CommunicationGateway
     @MessageBody() data: { userId: string },
     @ConnectedSocket() client: Socket,
   ) {
-    this.logger.log(`🔍 채팅 내역 요청: ${data.userId}`);
+    const identity = this.getSocketIdentity(client);
+    if (!identity) {
+      client.emit('error', { message: '인증이 필요합니다.' });
+      return;
+    }
+
+    if (!this.canAccessChatUser(identity, data.userId)) {
+      client.emit('error', {
+        message: '다른 사용자의 채팅 내역을 볼 수 없습니다.',
+      });
+      return;
+    }
+
     const history = await this.chatService.getChatHistory(data.userId);
     client.emit('chatHistory', { userId: data.userId, history });
   }
 
   @SubscribeMessage('getAllChatUsers')
   async handleGetAllChatUsers(@ConnectedSocket() client: Socket) {
-    this.logger.log(`👥 모든 채팅 사용자 목록 요청`);
+    const identity = this.getSocketIdentity(client);
+    if (!this.jwtAuthService.isAdmin(identity)) {
+      client.emit('error', { message: '관리자 권한이 필요합니다.' });
+      return;
+    }
+
     const allUsers = await this.chatService.getAllChatUsers();
     client.emit('allChatUsers', allUsers);
   }
@@ -195,22 +249,24 @@ export class CommunicationGateway
     @MessageBody() data: { userId: string },
     @ConnectedSocket() client: Socket,
   ) {
-    this.logger.log(`📨 사용자 최근 메시지 요청: ${data.userId}`);
+    const identity = this.getSocketIdentity(client);
+    if (!this.jwtAuthService.isAdmin(identity)) {
+      client.emit('error', { message: '관리자 권한이 필요합니다.' });
+      return;
+    }
+
     const lastMessage = await this.chatService.getUserLastMessage(data.userId);
     client.emit('userLastMessage', { userId: data.userId, lastMessage });
   }
 
   @SubscribeMessage('getOnlineUsers')
   async handleGetOnlineUsers(@ConnectedSocket() client: Socket) {
-    this.logger.log(`👥 온라인 사용자 목록 요청`);
     const onlineUsers = this.chatService.getOnlineUsers();
     client.emit('onlineUsers', onlineUsers);
   }
 
   @SubscribeMessage('checkAdminStatus')
   async handleCheckAdminStatus(@ConnectedSocket() client: Socket) {
-    this.logger.log(`👨‍💼 관리자 상태 확인 요청`);
-    // 현재 admin 방에 있는 클라이언트 수를 확인
     const adminRoom = this.server.sockets.adapter.rooms.get('admin');
     const hasAdminOnline = adminRoom && adminRoom.size > 0;
 
@@ -221,40 +277,48 @@ export class CommunicationGateway
     }
   }
 
-  // ===== 알림 관련 기능 =====
   @SubscribeMessage('subscribe')
   async handleSubscribe(
     @MessageBody() data: { userId: string },
     @ConnectedSocket() client: Socket,
   ) {
-    this.logger.log(`📢 사용자 ${data.userId}가 알림을 구독했습니다.`);
-    client.join(String(data.userId));
-    this.logger.log(
-      `👤 클라이언트 ${client.id}가 사용자 ID '${data.userId}' 방에 참가했습니다.`,
-    );
+    const identity = this.getSocketIdentity(client);
+    if (!identity) {
+      client.emit('error', { message: '인증이 필요합니다.' });
+      return;
+    }
+
+    const targetUserId = this.jwtAuthService.isAdmin(identity)
+      ? data.userId
+      : identity.userId;
+    client.join(String(targetUserId));
   }
 
   public sendNotificationToUser(userId: string, notification: Notification) {
-    this.logger.log(`📢 ${userId}번 사용자에게 알림 전송:`, notification);
     this.server.to(String(userId)).emit('newNotification', notification);
   }
 
   public sendNotificationToAdminGroup(notification: Notification) {
-    this.logger.log(`📢 관리자 그룹에게 알림 전송:`, notification);
     this.server.to('admin').emit('newNotification', notification);
   }
 
   public broadcastNotification(notification: Notification) {
-    this.logger.log(`📢 전체 알림 브로드캐스트:`, notification);
     this.server.emit('broadcastNotification', notification);
   }
 
-  // ===== Helper Functions =====
-  private getUserIdFromSocket(client: Socket): string | null {
-    return client.handshake.auth?.userId || null;
+  private getSocketIdentity(client: Socket): AuthIdentity | null {
+    return (client.data?.auth as AuthIdentity | undefined) || null;
   }
 
-  private getUserRolesFromSocket(client: Socket): string[] | null {
-    return client.handshake.auth?.roles || null;
+  private chatUsername(userId: string): string {
+    return `사용자_${userId}`;
+  }
+
+  private canAccessChatUser(identity: AuthIdentity, userId: string): boolean {
+    return (
+      this.jwtAuthService.isAdmin(identity) ||
+      identity.userId === userId ||
+      this.chatUsername(identity.userId) === userId
+    );
   }
 }

@@ -2,8 +2,10 @@ package backend.fitmate.controller;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -16,6 +18,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import backend.fitmate.service.CurrentUserAccessService;
 import backend.fitmate.user.entity.WorkoutRecord;
 import backend.fitmate.user.service.WorkoutRecordService;
 import lombok.RequiredArgsConstructor;
@@ -23,10 +26,11 @@ import lombok.RequiredArgsConstructor;
 @RestController
 @RequestMapping("/api/workout-records")
 @RequiredArgsConstructor
-@CrossOrigin(origins = "*")
+@CrossOrigin(origins = "${app.frontend.url}", allowCredentials = "true")
 public class WorkoutRecordController {
 
     private final WorkoutRecordService workoutRecordService;
+    private final CurrentUserAccessService currentUserAccessService;
 
     /**
      * 운동 기록 저장
@@ -35,6 +39,9 @@ public class WorkoutRecordController {
     public ResponseEntity<WorkoutRecord> saveWorkoutRecord(
             @PathVariable Long userId,
             @RequestBody WorkoutRecord workoutRecord) {
+        if (!currentUserAccessService.canAccessUser(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
             WorkoutRecord savedRecord = workoutRecordService.saveWorkoutRecord(userId, workoutRecord);
             return ResponseEntity.ok(savedRecord);
@@ -48,6 +55,9 @@ public class WorkoutRecordController {
      */
     @GetMapping("/{userId}")
     public ResponseEntity<List<WorkoutRecord>> getUserWorkoutRecords(@PathVariable Long userId) {
+        if (!currentUserAccessService.canAccessUser(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
             List<WorkoutRecord> records = workoutRecordService.getUserWorkoutRecords(userId);
             return ResponseEntity.ok(records);
@@ -64,6 +74,9 @@ public class WorkoutRecordController {
             @PathVariable Long userId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        if (!currentUserAccessService.canAccessUser(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
             List<WorkoutRecord> records = workoutRecordService.getUserWorkoutRecordsByPeriod(userId, startDate, endDate);
             return ResponseEntity.ok(records);
@@ -79,6 +92,9 @@ public class WorkoutRecordController {
     public ResponseEntity<List<WorkoutRecord>> getUserWorkoutRecordsByDate(
             @PathVariable Long userId,
             @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate workoutDate) {
+        if (!currentUserAccessService.canAccessUser(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
             List<WorkoutRecord> records = workoutRecordService.getUserWorkoutRecordsByDate(userId, workoutDate);
             return ResponseEntity.ok(records);
@@ -94,6 +110,13 @@ public class WorkoutRecordController {
     public ResponseEntity<WorkoutRecord> updateWorkoutRecord(
             @PathVariable Long recordId,
             @RequestBody WorkoutRecord updatedRecord) {
+        Optional<Long> ownerId = workoutRecordService.getWorkoutRecordOwnerId(recordId);
+        if (ownerId.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        if (!currentUserAccessService.canAccessUser(ownerId.get())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
             WorkoutRecord updated = workoutRecordService.updateWorkoutRecord(recordId, updatedRecord);
             return ResponseEntity.ok(updated);
@@ -107,6 +130,13 @@ public class WorkoutRecordController {
      */
     @DeleteMapping("/{recordId}")
     public ResponseEntity<Void> deleteWorkoutRecord(@PathVariable Long recordId) {
+        Optional<Long> ownerId = workoutRecordService.getWorkoutRecordOwnerId(recordId);
+        if (ownerId.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        if (!currentUserAccessService.canAccessUser(ownerId.get())) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
             workoutRecordService.deleteWorkoutRecord(recordId);
             return ResponseEntity.ok().build();
@@ -123,6 +153,9 @@ public class WorkoutRecordController {
             @PathVariable Long userId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        if (!currentUserAccessService.canAccessUser(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
             Object[] stats = workoutRecordService.getMonthlyWorkoutStats(userId, startDate, endDate);
             return ResponseEntity.ok(stats);
@@ -139,6 +172,9 @@ public class WorkoutRecordController {
             @PathVariable Long userId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        if (!currentUserAccessService.canAccessUser(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
             List<Object[]> distribution = workoutRecordService.getDifficultyDistribution(userId, startDate, endDate);
             return ResponseEntity.ok(distribution);
@@ -155,6 +191,9 @@ public class WorkoutRecordController {
             @PathVariable Long userId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        if (!currentUserAccessService.canAccessUser(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
             List<Object[]> stats = workoutRecordService.getWorkoutTypeStats(userId, startDate, endDate);
             return ResponseEntity.ok(stats);
@@ -168,6 +207,9 @@ public class WorkoutRecordController {
      */
     @GetMapping("/{userId}/recent")
     public ResponseEntity<List<WorkoutRecord>> getRecentWorkoutRecords(@PathVariable Long userId) {
+        if (!currentUserAccessService.canAccessUser(userId)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
         try {
             List<WorkoutRecord> records = workoutRecordService.getRecentWorkoutRecords(userId);
             return ResponseEntity.ok(records);
@@ -175,4 +217,4 @@ public class WorkoutRecordController {
             return ResponseEntity.badRequest().build();
         }
     }
-} 
+}

@@ -7,6 +7,7 @@ import java.util.Map;
 import java.util.Random;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Profile;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -23,7 +24,8 @@ import backend.fitmate.config.RateLimit;
 
 @RestController
 @RequestMapping("/test")
-@CrossOrigin(origins = "*")
+@Profile("dev")
+@CrossOrigin(origins = "${app.frontend.url}", allowCredentials = "true")
 public class TestController {
 
     @Autowired
@@ -97,7 +99,7 @@ public class TestController {
         response.put("rateLimiting", "활성화됨");
         response.put("testEndpoints", Map.of(
             "login", "POST /test/login (분당 5회)",
-            "signup", "POST /test/signup (분당 3회)", 
+            "signup", "POST /test/signup (분당 3회)",
             "email", "POST /test/email-verification (분당 2회)",
             "oauth2", "POST /test/oauth2 (분당 10회)",
             "test", "GET /test/rate-limit-test (분당 5회)",
@@ -123,7 +125,7 @@ public class TestController {
     public ResponseEntity<?> getExercises() {
         try {
             List<Exercise> exercises = exerciseRepository.findAll();
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("totalCount", exercises.size());
@@ -136,7 +138,7 @@ public class TestController {
                 put("muscles", exercise.getMuscles());
                 put("equipment", exercise.getEquipment());
             }}).toList());
-            
+
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             Map<String, Object> response = new HashMap<>();
@@ -154,7 +156,7 @@ public class TestController {
             List<Exercise> exercisesWithMets = allExercises.stream()
                 .filter(exercise -> exercise.getMets() != null)
                 .toList();
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("totalCount", allExercises.size());
@@ -168,7 +170,7 @@ public class TestController {
                 put("muscles", exercise.getMuscles());
                 put("equipment", exercise.getEquipment());
             }}).toList());
-            
+
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             Map<String, Object> response = new HashMap<>();
@@ -184,58 +186,58 @@ public class TestController {
         try {
             // MET 값이 있는 운동들 목록
             String[] workoutTypesWithMets = {
-                "스쿼트", "런지", "푸시업", "플랭크", "크런치", "조깅", "달리기", 
+                "스쿼트", "런지", "푸시업", "플랭크", "크런치", "조깅", "달리기",
                 "자전거", "수영", "걷기", "등산", "골프", "볼링", "요가", "필라테스",
-                "바벨 스쿼트", "덤벨 스쿼트", "레그 프레스", "바벨 벤치프레스", 
+                "바벨 스쿼트", "덤벨 스쿼트", "레그 프레스", "바벨 벤치프레스",
                 "덤벨 벤치프레스", "바벨 로우", "덤벨 로우", "풀업", "바벨 바이셉 컬",
-                "해머 컬", "트라이셉 익스텐션", "딥스", "러시안 트위스트", 
-                "바이시클 크런치", "레그 레이즈", "마운틴 클라이머", "버피", 
+                "해머 컬", "트라이셉 익스텐션", "딥스", "러시안 트위스트",
+                "바이시클 크런치", "레그 레이즈", "마운틴 클라이머", "버피",
                 "점핑잭", "AB 롤아웃", "덤벨 바디 로테이션", "케틀벨 스윙",
                 "세라밴드 운동", "TRX 운동", "EMS 트레이닝"
             };
-            
+
             // 각 운동의 MET 값
             Double[] metsValues = {
-                6.0, 4.0, 3.8, 2.5, 3.0, 7.0, 9.0, 
+                6.0, 4.0, 3.8, 2.5, 3.0, 7.0, 9.0,
                 7.0, 8.0, 3.5, 6.0, 4.5, 3.0, 2.5, 3.0,
-                7.0, 6.0, 6.0, 7.0, 
+                7.0, 6.0, 6.0, 7.0,
                 6.0, 6.0, 5.0, 6.0, 6.0,
-                5.0, 4.0, 6.0, 4.0, 
-                4.0, 3.0, 8.0, 10.0, 
+                5.0, 4.0, 6.0, 4.0,
+                4.0, 3.0, 8.0, 10.0,
                 8.0, 8.0, 8.0, 5.0,
                 8.0, 3.0, 7.0, 7.0
             };
-            
+
             // 최근 30일간의 운동 기록 생성
             LocalDate startDate = LocalDate.now().minusDays(30);
             LocalDate endDate = LocalDate.now();
             Random random = new Random();
-            
+
             int createdCount = 0;
             LocalDate currentDate = startDate;
-            
+
             while (!currentDate.isAfter(endDate)) {
                 // 하루에 1-2개의 운동 기록 생성
                 int dailyWorkouts = random.nextInt(2) + 1;
-                
+
                 for (int i = 0; i < dailyWorkouts; i++) {
                     // MET 값이 있는 운동 중에서 랜덤 선택
                     int exerciseIndex = random.nextInt(workoutTypesWithMets.length);
                     String selectedExercise = workoutTypesWithMets[exerciseIndex];
                     Double mets = metsValues[exerciseIndex];
-                    
+
                     // 운동 기록 생성
                     WorkoutRecord record = new WorkoutRecord();
                     record.setWorkoutDate(currentDate);
                     record.setWorkoutType(selectedExercise);
                     record.setDuration(30 + random.nextInt(90)); // 30-120분
-                    
+
                     // MET 값을 사용해서 칼로리 계산 (기본 체중 70kg)
                     double weight = 70.0;
                     int durationHours = record.getDuration() / 60;
                     int calculatedCalories = (int) (mets * weight * durationHours);
                     record.setCalories(calculatedCalories);
-                    
+
                     // MET 값에 따른 강도 설정
                     int intensity;
                     if (mets < 3.0) {
@@ -246,7 +248,7 @@ public class TestController {
                         intensity = 7 + random.nextInt(4); // 7-10 (높음)
                     }
                     record.setIntensity(intensity);
-                    
+
                     // 난이도 설정
                     WorkoutRecord.WorkoutDifficulty difficulty;
                     if (intensity <= 3) {
@@ -257,31 +259,31 @@ public class TestController {
                         difficulty = WorkoutRecord.WorkoutDifficulty.HARD;
                     }
                     record.setDifficulty(difficulty);
-                    
+
                     // 웨이트 운동인 경우 추가 정보
-                    if (selectedExercise.contains("바벨") || selectedExercise.contains("덤벨") || 
+                    if (selectedExercise.contains("바벨") || selectedExercise.contains("덤벨") ||
                         selectedExercise.contains("레그") || selectedExercise.contains("벤치")) {
                         record.setSets(3 + random.nextInt(5)); // 3-7세트
                         record.setReps(8 + random.nextInt(12)); // 8-19회
                         record.setWeight(20.0 + random.nextDouble() * 80.0); // 20-100kg
                     }
-                    
+
                     record.setNotes("MET: " + mets + ", 계산된 칼로리: " + calculatedCalories + " kcal");
-                    
+
                     // 운동 기록 저장
                     workoutRecordService.saveWorkoutRecord(userId, record);
                     createdCount++;
                 }
-                
+
                 currentDate = currentDate.plusDays(1);
             }
-            
+
             Map<String, Object> response = new HashMap<>();
             response.put("success", true);
             response.put("message", "테스트 운동 기록 생성 완료");
             response.put("createdCount", createdCount);
             response.put("period", startDate + " ~ " + endDate);
-            
+
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             Map<String, Object> response = new HashMap<>();
@@ -290,4 +292,4 @@ public class TestController {
             return ResponseEntity.internalServerError().body(response);
         }
     }
-} 
+}

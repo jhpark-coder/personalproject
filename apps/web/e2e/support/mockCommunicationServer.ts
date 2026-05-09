@@ -22,11 +22,18 @@ interface ChatHistoryMessage {
   isAdmin?: boolean;
 }
 
-const json = (res: ServerResponse, status: number, body: unknown) => {
-  res.statusCode = status;
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+const setCorsHeaders = (req: IncomingMessage, res: ServerResponse) => {
+  const origin = req.headers.origin || 'http://127.0.0.1:4173';
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-XSRF-TOKEN');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS');
+  res.setHeader('Vary', 'Origin');
+};
+
+const json = (req: IncomingMessage, res: ServerResponse, status: number, body: unknown) => {
+  res.statusCode = status;
+  setCorsHeaders(req, res);
   res.setHeader('Content-Type', 'application/json');
   res.end(JSON.stringify(body));
 };
@@ -65,7 +72,8 @@ export class MockCommunicationServer {
     });
     this.io = new SocketIOServer(this.httpServer, {
       cors: {
-        origin: '*',
+        origin: 'http://127.0.0.1:4173',
+        credentials: true,
       },
     });
 
@@ -80,8 +88,17 @@ export class MockCommunicationServer {
 
   async stop() {
     if (this.io) {
+      const io = this.io;
       try {
-        await this.io.close();
+        await new Promise<void>((resolve, reject) => {
+          io.close((error?: Error) => {
+            if (error) {
+              reject(error);
+              return;
+            }
+            resolve();
+          });
+        });
       } catch (error) {
         if (!(error instanceof Error) || !error.message.includes('Server is not running')) {
           throw error;
@@ -91,8 +108,11 @@ export class MockCommunicationServer {
     }
 
     if (this.httpServer) {
+      const server = this.httpServer;
+      server.closeIdleConnections?.();
+      server.closeAllConnections?.();
       await new Promise<void>((resolve, reject) => {
-        this.httpServer?.close((error) => {
+        server.close((error) => {
           if (error) {
             if (error.message.includes('Server is not running')) {
               resolve();
@@ -148,15 +168,13 @@ export class MockCommunicationServer {
 
     if (method === 'OPTIONS') {
       res.statusCode = 204;
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS');
+      setCorsHeaders(req, res);
       res.end();
       return;
     }
 
     if (method === 'POST' && url.pathname === '/sms/request-otp') {
-      json(res, 200, { success: true, message: '인증 코드가 발송되었습니다.' });
+      json(req, res, 200, { success: true, message: '인증 코드가 발송되었습니다.' });
       return;
     }
 
@@ -164,6 +182,7 @@ export class MockCommunicationServer {
       const body = await readJson(req);
       const code = typeof body.code === 'string' ? body.code : '';
       json(
+        req,
         res,
         200,
         code === '123456'
@@ -177,6 +196,7 @@ export class MockCommunicationServer {
     if (method === 'GET' && notificationUserMatch) {
       const userId = Number(notificationUserMatch[1]);
       json(
+        req,
         res,
         200,
         this.notifications.filter((item) => item.targetUserId === userId),
@@ -190,11 +210,11 @@ export class MockCommunicationServer {
       this.notifications = this.notifications.map((item) =>
         item._id === id ? { ...item, isRead: true } : item,
       );
-      json(res, 200, { success: true });
+      json(req, res, 200, { success: true });
       return;
     }
 
-    json(res, 404, { success: false, message: 'not_found' });
+    json(req, res, 404, { success: false, message: 'not_found' });
   }
 
   private handleSocket(socket: Socket) {

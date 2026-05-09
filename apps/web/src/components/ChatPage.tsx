@@ -1,37 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { Circle, Loader2, MessageCircle, Send, X } from 'lucide-react';
 import { io, Socket } from 'socket.io-client';
 import { CHAT_SERVER_URL } from '../config/api';
-import './ChatPage.css';
-
-// JWT 토큰에서 role과 userId를 추출하는 함수
-const getRoleFromToken = (): string => {
-  try {
-    const token = localStorage.getItem('token');
-    if (!token) return 'ROLE_USER';
-    
-    // JWT 토큰 디코딩 (base64)
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    return payload.role || 'ROLE_USER';
-  } catch (error) {
-    console.error('토큰에서 role 추출 실패:', error);
-    return 'ROLE_USER';
-  }
-};
-
-// JWT 토큰에서 userId를 추출하는 함수
-const getUserIdFromToken = (): number => {
-  try {
-    const token = localStorage.getItem('token');
-    if (!token) return 1;
-    
-    // JWT 토큰 디코딩 (base64)
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    return payload.userId || 1;
-  } catch (error) {
-    console.error('토큰에서 userId 추출 실패:', error);
-    return 1;
-  }
-};
+import { useUser } from '../context/UserContext';
+import { getAuthToken } from '../shared/lib/storage';
+import { logger } from '../shared/lib/logger';
+import NavigationBar from './NavigationBar';
+import { Badge } from './ui/badge';
+import { Button } from './ui/button';
+import { cn } from '../lib/utils';
 
 interface Message {
   id?: string;
@@ -44,7 +21,7 @@ interface Message {
 
 interface ChatPageProps {
   onClose: () => void;
-  isModal?: boolean; // 모달에서 열렸는지 여부
+  isModal?: boolean;
 }
 
 interface AdminStatus {
@@ -53,114 +30,109 @@ interface AdminStatus {
 }
 
 const ChatPage: React.FC<ChatPageProps> = ({ onClose, isModal = true }) => {
+  const { user } = useUser();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputMessage, setInputMessage] = useState('');
   const [socket, setSocket] = useState<Socket | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState('연결 중...');
   const [adminStatus, setAdminStatus] = useState<AdminStatus>({ isOnline: false });
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // JWT 토큰에서 role과 userId 추출
-    const userRole = getRoleFromToken();
-    const userId = getUserIdFromToken();
-    
-    // WebSocket 연결: 환경변수 URL이 있으면 사용, 없으면 동일 오리진(/socket.io) 사용
-    const url = (CHAT_SERVER_URL && CHAT_SERVER_URL.trim().length > 0) ? CHAT_SERVER_URL : undefined;
+    const token = getAuthToken();
+    const userId = user?.id ?? 0;
+    const url = CHAT_SERVER_URL && CHAT_SERVER_URL.trim().length > 0 ? CHAT_SERVER_URL : undefined;
     const newSocket = url
       ? io(url, {
-          auth: {
-            userId,
-            roles: [userRole]
-          }
+          auth: { token, userId },
+          withCredentials: true,
         })
       : io({
-          auth: {
-            userId,
-            roles: [userRole]
-          }
+          auth: { token, userId },
+          withCredentials: true,
         });
 
     newSocket.on('connect', () => {
       setIsConnected(true);
-      console.log('채팅 서버에 연결되었습니다.');
-      
-      // 사용자 역할 확인
-      const userId = getUserIdFromToken();
-      const userRole = getRoleFromToken();
-      
-      // 관리자가 아닌 경우에만 일반 사용자로 채팅방에 입장
+      setConnectionStatus('연결됨');
+      logger.debug('채팅 서버에 연결되었습니다.');
+
+      const nextUserId = user?.id ?? 0;
+      const userRole = user?.role || 'ROLE_USER';
+
       if (userRole !== 'ROLE_ADMIN') {
-        newSocket.emit('joinChat', { sender: `사용자_${userId}` });
+        newSocket.emit('joinChat', { sender: `사용자_${nextUserId}` });
       }
-      
-      // 채팅 히스토리 요청
-      newSocket.emit('getHistory', { userId: userId.toString() });
+
+      newSocket.emit('getHistory', { userId: nextUserId.toString() });
     });
 
     newSocket.on('disconnect', () => {
       setIsConnected(false);
-      console.log('채팅 서버 연결이 끊어졌습니다.');
+      setConnectionStatus('연결이 끊어졌습니다.');
+      logger.debug('채팅 서버 연결이 끊어졌습니다.');
+    });
+
+    newSocket.on('connect_error', (error) => {
+      setIsConnected(false);
+      setConnectionStatus('채팅 서버에 연결할 수 없습니다.');
+      logger.error('채팅 서버 연결 오류:', error);
     });
 
     newSocket.on('chatHistory', (data) => {
-      console.log('채팅 히스토리:', data.history);
+      logger.debug('채팅 히스토리:', data.history);
       setMessages(data.history || []);
     });
 
     newSocket.on('chatMessage', (message) => {
-      setMessages(prev => [...prev, { ...message, isAdmin: false }]);
+      setMessages((prev) => [...prev, { ...message, isAdmin: false }]);
     });
 
     newSocket.on('adminReply', (message) => {
-      setMessages(prev => [...prev, { ...message, isAdmin: true }]);
-      // 관리자가 응답했으므로 온라인 상태로 설정
+      setMessages((prev) => [...prev, { ...message, isAdmin: true }]);
       setAdminStatus({ isOnline: true });
     });
 
-    // 관리자 온라인 상태 확인
     newSocket.on('adminOnline', () => {
-      console.log('관리자 온라인');
+      logger.debug('관리자 온라인');
       setAdminStatus({ isOnline: true });
     });
 
     newSocket.on('adminOffline', () => {
-      console.log('관리자 오프라인');
+      logger.debug('관리자 오프라인');
       setAdminStatus({ isOnline: false });
     });
 
-    // 연결 시 관리자 상태 확인 요청
     newSocket.emit('checkAdminStatus');
-
     setSocket(newSocket);
 
     return () => {
       newSocket.close();
     };
-  }, []);
+  }, [user?.id, user?.role]);
 
-  // 메시지가 추가될 때마다 스크롤을 맨 아래로
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   const sendMessage = () => {
-    if (!inputMessage.trim() || !socket) return;
+    if (!inputMessage.trim() || !socket || !isConnected) return;
 
-    const userId = getUserIdFromToken();
+    const userId = user?.id ?? 0;
     const messageData = {
       sender: `사용자_${userId}`,
       content: inputMessage,
       type: 'CHAT' as const,
-      recipient: null
+      recipient: null,
     };
 
-    console.log('📤 메시지 전송:', messageData);
+    logger.debug('메시지 전송:', messageData);
     socket.emit('sendMessage', messageData);
     setInputMessage('');
   };
 
-  const handleKeyPress = (e: React.KeyboardEvent) => {
+  const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       sendMessage();
@@ -186,70 +158,86 @@ const ChatPage: React.FC<ChatPageProps> = ({ onClose, isModal = true }) => {
     return `${year}. ${month}. ${day}.(${weekday})`;
   };
 
-  const getAdminStatusText = () => {
-    if (adminStatus.isOnline) {
-      return (
-        <span className="admin-status online">
-          <span className="status-dot"></span>
-          관리자 온라인
-        </span>
-      );
-    } else {
-      return (
-        <span className="admin-status offline">
-          <span className="status-dot"></span>
-          관리자 오프라인
-        </span>
-      );
-    }
-  };
+  const chatPanel = (
+    <section
+      className={cn(
+        'flex w-full flex-col overflow-hidden bg-white text-slate-950',
+        isModal ? 'h-[min(80dvh,720px)] rounded-lg border border-slate-200 shadow-xl' : 'min-h-dvh bg-slate-50 pb-24',
+      )}
+    >
+      <header className="flex items-center justify-between border-b border-slate-100 bg-white px-4 py-3">
+        <Badge variant={adminStatus.isOnline ? 'success' : 'secondary'} className="gap-2">
+          <Circle className={cn('size-2.5 fill-current', adminStatus.isOnline ? 'text-emerald-600' : 'text-slate-400')} />
+          {adminStatus.isOnline ? '관리자 온라인' : '관리자 오프라인'}
+        </Badge>
+        <Button type="button" variant="ghost" size={isModal ? 'icon' : 'sm'} onClick={onClose} aria-label="채팅 나가기">
+          {isModal ? <X className="size-5" /> : '나가기'}
+        </Button>
+      </header>
 
-  return (
-    <div className={`chat-page ${isModal ? 'chat-modal' : 'chat-page-standalone'}`}>
-      {/* 헤더 */}
-      <div className="chat-header content-wrapper">
-        <div className="chat-title">{getAdminStatusText()}</div>
-        <button className="close-button" onClick={onClose} aria-label="채팅 나가기">나가기</button>
-      </div>
-
-      {/* 메시지 영역 */}
-      <div className="chat-messages content-wrapper">
-        {!isConnected && (
-          <div style={{ padding: 12 }}>
-            <div className="skeleton skeleton-bar" style={{ width: '30%', marginBottom: 8 }}></div>
-            <div className="skeleton skeleton-card" style={{ height: 80, marginBottom: 8 }}></div>
-            <div className="skeleton skeleton-card" style={{ height: 80 }}></div>
+      <div className="flex-1 space-y-4 overflow-y-auto bg-slate-50 px-4 py-4">
+        {!isConnected && messages.length > 0 && (
+          <div className="flex items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white p-3 text-sm text-muted-foreground">
+            <Loader2 className="size-4 animate-spin" />
+            {connectionStatus}
           </div>
         )}
+
+        {!isConnected && messages.length === 0 && (
+          <div className="flex min-h-[calc(100dvh-10rem)] flex-col items-center justify-center gap-4 rounded-lg border border-dashed border-slate-200 bg-white px-6 py-10 text-center">
+            <div className="flex size-14 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <MessageCircle className="size-7" />
+            </div>
+            <div>
+              <h2 className="text-lg font-black text-slate-950">상담 연결을 준비 중입니다</h2>
+              <p className="mt-2 text-sm font-medium text-muted-foreground">
+                {connectionStatus}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+              <Loader2 className="size-3.5 animate-spin" />
+              실시간 채팅 서버 확인 중
+            </div>
+          </div>
+        )}
+
         {messages.length === 0 && isConnected && (
-          <div className="date-separator">
-            <span className="date-label">{formatDate(new Date())}</span>
+          <div className="flex justify-center">
+            <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-medium text-slate-600">{formatDate(new Date())}</span>
           </div>
         )}
-        
+
         {messages.map((message, index) => {
           const currentDate = typeof message.timestamp === 'string' ? new Date(message.timestamp) : message.timestamp;
-          const prevDate = index > 0 ? 
-            (typeof messages[index - 1].timestamp === 'string' ? new Date(messages[index - 1].timestamp) : messages[index - 1].timestamp) : 
-            null;
-          
-          const showDate = index === 0 || 
+          const prevDate =
+            index > 0
+              ? typeof messages[index - 1].timestamp === 'string'
+                ? new Date(messages[index - 1].timestamp)
+                : messages[index - 1].timestamp
+              : null;
+
+          const showDate =
+            index === 0 ||
             (prevDate && currentDate instanceof Date && prevDate instanceof Date && currentDate.toDateString() !== prevDate.toDateString());
+          const isAdminMessage = Boolean(message.isAdmin);
 
           return (
-            <React.Fragment key={message.id || index}>
+            <React.Fragment key={message.id || `${message.timestamp}-${index}`}>
               {showDate && (
-                <div className="date-separator">
-                  <span className="date-label">{formatDate(message.timestamp)}</span>
+                <div className="flex justify-center">
+                  <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-medium text-slate-600">{formatDate(message.timestamp)}</span>
                 </div>
               )}
-              <div className={`message ${message.isAdmin ? 'admin' : 'user'}`}>
-                <div className="message-bubble">
+              <div className={cn('flex flex-col gap-1', isAdminMessage ? 'items-start' : 'items-end')}>
+                <div
+                  className={cn(
+                    'max-w-[78%] whitespace-pre-wrap rounded-2xl px-4 py-2 text-sm leading-6 shadow-sm',
+                    isAdminMessage ? 'rounded-bl-md bg-white text-slate-900' : 'rounded-br-md bg-primary text-primary-foreground',
+                  )}
+                >
                   {message.content}
                 </div>
-                <div className="message-time">
-                  {formatTime(message.timestamp)}
-                </div>
+                <div className="px-1 text-[11px] text-muted-foreground">{formatTime(message.timestamp)}</div>
               </div>
             </React.Fragment>
           );
@@ -257,35 +245,35 @@ const ChatPage: React.FC<ChatPageProps> = ({ onClose, isModal = true }) => {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* 입력 영역 */}
-      <div className="chat-input-area content-wrapper">
-        <div className="input-container">
+      <footer className="border-t border-slate-100 bg-white p-3">
+        <div className="flex items-end gap-2">
           <textarea
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="메시지를 입력하세요..."
-            className="message-input"
+            onKeyDown={handleKeyDown}
+            placeholder="메시지를 입력하세요."
+            className="max-h-28 min-h-11 flex-1 resize-none rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
             rows={1}
             aria-label="메시지 입력"
           />
-          <button 
-            onClick={sendMessage}
-            disabled={!inputMessage.trim() || !isConnected}
-            className="send-button"
-            aria-label="메시지 전송"
-          >
+          <Button type="button" onClick={sendMessage} disabled={!inputMessage.trim() || !isConnected} aria-label="메시지 전송">
+            <Send className="size-4" />
             전송
-          </button>
+          </Button>
         </div>
-        {!isConnected && (
-          <div className="connection-status" aria-live="polite">
-            연결 중...
-          </div>
-        )}
-      </div>
-    </div>
+        {!isConnected && <div className="mt-2 text-xs text-muted-foreground" aria-live="polite">{connectionStatus}</div>}
+      </footer>
+    </section>
+  );
+
+  if (isModal) return chatPanel;
+
+  return (
+    <>
+      {chatPanel}
+      <NavigationBar />
+    </>
   );
 };
 
-export default ChatPage; 
+export default ChatPage;

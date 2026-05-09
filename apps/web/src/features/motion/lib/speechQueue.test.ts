@@ -86,6 +86,20 @@ describe('speechQueue', () => {
     expect(queue.getPendingCount()).toBe(0);
   });
 
+  it('continues speaking new items after stop even if the canceled item never resolves', async () => {
+    const engine = new DeferredEngine();
+    const queue = new SpeechQueueController(engine);
+
+    queue.enqueue({ text: 'before stop', channel: 'feedback' });
+    await vi.runAllTimersAsync();
+
+    queue.stop();
+    queue.enqueue({ text: 'after restart', channel: 'count' });
+    await vi.runAllTimersAsync();
+
+    expect(engine.spoken).toEqual(['before stop', 'after restart']);
+  });
+
   it('prefers Microsoft Korean voices when available', () => {
     const voice = choosePreferredKoreanVoice([
       { name: 'Google US English', lang: 'en-US' },

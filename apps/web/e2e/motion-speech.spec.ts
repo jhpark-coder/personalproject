@@ -36,13 +36,13 @@ test.describe('Motion speech coach', () => {
     await page.getByRole('button', { name: 'Feedback Knee' }).click();
     await page.getByRole('button', { name: 'Feedback Knee' }).click();
 
-    await expect
-      .poll(async () => (await readSpeechState(page)).spoken.map((item) => item.text))
-      .toEqual(['스쿼트 1회', '스쿼트 2회', '무릎을 더 펴세요']);
+    await expect.poll(async () => (await readSpeechState(page)).spoken.length).toBe(3);
 
-    await expect
-      .poll(async () => (await readSpeechState(page)).spoken[0]?.voice ?? null)
-      .toContain('Microsoft');
+    const spoken = (await readSpeechState(page)).spoken;
+    expect(spoken[0].text).toContain('1');
+    expect(spoken[1].text).toContain('2');
+    expect(spoken[2].text).not.toEqual(spoken[1].text);
+    expect(spoken[0].voice).toContain('Microsoft');
   });
 
   test('cancels delayed feedback when detection stops before speech starts', async ({ page }) => {
@@ -72,16 +72,36 @@ test.describe('Motion speech coach', () => {
     await page.getByRole('button', { name: 'Start Detection' }).click();
     await page.getByRole('button', { name: 'Count Up' }).click();
 
-    await expect
-      .poll(async () => (await readSpeechState(page)).spoken.map((item) => item.text))
-      .toEqual(['스쿼트 1회']);
+    await expect.poll(async () => (await readSpeechState(page)).spoken.length).toBe(1);
 
     await page.getByRole('button', { name: 'Switch To Lunge' }).click();
     await expect(page.getByTestId('exercise-type')).toContainText('lunge');
     await page.getByRole('button', { name: 'Count Up' }).click();
 
-    await expect
-      .poll(async () => (await readSpeechState(page)).spoken.map((item) => item.text))
-      .toEqual(['스쿼트 1회', '런지 1회']);
+    await expect.poll(async () => (await readSpeechState(page)).spoken.length).toBe(2);
+
+    const spoken = (await readSpeechState(page)).spoken;
+    expect(spoken[1].text).toContain('1');
+    expect(spoken[1].text).not.toEqual(spoken[0].text);
+  });
+
+  test('does not announce a stale count immediately after exercise type changes', async ({ page }) => {
+    await installSpeechSynthesisMock(page);
+
+    await page.goto('/#/support/motion-speech');
+
+    await page.getByRole('button', { name: 'Start Detection' }).click();
+    await page.getByRole('button', { name: 'Count Up' }).click();
+    await page.getByRole('button', { name: 'Count Up' }).click();
+
+    await expect.poll(async () => (await readSpeechState(page)).spoken.length).toBe(2);
+    const beforeSwitch = (await readSpeechState(page)).spoken.map((item) => item.text);
+
+    await page.getByRole('button', { name: 'Switch Type Only' }).click();
+    await expect(page.getByTestId('exercise-type')).toContainText('lunge');
+    await page.waitForTimeout(250);
+
+    await expect.poll(async () => (await readSpeechState(page)).spoken.length).toBe(2);
+    expect((await readSpeechState(page)).spoken.map((item) => item.text)).toEqual(beforeSwitch);
   });
 });

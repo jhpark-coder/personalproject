@@ -1,5 +1,5 @@
 import { API_ENDPOINTS } from '../../../shared/config/api';
-import { getAuthToken } from '../../../shared/lib/storage';
+import { authFetch, authHeaders } from '../../../shared/lib/http';
 
 export interface AppNotification {
   _id: string;
@@ -48,7 +48,9 @@ const toNotifications = (data: unknown): AppNotification[] => {
 };
 
 export const fetchNotifications = async (userId: number) => {
-  const response = await fetch(`${API_ENDPOINTS.NOTIFICATIONS}/user/${userId}`);
+  const response = await authFetch(`${API_ENDPOINTS.NOTIFICATIONS}/user/${userId}`, {
+    headers: authHeaders(),
+  });
   if (!response.ok) {
     throw new Error('알림을 불러오는데 실패했습니다.');
   }
@@ -57,7 +59,9 @@ export const fetchNotifications = async (userId: number) => {
 };
 
 export const fetchUnreadCount = async (userId: number) => {
-  const response = await fetch(`${API_ENDPOINTS.NOTIFICATIONS}/user/${userId}/unread-count`);
+  const response = await authFetch(`${API_ENDPOINTS.NOTIFICATIONS}/user/${userId}/unread-count`, {
+    headers: authHeaders(),
+  });
   if (!response.ok) {
     return 0;
   }
@@ -67,8 +71,9 @@ export const fetchUnreadCount = async (userId: number) => {
 };
 
 export const markNotificationRead = async (notificationId: string) => {
-  const response = await fetch(`${API_ENDPOINTS.NOTIFICATIONS}/${notificationId}/read`, {
+  const response = await authFetch(`${API_ENDPOINTS.NOTIFICATIONS}/${notificationId}/read`, {
     method: 'PUT',
+    headers: authHeaders(),
   });
 
   return response.ok;
@@ -79,10 +84,9 @@ export const markAllNotificationsRead = async (notificationIds: string[]) => {
 };
 
 export const searchUsers = async (query: string, size: number, signal?: AbortSignal) => {
-  const token = getAuthToken();
   const params = new URLSearchParams({ q: query, size: String(size) });
-  const response = await fetch(`${API_ENDPOINTS.BACKEND_URL}/api/users/search?${params.toString()}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  const response = await authFetch(`${API_ENDPOINTS.BACKEND_URL}/api/users/search?${params.toString()}`, {
+    headers: authHeaders(),
     signal,
   });
 
@@ -109,9 +113,8 @@ export const searchUsers = async (query: string, size: number, signal?: AbortSig
 };
 
 export const fetchAllUserIds = async () => {
-  const token = getAuthToken();
-  const response = await fetch(`${API_ENDPOINTS.BACKEND_URL}/api/users/ids`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  const response = await authFetch(`${API_ENDPOINTS.BACKEND_URL}/api/users/ids`, {
+    headers: authHeaders(),
   });
 
   if (!response.ok) {
@@ -122,9 +125,9 @@ export const fetchAllUserIds = async () => {
 };
 
 export const createNotification = async (payload: CreateNotificationPayload) => {
-  return fetch(API_ENDPOINTS.CREATE_NOTIFICATION, {
+  return authFetch(API_ENDPOINTS.CREATE_NOTIFICATION, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(payload),
   });
 };

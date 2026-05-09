@@ -28,13 +28,14 @@ public class JwtTokenProvider {
     @Value("${jwt.secret}")
     private String secretKey;
 
-    private long tokenValidTime = 30 * 60 * 1000L; // 토큰 유효시간 30분
+    @Value("${jwt.expiration:1800000}")
+    private long tokenValidTime;
+
     private long refreshTokenValidTime = 24 * 60 * 60 * 1000L; // 리프레시 토큰 유효시간 24시간
 
     private SecretKey getSigningKey() {
-        // 키 길이가 충분하지 않으면 안전한 키를 생성
-        if (secretKey.length() < 32) {
-            return Keys.secretKeyFor(SignatureAlgorithm.HS512);
+        if (secretKey == null || secretKey.length() < 32) {
+            throw new IllegalStateException("JWT secret must be at least 32 characters long");
         }
         return Keys.hmacShaKeyFor(secretKey.getBytes());
     }
@@ -119,7 +120,7 @@ public class JwtTokenProvider {
     public String generateCalendarToken(String userId, String email, String name, String provider, String oauthId, String picture) {
         Date now = new Date();
         Date expiryDate = new Date(now.getTime() + 300000); // 5분
-        
+
         return Jwts.builder()
                 .setSubject(userId)
                 .claim("email", email)
@@ -133,7 +134,7 @@ public class JwtTokenProvider {
                 .signWith(getSigningKey(), SignatureAlgorithm.HS512)
                 .compact();
     }
-    
+
     /**
      * 토큰이 캘린더 전용 토큰인지 확인합니다.
      */
@@ -144,8 +145,8 @@ public class JwtTokenProvider {
                     .build()
                     .parseClaimsJws(token)
                     .getBody();
-            
-            return claims.get("calendarOnly", Boolean.class) != null && 
+
+            return claims.get("calendarOnly", Boolean.class) != null &&
                    claims.get("calendarOnly", Boolean.class);
         } catch (Exception e) {
             return false;
@@ -172,4 +173,4 @@ public class JwtTokenProvider {
             return true;
         }
     }
-} 
+}

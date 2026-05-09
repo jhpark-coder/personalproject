@@ -6,9 +6,9 @@ WORKDIR /app
 COPY pom.xml .
 RUN mvn -B -DskipTests dependency:go-offline
 
-# 소스 코드 복사 후 빌드 (테스트 스킵)
+# 소스 코드 복사 후 테스트를 포함해 빌드
 COPY src ./src
-RUN mvn -B -DskipTests clean package
+RUN mvn -B clean package
 
 # 2. 실행 단계 - 경량 JDK 런타임 사용
 FROM openjdk:21-jdk-slim
@@ -21,4 +21,4 @@ ENV JAVA_OPTS="-XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -XX:+UseG1GC"
 COPY --from=builder /app/target/*.jar /app/app.jar
 
 EXPOSE 8080
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"] 
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar app.jar"]

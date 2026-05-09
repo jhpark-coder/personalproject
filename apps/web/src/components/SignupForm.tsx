@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { CalendarDays, CheckCircle2, Clock, Eye, EyeOff, Loader2, Lock, Mail, MessageSquareText, Phone, UserRound } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import Modal from './Modal';
 import { API_ENDPOINTS } from '../config/api';
@@ -8,7 +9,12 @@ import {
   setCurrentProvider,
 } from '../shared/lib/storage';
 import { formatPhoneNumberE164 } from '../shared/lib/phoneNumber';
-import './SignupForm.css';
+import { logger } from '../shared/lib/logger';
+import { Button } from './ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './ui/card';
+import { Input } from './ui/input';
+import { Page, PageMain } from './ui/page';
+import { cn } from '../lib/utils';
 
 interface FormErrors {
   email?: string;
@@ -19,7 +25,15 @@ interface FormErrors {
   gender?: string;
   phoneNumber?: string;
   verificationCode?: string;
+  agreements?: string;
 }
+
+type ModalState = {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  type: 'success' | 'error' | 'info';
+};
 
 const SignupForm: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -35,33 +49,36 @@ const SignupForm: React.FC = () => {
 
   const [errors, setErrors] = useState<FormErrors>({});
   const [showPassword, setShowPassword] = useState(false);
-  // 이메일 인증 관련 상태 - 문자 인증으로 대체하여 주석처리
-  // const [isEmailVerificationLoading, setIsEmailVerificationLoading] = useState(false);
-  // const [isEmailVerificationCompleted, setIsEmailVerificationCompleted] = useState(false);
   const [isSmsVerified, setIsSmsVerified] = useState(false);
+  const [termsAgreed, setTermsAgreed] = useState(false);
+  const [smsConsent, setSmsConsent] = useState(false);
   const [showSmsCodeInput, setShowSmsCodeInput] = useState(false);
   const [smsCode, setSmsCode] = useState('');
   const [isSmsLoading, setIsSmsLoading] = useState(false);
-  
-  // 모달 상태
-  const [modal, setModal] = useState<{
-    isOpen: boolean;
-    title: string;
-    message: string;
-    type: 'success' | 'error' | 'info';
-  }>({
+  const [modal, setModal] = useState<ModalState>({
     isOpen: false,
     title: '',
     message: '',
-    type: 'info'
+    type: 'info',
   });
-
-  // SMS 인증 관련 상태
-  const [timeLeft, setTimeLeft] = useState<number>(0); // 초 단위
+  const [timeLeft, setTimeLeft] = useState<number>(0);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [canExtend, setCanExtend] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  
+
+  const showModal = (title: string, message: string, type: ModalState['type'] = 'info') => {
+    setModal({
+      isOpen: true,
+      title,
+      message,
+      type,
+    });
+  };
+
+  const closeModal = () => {
+    setModal((prev) => ({ ...prev, isOpen: false }));
+  };
+
   const validateEmail = (email: string): string | undefined => {
     if (!email) return '이메일을 입력해주세요';
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -88,17 +105,14 @@ const SignupForm: React.FC = () => {
     if (!birthDate) return '생년월일을 입력해주세요';
     if (birthDate.length !== 8) return '생년월일은 8자리로 입력해주세요';
     if (!/^\d{8}$/.test(birthDate)) return '생년월일은 숫자로만 입력해주세요';
-    
+
     const year = parseInt(birthDate.substring(0, 4));
     const month = parseInt(birthDate.substring(4, 6));
     const day = parseInt(birthDate.substring(6, 8));
-    
-    if (year < 1900 || year > new Date().getFullYear()) {
-      return '올바른 년도를 입력해주세요';
-    }
+
+    if (year < 1900 || year > new Date().getFullYear()) return '올바른 년도를 입력해주세요';
     if (month < 1 || month > 12) return '올바른 월을 입력해주세요';
     if (day < 1 || day > 31) return '올바른 일을 입력해주세요';
-    
     return undefined;
   };
 
@@ -111,29 +125,6 @@ const SignupForm: React.FC = () => {
     return undefined;
   };
 
-  // 타이머 시작 함수
-  const startTimer = (duration: number = 300) => { // 5분 = 300초
-    setTimeLeft(duration);
-    setIsTimerRunning(true);
-    setCanExtend(false);
-    
-    timerRef.current = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          // 타이머 종료
-          setIsTimerRunning(false);
-          setCanExtend(true);
-          if (timerRef.current) {
-            clearInterval(timerRef.current);
-          }
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  };
-
-  // 타이머 정리
   const clearTimer = () => {
     if (timerRef.current) {
       clearInterval(timerRef.current);
@@ -143,145 +134,53 @@ const SignupForm: React.FC = () => {
     setTimeLeft(0);
   };
 
-  // 시간 형식 변환 (분:초)
+  const startTimer = (duration: number = 300) => {
+    clearTimer();
+    setTimeLeft(duration);
+    setIsTimerRunning(true);
+    setCanExtend(false);
+
+    timerRef.current = setInterval(() => {
+      setTimeLeft((prev) => {
+        if (prev <= 1) {
+          setIsTimerRunning(false);
+          setCanExtend(true);
+          if (timerRef.current) clearInterval(timerRef.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
   const formatTime = (seconds: number): string => {
     const minutes = Math.floor(seconds / 60);
     const remainingSeconds = seconds % 60;
     return `${minutes.toString().padStart(2, '0')}분${remainingSeconds.toString().padStart(2, '0')}초`;
   };
 
-  // 시간연장 함수
-  const handleExtendTime = async () => {
-    if (!formData.phoneNumber.trim()) {
-      showModal('입력 오류', '전화번호를 입력해주세요.', 'error');
-      return;
-    }
-
-    await handleTwilioOtpRequest(true);
-  };
-
-  // 컴포넌트 언마운트 시 타이머 정리
-  // reCAPTCHA 초기화 주석처리 - Twilio OTP만 사용
-  /*
-  // 컴포넌트 마운트 시 reCAPTCHA 초기화
-  useEffect(() => {
-    const initRecaptcha = async () => {
-      try {
-        await initializeRecaptcha();
-      } catch (error) {
-        console.error('reCAPTCHA 초기화 실패:', error);
-      }
-    };
-    
-    initRecaptcha();
-    
-    return () => {
-      clearTimer();
-      // 컴포넌트 언마운트 시 reCAPTCHA 정리
-      if (recaptchaVerifier) {
-        try {
-          recaptchaVerifier.clear();
-        } catch (e) {
-          console.log('reCAPTCHA 정리 실패:', e);
-        }
-      }
-    };
-  }, []);
-  */
-  
-  // 타이머 정리만 유지
   useEffect(() => {
     return () => {
       clearTimer();
     };
   }, []);
 
-    const handleSmsSend = async () => {
-    if (!formData.phoneNumber.trim()) {
-      showModal('입력 오류', '전화번호를 입력해주세요.', 'error');
-      return;
-    }
-
-    // Firebase SMS 인증 주석처리 - Twilio OTP만 사용
-    /*
-    setIsSmsLoading(true);
-    try {
-      console.log('=== SMS 전송 시작 ===');
-      console.log('입력된 전화번호:', formData.phoneNumber);
-      
-      // reCAPTCHA 확인
-      if (!recaptchaVerifier) {
-        showModal('오류', 'reCAPTCHA가 초기화되지 않았습니다. 페이지를 새로고침해주세요.', 'error');
-        return;
-      }
-
-      // 전화번호 형식 변환 (+82-10-XXXX-XXXX)
-      const phoneNumber = formatPhoneNumberE164(formData.phoneNumber);
-      
-      console.log('변환된 전화번호:', phoneNumber);
-      console.log('Firebase Auth 객체:', auth);
-      console.log('reCAPTCHA Verifier:', recaptchaVerifier);
-      
-      console.log('Firebase SMS 인증 시작...');
-      // Firebase SMS 인증
-      const confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, recaptchaVerifier);
-      
-      console.log('Firebase SMS 인증 성공!');
-      console.log('Confirmation Result:', confirmationResult);
-      
-      // 성공 시 인증 코드 입력 단계로
-      setConfirmationResult(confirmationResult);
-      setSessionInfo(confirmationResult.verificationId);
-      setShowSmsCodeInput(true);
-      setUseTwilioOtp(false); // Firebase 성공 시 Twilio 모드 해제
-      
-      // 타이머 시작
-      startTimer();
-      
-      showModal('SMS 전송 완료', '인증 코드가 전송되었습니다.', 'success');
-      
-    } catch (error: any) {
-      console.error('SMS 전송 실패:', error);
-      if (error?.code === 'auth/too-many-requests') {
-        showModal('전송 제한', '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.', 'error');
-      } else if (error?.code === 'auth/network-request-failed') {
-        // 네트워크 오류 시 Twilio OTP 폴백 제안
-        setShowOtpFallback(true);
-        showModal('네트워크 오류', 'Firebase 인증이 차단되었습니다. 대체 인증 방법을 사용해주세요.', 'error');
-      } else {
-        showModal('전송 실패', 'SMS 전송에 실패했습니다. 다시 시도해주세요.', 'error');
-      }
-      // 다음 시도를 위해 reCAPTCHA 리셋
-      try {
-        if (recaptchaVerifier) {
-          const widgetId = await recaptchaVerifier.render();
-          // @ts-ignore
-          if (window.grecaptcha) window.grecaptcha.reset(widgetId);
-        }
-      } catch (e) {
-        console.log('reCAPTCHA 리셋 실패:', e);
-      }
-    } finally {
-      setIsSmsLoading(false);
-    }
-    */
-
-    // Twilio OTP 인증으로 바로 전환
-    await handleTwilioOtpRequest();
-  };
-
-  // Twilio OTP 인증 요청
   const handleTwilioOtpRequest = async (isRetry = false) => {
     if (!formData.phoneNumber.trim()) {
       showModal('입력 오류', '전화번호를 입력해주세요.', 'error');
       return;
     }
 
+    const phoneError = validatePhoneNumber(formData.phoneNumber);
+    if (phoneError) {
+      setErrors((prev) => ({ ...prev, phoneNumber: phoneError }));
+      showModal('입력 오류', phoneError, 'error');
+      return;
+    }
+
     setIsSmsLoading(true);
     try {
-      console.log('=== Twilio OTP 요청 시작 ===');
       const phoneNumber = formatPhoneNumberE164(formData.phoneNumber);
-      console.log('변환된 전화번호:', phoneNumber);
 
       const response = await fetch(`${API_ENDPOINTS.COMMUNICATION_SERVER_URL}/sms/request-otp`, {
         method: 'POST',
@@ -303,7 +202,6 @@ const SignupForm: React.FC = () => {
 
       if (result.success) {
         setShowSmsCodeInput(true);
-        clearTimer();
         startTimer();
         showModal(
           isRetry ? 'OTP 재발송 완료' : 'OTP 전송 완료',
@@ -314,7 +212,7 @@ const SignupForm: React.FC = () => {
         showModal('전송 실패', result.message || '인증 코드 발송에 실패했습니다.', 'error');
       }
     } catch (error: unknown) {
-      console.error('Twilio OTP 요청 실패:', error);
+      logger.error('Twilio OTP 요청 실패:', error);
       showModal(
         '전송 실패',
         error instanceof Error ? error.message : '인증 코드 발송 중 오류가 발생했습니다.',
@@ -325,7 +223,18 @@ const SignupForm: React.FC = () => {
     }
   };
 
-  // Twilio OTP 인증 확인
+  const handleExtendTime = async () => {
+    await handleTwilioOtpRequest(true);
+  };
+
+  const handleSmsSend = async () => {
+    if (!smsConsent) {
+      showModal('동의 필요', 'SMS 인증 및 알림 수신 동의가 필요합니다.', 'error');
+      return;
+    }
+    await handleTwilioOtpRequest();
+  };
+
   const handleTwilioOtpVerify = async () => {
     if (!smsCode.trim()) {
       showModal('입력 오류', '인증 코드를 입력해주세요.', 'error');
@@ -334,19 +243,16 @@ const SignupForm: React.FC = () => {
 
     setIsSmsLoading(true);
     try {
-      console.log('=== Twilio OTP 확인 시작 ===');
       const phoneNumber = formatPhoneNumberE164(formData.phoneNumber);
-      console.log('전화번호:', phoneNumber);
-      console.log('입력된 코드:', smsCode);
 
       const response = await fetch(`${API_ENDPOINTS.COMMUNICATION_SERVER_URL}/sms/verify-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ 
-          phone: phoneNumber, 
-          code: smsCode 
+        body: JSON.stringify({
+          phone: phoneNumber,
+          code: smsCode,
         }),
       });
 
@@ -362,7 +268,7 @@ const SignupForm: React.FC = () => {
         showModal('인증 실패', result.message || '인증 코드가 올바르지 않습니다.', 'error');
       }
     } catch (error) {
-      console.error('Twilio OTP 확인 실패:', error);
+      logger.error('Twilio OTP 확인 실패:', error);
       showModal('인증 실패', '인증 코드 확인 중 오류가 발생했습니다.', 'error');
     } finally {
       setIsSmsLoading(false);
@@ -370,17 +276,12 @@ const SignupForm: React.FC = () => {
   };
 
   const handleSmsVerify = async () => {
-    if (!smsCode.trim()) {
-      showModal('입력 오류', '인증 코드를 입력해주세요.', 'error');
-      return;
-    }
     await handleTwilioOtpVerify();
   };
 
   const validateForm = (): FormErrors => {
     const newErrors: FormErrors = {};
 
-    // 필수 필드 검증
     const emailError = validateEmail(formData.email);
     if (emailError) newErrors.email = emailError;
 
@@ -395,19 +296,28 @@ const SignupForm: React.FC = () => {
 
     const phoneNumberError = validatePhoneNumber(formData.phoneNumber);
     if (phoneNumberError) newErrors.phoneNumber = phoneNumberError;
+    if (!isSmsVerified) newErrors.phoneNumber = '전화번호 인증이 필요합니다.';
 
-    // 선택 필드는 검증하지 않음 (닉네임, 성별)
+    if (!termsAgreed || !smsConsent) {
+      newErrors.agreements = '이용약관, 개인정보 처리방침, SMS 인증 동의가 필요합니다.';
+    }
 
     return newErrors;
   };
 
   const handleInputChange = (field: string, value: string) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [field]: value
+      [field]: value,
     }));
 
-    // 실시간 유효성 검사 (에러가 있을 때만)
+    if (field === 'phoneNumber') {
+      setIsSmsVerified(false);
+      setShowSmsCodeInput(false);
+      setSmsCode('');
+      clearTimer();
+    }
+
     if (errors[field as keyof FormErrors]) {
       const newErrors = { ...errors };
       delete newErrors[field as keyof FormErrors];
@@ -416,7 +326,6 @@ const SignupForm: React.FC = () => {
   };
 
   const handleBlur = (field: string) => {
-    // 포커스 아웃 시 해당 필드 검증
     const fieldValue = formData[field as keyof typeof formData];
     let fieldError: string | undefined;
 
@@ -436,12 +345,14 @@ const SignupForm: React.FC = () => {
       case 'phoneNumber':
         fieldError = validatePhoneNumber(fieldValue);
         break;
+      default:
+        fieldError = undefined;
     }
 
     if (fieldError) {
-      setErrors(prev => ({ ...prev, [field]: fieldError }));
+      setErrors((prev) => ({ ...prev, [field]: fieldError }));
     } else {
-      setErrors(prev => {
+      setErrors((prev) => {
         const newErrors = { ...prev };
         delete newErrors[field as keyof FormErrors];
         return newErrors;
@@ -450,477 +361,343 @@ const SignupForm: React.FC = () => {
   };
 
   const handleGenderChange = (gender: string) => {
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      gender
+      gender,
     }));
   };
-
-  // 이메일 인증 요청 함수 - 문자 인증으로 대체하여 주석처리
-  /*
-  const handleEmailVerificationRequest = async () => {
-    const emailError = validateEmail(formData.email);
-    if (emailError) {
-      setErrors(prev => ({ ...prev, email: emailError }));
-      return;
-    }
-
-    setIsEmailVerificationLoading(true);
-    
-    try {
-      const response = await fetch(API_ENDPOINTS.SEND_VERIFICATION_EMAIL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email: formData.email }),
-      });
-
-      const data = await response.json();
-      
-      if (data.success) {
-        setShowVerificationCode(true);
-        showModal('인증 코드 발송', '인증 코드가 이메일로 발송되었습니다.', 'success');
-      } else {
-        showModal('발송 실패', data.message || '이메일 발송에 실패했습니다.', 'error');
-      }
-    } catch (error) {
-      console.error('이메일 인증 요청 실패:', error);
-      showModal('발송 실패', '이메일 발송에 실패했습니다. 다시 시도해주세요.', 'error');
-    } finally {
-      setIsEmailVerificationLoading(false);
-    }
-  };
-  */
-
-  // 이메일 인증 코드 검증 함수 - 문자 인증으로 대체하여 주석처리
-  /*
-  const handleVerificationCodeSubmit = async () => {
-    if (!formData.verificationCode.trim()) {
-      showModal('입력 오류', '인증번호를 입력해주세요.', 'error');
-      return;
-    }
-
-    try {
-      const response = await fetch(API_ENDPOINTS.VERIFY_EMAIL_CODE, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          email: formData.email, 
-          code: formData.verificationCode 
-        }),
-      });
-
-      const data = await response.json();
-      
-      if (data.success) {
-        setIsEmailVerificationCompleted(true);
-        showModal('인증 완료', '인증이 완료되었습니다!', 'success');
-        
-        // 인증 완료 후 회원가입 버튼 활성화
-        // 실제 회원가입은 사용자가 버튼을 클릭할 때 실행
-      } else {
-        showModal('인증 실패', data.message || '인증 코드가 올바르지 않습니다.', 'error');
-      }
-    } catch (error) {
-      console.error('인증 코드 확인 실패:', error);
-      showModal('인증 실패', '인증에 실패했습니다. 다시 시도해주세요.', 'error');
-    }
-  };
-  */
 
   const handleSignup = async () => {
     const formErrors = validateForm();
     setErrors(formErrors);
-    
-    if (Object.keys(formErrors).length === 0) {
-      try {
-        const response = await fetch(API_ENDPOINTS.SIGNUP, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            email: formData.email,
-            password: formData.password,
-            nickname: formData.nickname,
-            name: formData.name,
-            birthDate: formData.birthDate,
-            gender: formData.gender,
-            phoneNumber: formData.phoneNumber,
-          }),
-        });
 
-        const data = await response.json();
-        
-        if (data.success) {
-          showModal('회원가입 완료', '회원가입이 완료되었습니다!', 'success');
-
-          clearOnboardingFlags();
-          markJustSignedUp();
-          setCurrentProvider('local');
-
-          // 로그인 페이지로 이동
-          setTimeout(() => {
-            window.location.href = '/login';
-          }, 1500);
-        } else {
-          showModal('회원가입 실패', data.message || '회원가입에 실패했습니다.', 'error');
-        }
-      } catch (error) {
-        console.error('회원가입 실패:', error);
-        showModal('회원가입 실패', '회원가입에 실패했습니다. 다시 시도해주세요.', 'error');
-      }
-    } else {
-      console.log('유효성 검사 실패:', formErrors);
+    if (Object.keys(formErrors).length !== 0) {
+      logger.debug('유효성 검사 실패:', formErrors);
       showModal('입력 오류', '입력 정보를 확인해주세요.', 'error');
+      return;
+    }
+
+    try {
+      const response = await fetch(API_ENDPOINTS.SIGNUP, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+          nickname: formData.nickname,
+          name: formData.name,
+          birthDate: formData.birthDate,
+          gender: formData.gender,
+          phoneNumber: formData.phoneNumber,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        showModal('회원가입 완료', '회원가입이 완료되었습니다!', 'success');
+
+        clearOnboardingFlags();
+        markJustSignedUp();
+        setCurrentProvider('local');
+
+        setTimeout(() => {
+          window.location.href = '/login';
+        }, 1500);
+      } else {
+        showModal('회원가입 실패', data.message || '회원가입에 실패했습니다.', 'error');
+      }
+    } catch (error) {
+      logger.error('회원가입 실패:', error);
+      showModal('회원가입 실패', '회원가입에 실패했습니다. 다시 시도해주세요.', 'error');
     }
   };
 
-  // 이메일 인증 버튼 텍스트 함수 - 문자 인증으로 대체하여 주석처리
-  /*
-  const getEmailVerificationButtonText = () => {
-    if (isEmailVerificationCompleted) return '인증완료';
-    if (isEmailVerificationLoading) return '인증요청중';
-    if (showVerificationCode) return '인증번호발송';
-    return '인증요청';
-  };
-
-  const getEmailVerificationButtonDisabled = () => {
-    return isEmailVerificationLoading || isEmailVerificationCompleted;
-  };
-  */
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    handleSignup();
+    void handleSignup();
   };
 
   const getFieldError = (field: string): string | undefined => {
     return errors[field as keyof FormErrors];
   };
 
-  const showModal = (title: string, message: string, type: 'success' | 'error' | 'info' = 'info') => {
-    setModal({
-      isOpen: true,
-      title,
-      message,
-      type
-    });
-  };
+  const inputClassName = (field: keyof FormErrors) =>
+    getFieldError(field) ? 'border-red-300 focus-visible:ring-red-500' : undefined;
 
-  const closeModal = () => {
-    setModal(prev => ({ ...prev, isOpen: false }));
-  };
+  const renderError = (field: keyof FormErrors) =>
+    getFieldError(field) ? <div className="text-xs font-medium text-red-600">{getFieldError(field)}</div> : null;
 
   return (
-    <div className="signup-form-container">
-      <div className="signup-form-card">
-        <div className="signup-header">
-          <h2>회원가입</h2>
-          <Link to="/login" className="back-to-login">로그인으로 돌아가기</Link>
-        </div>
-
-        <form onSubmit={handleSubmit} className="signup-form">
-          {/* 첫 번째 그룹 */}
-          <div className="input-group">
-            <div className="form-control">
-              <div className={`input_item ${getFieldError('email') ? 'error' : ''}`}>
-                <div className="input-icon">📧</div>
-                <input
-                  type="email"
-                  id="email"
-                  name="email"
-                  value={formData.email}
-                  onChange={(e) => handleInputChange('email', e.target.value)}
-                  onBlur={() => handleBlur('email')}
-                  className={`input_field ${getFieldError('email') ? 'error' : ''}`}
-                  placeholder="이메일주소 *"
-                  autoComplete="email"
-                />
-                {/* 이메일 인증 버튼 - 문자 인증으로 대체하여 주석처리
-                <button
-                  type="button"
-                  className={`email-verification-btn ${
-                    isEmailVerificationLoading ? 'loading' : 
-                    isEmailVerificationCompleted ? 'completed' :
-                    showVerificationCode ? 'sent' : ''
-                  }`}
-                  onClick={handleEmailVerificationRequest}
-                  disabled={getEmailVerificationButtonDisabled()}
-                >
-                  {getEmailVerificationButtonText()}
-                </button>
-                */}
+    <Page className="bg-gradient-to-b from-slate-50 to-white pb-8">
+      <PageMain className="max-w-3xl">
+        <Card className="border-white/80 bg-white shadow-lg">
+          <CardHeader className="space-y-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <CardTitle className="text-2xl">회원가입</CardTitle>
+                <CardDescription className="mt-2">계정 정보와 SMS 인증을 완료하면 FitMate를 사용할 수 있습니다.</CardDescription>
               </div>
-              {getFieldError('email') && (
-                <div className="error-message">{getFieldError('email')}</div>
-              )}
+              <Button type="button" variant="outline" asChild>
+                <Link to="/login">로그인으로 돌아가기</Link>
+              </Button>
             </div>
+          </CardHeader>
 
-            {/* 이메일 인증 코드 입력 - 문자 인증으로 대체하여 주석처리
-            {showVerificationCode && (
-              <div className="form-control">
-                <div className="input_item">
-                  <div className="input-icon">🔐</div>
-                  <input
-                    type="text"
-                    id="verificationCode"
-                    name="verificationCode"
-                    value={formData.verificationCode}
-                    onChange={(e) => handleInputChange('verificationCode', e.target.value)}
-                    className="input_field"
-                    placeholder="인증번호 6자리"
-                    maxLength={6}
-                    disabled={isEmailVerificationCompleted}
-                  />
-                  <button
-                    type="button"
-                    className={`verify-code-btn ${isEmailVerificationCompleted ? 'completed' : ''}`}
-                    onClick={handleVerificationCodeSubmit}
-                    disabled={isEmailVerificationCompleted}
-                  >
-                    {isEmailVerificationCompleted ? '인증완료' : '인증하기'}
-                  </button>
-                </div>
-              </div>
-            )}
-            */}
-
-            <div className="form-control">
-              <div className={`input_item ${getFieldError('password') ? 'error' : ''}`}>
-                <div className="input-icon">🔒</div>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  id="password"
-                  name="password"
-                  value={formData.password}
-                  onChange={(e) => handleInputChange('password', e.target.value)}
-                  onBlur={() => handleBlur('password')}
-                  className={`input_field ${getFieldError('password') ? 'error' : ''}`}
-                  placeholder="비밀번호 *"
-                  autoComplete="new-password"
-                />
-                <button
-                  type="button"
-                  className="password-toggle"
-                  onClick={() => setShowPassword(!showPassword)}
-                >
-                  {showPassword ? '👁️' : '👁️‍🗨️'}
-                </button>
-              </div>
-              {getFieldError('password') && (
-                <div className="error-message">{getFieldError('password')}</div>
-              )}
-            </div>
-
-            <div className="form-control">
-              <div className="input_item">
-                <div className="input-icon">👤</div>
-                <input
-                  type="text"
-                  id="nickname"
-                  name="nickname"
-                  value={formData.nickname}
-                  onChange={(e) => handleInputChange('nickname', e.target.value)}
-                  onBlur={() => handleBlur('nickname')}
-                  className="input_field"
-                  placeholder="닉네임"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* 두 번째 그룹 */}
-          <div className="input-group">
-            <div className="form-control">
-              <div className={`input_item ${getFieldError('name') ? 'error' : ''}`}>
-                <div className="input-icon">👤</div>
-                <input
-                  type="text"
-                  id="name"
-                  name="name"
-                  value={formData.name}
-                  onChange={(e) => handleInputChange('name', e.target.value)}
-                  onBlur={() => handleBlur('name')}
-                  className={`input_field ${getFieldError('name') ? 'error' : ''}`}
-                  placeholder="이름 *"
-                />
-              </div>
-              {getFieldError('name') && (
-                <div className="error-message">{getFieldError('name')}</div>
-              )}
-            </div>
-
-            <div className="form-control">
-              <div className={`input_item ${getFieldError('birthDate') ? 'error' : ''}`}>
-                <div className="input-icon">📅</div>
-                <input
-                  type="text"
-                  id="birthDate"
-                  name="birthDate"
-                  value={formData.birthDate}
-                  onChange={(e) => handleInputChange('birthDate', e.target.value)}
-                  onBlur={() => handleBlur('birthDate')}
-                  className={`input_field ${getFieldError('birthDate') ? 'error' : ''}`}
-                  placeholder="생년월일 8자리 *"
-                  maxLength={8}
-                />
-              </div>
-              {getFieldError('birthDate') && (
-                <div className="error-message">{getFieldError('birthDate')}</div>
-              )}
-            </div>
-          </div>
-
-          {/* 성별 선택 */}
-          <div className="gender-selection">
-            <div className="gender-buttons">
-              <button
-                type="button"
-                className={`gender-btn ${formData.gender === 'male' ? 'active' : ''}`}
-                onClick={() => handleGenderChange('male')}
-              >
-                남자
-              </button>
-              <button
-                type="button"
-                className={`gender-btn ${formData.gender === 'female' ? 'active' : ''}`}
-                onClick={() => handleGenderChange('female')}
-              >
-                여자
-              </button>
-              <button
-                type="button"
-                className={`gender-btn ${formData.gender === 'none' ? 'active' : ''}`}
-                onClick={() => handleGenderChange('none')}
-              >
-                선택안함
-              </button>
-            </div>
-          </div>
-
-          <div className="verification-notice">
-            신분증 상의 이름, 생년월일, 성별과 일치하지 않으면 실명인증이 불가합니다.
-          </div>
-
-          {/* 전화번호 섹션 */}
-          <div className="phone-section">
-            <div className="form-control">
-              <div className={`input_item ${getFieldError('phoneNumber') ? 'error' : ''}`}>
-                <div className="input-icon">📱</div>
-                <input
-                  type="tel"
-                  id="phoneNumber"
-                  name="phoneNumber"
-                  value={formData.phoneNumber}
-                  onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
-                  onBlur={() => handleBlur('phoneNumber')}
-                  className={`input_field ${getFieldError('phoneNumber') ? 'error' : ''}`}
-                  placeholder="휴대전화번호 *"
-                  disabled={isSmsVerified}
-                />
-                <button
-                  type="button"
-                  className={`sms-verification-btn ${
-                    isSmsVerified ? 'completed' : ''
-                  }`}
-                  onClick={handleSmsSend}
-                  disabled={isSmsVerified || isSmsLoading}
-                >
-                  {isSmsVerified ? '인증완료' : isSmsLoading ? '전송중...' : '문자 인증'}
-                </button>
-              </div>
-              {getFieldError('phoneNumber') && (
-                <div className="error-message">{getFieldError('phoneNumber')}</div>
-              )}
-              {isSmsVerified && (
-                <div className="success-message">✅ 전화번호 인증이 완료되었습니다.</div>
-              )}
-              
-              {/* Twilio OTP 인증 버튼 */}
-              {!isSmsVerified && (
-                <div className="otp-section">
-                  <div className="otp-notice">
-                    <span className="otp-icon">📱</span>
-                    <span className="otp-text">Twilio 문자 인증을 사용합니다.</span>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <section className="grid gap-4 sm:grid-cols-2">
+                <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+                  이메일주소 *
+                  <div className="relative">
+                    <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      type="email"
+                      id="email"
+                      name="email"
+                      value={formData.email}
+                      onChange={(e) => handleInputChange('email', e.target.value)}
+                      onBlur={() => handleBlur('email')}
+                      className={cn('pl-9', inputClassName('email'))}
+                      placeholder="name@example.com"
+                      autoComplete="email"
+                    />
                   </div>
-                </div>
-              )}
-            </div>
+                  {renderError('email')}
+                </label>
 
-            {/* SMS 인증 코드 입력 */}
-            {showSmsCodeInput && !isSmsVerified && (
-              <div className="form-control">
-                <div className="input_item">
-                  <div className="input-icon">🔐</div>
-                  <input
-                    type="text"
-                    id="smsCode"
-                    name="smsCode"
-                    value={smsCode}
-                    onChange={(e) => setSmsCode(e.target.value)}
-                    className="input_field"
-                    placeholder="SMS 인증 코드 6자리"
-                    maxLength={6}
-                    disabled={isSmsLoading}
-                  />
-                  <button
-                    type="button"
-                    className="verify-sms-btn"
-                    onClick={handleSmsVerify}
-                    disabled={isSmsLoading || !smsCode.trim()}
-                  >
-                    {isSmsLoading ? '인증중...' : '인증하기'}
-                  </button>
-                </div>
-                
-                {/* 타이머 및 연장 버튼 */}
-                <div className="sms-timer-section">
-                  <div className="timer-info">
-                    <span className="timer-icon">⏰</span>
-                    <span className="timer-text">
-                      {isTimerRunning ? formatTime(timeLeft) : '시간 만료'}
-                    </span>
-                  </div>
-                  
-                  {canExtend && (
+                <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+                  비밀번호 *
+                  <div className="relative">
+                    <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      type={showPassword ? 'text' : 'password'}
+                      id="password"
+                      name="password"
+                      value={formData.password}
+                      onChange={(e) => handleInputChange('password', e.target.value)}
+                      onBlur={() => handleBlur('password')}
+                      className={cn('pl-9 pr-10', inputClassName('password'))}
+                      placeholder="영문+숫자 8자 이상"
+                      autoComplete="new-password"
+                    />
                     <button
                       type="button"
-                      className="extend-time-btn"
-                      onClick={handleExtendTime}
-                      disabled={isSmsLoading}
+                      className="absolute right-2 top-1/2 flex size-8 -translate-y-1/2 items-center justify-center rounded-md text-muted-foreground hover:bg-slate-100"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      aria-label={showPassword ? '비밀번호 숨기기' : '비밀번호 보기'}
                     >
-                      시간연장
+                      {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
                     </button>
-                  )}
-                </div>
-                
-                <div className="sms-notice">
-                  인증번호를 발송했습니다. 인증 문자가 오지 않으면 시간연장을 눌러주세요.
-                </div>
-              </div>
-            )}
-          </div>
+                  </div>
+                  {renderError('password')}
+                </label>
 
-          <button type="submit" className="verification-button" disabled={!isSmsVerified}>
-            회원가입
-          </button>
-        </form>
-      </div>
-      
-      {/* 모달 컴포넌트 */}
-      <Modal
-        isOpen={modal.isOpen}
-        onClose={closeModal}
-        title={modal.title}
-        message={modal.message}
-        type={modal.type}
-      />
-    </div>
+                <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+                  닉네임
+                  <div className="relative">
+                    <UserRound className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      id="nickname"
+                      name="nickname"
+                      value={formData.nickname}
+                      onChange={(e) => handleInputChange('nickname', e.target.value)}
+                      onBlur={() => handleBlur('nickname')}
+                      className="pl-9"
+                      placeholder="닉네임"
+                    />
+                  </div>
+                </label>
+
+                <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+                  이름 *
+                  <div className="relative">
+                    <UserRound className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      id="name"
+                      name="name"
+                      value={formData.name}
+                      onChange={(e) => handleInputChange('name', e.target.value)}
+                      onBlur={() => handleBlur('name')}
+                      className={cn('pl-9', inputClassName('name'))}
+                      placeholder="실명"
+                    />
+                  </div>
+                  {renderError('name')}
+                </label>
+
+                <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+                  생년월일 *
+                  <div className="relative">
+                    <CalendarDays className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      type="text"
+                      id="birthDate"
+                      name="birthDate"
+                      value={formData.birthDate}
+                      onChange={(e) => handleInputChange('birthDate', e.target.value)}
+                      onBlur={() => handleBlur('birthDate')}
+                      className={cn('pl-9', inputClassName('birthDate'))}
+                      placeholder="YYYYMMDD"
+                      maxLength={8}
+                    />
+                  </div>
+                  {renderError('birthDate')}
+                </label>
+
+                <div className="grid gap-1.5 text-sm font-medium text-slate-700">
+                  성별
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      { value: 'male', label: '남자' },
+                      { value: 'female', label: '여자' },
+                      { value: 'none', label: '선택안함' },
+                    ].map((option) => (
+                      <Button
+                        key={option.value}
+                        type="button"
+                        variant={formData.gender === option.value ? 'default' : 'outline'}
+                        onClick={() => handleGenderChange(option.value)}
+                      >
+                        {option.label}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              </section>
+
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-900">
+                신분증 상의 이름, 생년월일, 성별과 일치하지 않으면 실명인증이 불가합니다.
+              </div>
+
+              <section className="space-y-4 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-start gap-2">
+                  <Phone className="mt-0.5 size-5 text-primary" />
+                  <div>
+                    <h2 className="text-sm font-semibold text-slate-950">전화번호 인증</h2>
+                    <p className="text-sm text-muted-foreground">회원가입 본인 확인을 위해 Twilio 문자 인증을 사용합니다.</p>
+                  </div>
+                </div>
+
+                <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+                  휴대전화번호 *
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <div className="relative flex-1">
+                      <Phone className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input
+                        type="tel"
+                        id="phoneNumber"
+                        name="phoneNumber"
+                        value={formData.phoneNumber}
+                        onChange={(e) => handleInputChange('phoneNumber', e.target.value)}
+                        onBlur={() => handleBlur('phoneNumber')}
+                        className={cn('pl-9', inputClassName('phoneNumber'))}
+                        placeholder="010-1234-5678"
+                        disabled={isSmsVerified}
+                      />
+                    </div>
+                    <Button type="button" onClick={handleSmsSend} disabled={isSmsVerified || isSmsLoading} className="sm:w-32">
+                      {isSmsLoading && <Loader2 className="size-4 animate-spin" />}
+                      {isSmsVerified ? '인증완료' : isSmsLoading ? '전송중' : '문자 인증'}
+                    </Button>
+                  </div>
+                  {renderError('phoneNumber')}
+                  {isSmsVerified && (
+                    <div className="flex items-center gap-1 text-xs font-medium text-emerald-700">
+                      <CheckCircle2 className="size-3.5" />
+                      전화번호 인증이 완료되었습니다.
+                    </div>
+                  )}
+                </label>
+
+                {showSmsCodeInput && !isSmsVerified && (
+                  <div className="space-y-3 rounded-lg border border-white bg-white p-3 shadow-sm">
+                    <label className="grid gap-1.5 text-sm font-medium text-slate-700">
+                      SMS 인증 코드
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <Input
+                          type="text"
+                          id="smsCode"
+                          name="smsCode"
+                          value={smsCode}
+                          onChange={(e) => setSmsCode(e.target.value)}
+                          placeholder="인증 코드 6자리"
+                          maxLength={6}
+                          disabled={isSmsLoading}
+                        />
+                        <Button type="button" onClick={handleSmsVerify} disabled={isSmsLoading || !smsCode.trim()} className="sm:w-28">
+                          {isSmsLoading && <Loader2 className="size-4 animate-spin" />}
+                          {isSmsLoading ? '인증중' : '인증하기'}
+                        </Button>
+                      </div>
+                    </label>
+
+                    <div className="flex items-center justify-between gap-3 rounded-md bg-slate-50 px-3 py-2">
+                      <div className="flex items-center gap-2 text-sm font-medium text-slate-700">
+                        <Clock className="size-4 text-muted-foreground" />
+                        {isTimerRunning ? formatTime(timeLeft) : '시간 만료'}
+                      </div>
+                      {canExtend && (
+                        <Button type="button" size="sm" variant="outline" onClick={handleExtendTime} disabled={isSmsLoading}>
+                          시간연장
+                        </Button>
+                      )}
+                    </div>
+
+                    <div className="flex items-start gap-2 text-xs leading-5 text-muted-foreground">
+                      <MessageSquareText className="mt-0.5 size-4 shrink-0" />
+                      인증번호를 발송했습니다. 인증 문자가 오지 않으면 시간연장을 눌러주세요.
+                    </div>
+                  </div>
+                )}
+              </section>
+
+              <section className="space-y-3">
+                <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={termsAgreed}
+                    onChange={(event) => setTermsAgreed(event.target.checked)}
+                    className="mt-1 size-4 rounded border-slate-300"
+                  />
+                  <span>
+                    <Link to="/terms" target="_blank" rel="noopener noreferrer" className="font-semibold text-primary underline-offset-4 hover:underline">
+                      이용약관
+                    </Link>
+                    {' '}및{' '}
+                    <Link to="/privacy" target="_blank" rel="noopener noreferrer" className="font-semibold text-primary underline-offset-4 hover:underline">
+                      개인정보 처리방침
+                    </Link>
+                    에 동의합니다.
+                  </span>
+                </label>
+                <label className="flex items-start gap-3 rounded-lg border border-slate-200 p-3 text-sm text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={smsConsent}
+                    onChange={(event) => setSmsConsent(event.target.checked)}
+                    className="mt-1 size-4 rounded border-slate-300"
+                  />
+                  <span>회원가입 본인 확인과 서비스 알림을 위한 SMS 수신에 동의합니다.</span>
+                </label>
+                {renderError('agreements')}
+              </section>
+
+              <Button type="submit" size="lg" className="w-full" disabled={!isSmsVerified || !termsAgreed || !smsConsent}>
+                회원가입
+              </Button>
+            </form>
+          </CardContent>
+        </Card>
+      </PageMain>
+
+      <Modal isOpen={modal.isOpen} onClose={closeModal} title={modal.title} message={modal.message} type={modal.type} />
+    </Page>
   );
 };
 
-export default SignupForm; 
+export default SignupForm;

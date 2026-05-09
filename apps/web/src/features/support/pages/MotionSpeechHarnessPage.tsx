@@ -80,6 +80,9 @@ export default function MotionSpeechHarnessPage() {
         <button type="button" onClick={() => setExercise('lunge')}>
           Switch To Lunge
         </button>
+        <button type="button" onClick={() => setExerciseType('lunge')}>
+          Switch Type Only
+        </button>
         <button type="button" onClick={() => speechCoach.stop()}>
           Stop Speech
         </button>

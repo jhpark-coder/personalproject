@@ -12,6 +12,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.util.StringUtils;
 
 import backend.fitmate.exercise.entity.Exercise;
 import backend.fitmate.exercise.repository.ExerciseRepository;
@@ -23,9 +24,11 @@ import backend.fitmate.user.service.BodyRecordService;
 import backend.fitmate.user.service.UserService;
 import backend.fitmate.user.service.WorkoutRecordService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Configuration
 @RequiredArgsConstructor
+@Slf4j
 public class DataLoader {
 
     private final UserService userService;
@@ -42,8 +45,20 @@ public class DataLoader {
     @Value("${data.loader.initial-data-only:false}")
     private boolean initialDataOnly;
 
+    @Value("${data.loader.test-data.enabled:true}")
+    private boolean testDataEnabled;
+
     @Value("${data.loader.force-reset:false}")
     private boolean forceReset;
+
+    @Value("${data.loader.admin-password:}")
+    private String adminPassword;
+
+    @Value("${data.loader.test-password:}")
+    private String testUserPassword;
+
+    @Value("${data.loader.demo-email:demo@fitmate.local}")
+    private String demoUserEmail;
 
     // Wger API 호출 비활성화 플래그 제거
     // @Value("${wger.fetch.enabled:true}")
@@ -53,12 +68,13 @@ public class DataLoader {
     @ConditionalOnProperty(name = "data.loader.enabled", havingValue = "true", matchIfMissing = true)
     public CommandLineRunner loadData() {
         return args -> {
-            System.out.println("🚀 DataLoader 시작!");
-            System.out.println("🔧 현재 활성 프로필: " + System.getProperty("spring.profiles.active"));
-            System.out.println("🔧 현재 ddl-auto 설정: " + System.getProperty("spring.jpa.hibernate.ddl-auto"));
-            System.out.println("🔧 초기 데이터만 로드: " + initialDataOnly);
-            System.out.println("🔧 강제 리셋: " + forceReset);
-            
+            log.info("DataLoader started: profiles={}, ddlAuto={}, initialDataOnly={}, testDataEnabled={}, forceReset={}",
+                    System.getProperty("spring.profiles.active"),
+                    System.getProperty("spring.jpa.hibernate.ddl-auto"),
+                    initialDataOnly,
+                    testDataEnabled,
+                    forceReset);
+
             // 운동 데이터 로드 (데이터가 없을 때만, 또는 강제 리셋 시)
             loadInitialExercises();
 
@@ -66,115 +82,120 @@ public class DataLoader {
             try {
                 metsDataLoader.run();
             } catch (Exception e) {
-                System.out.println("❌ MetsDataLoader 실행 중 오류: " + e.getMessage());
+                log.warn("MetsDataLoader failed", e);
             }
 
-            if (!initialDataOnly) {
+            if (testDataEnabled && !initialDataOnly) {
                 loadInitialTestData();
             } else {
-                System.out.println("⏭️ 초기 데이터만 로드 모드: 테스트 데이터 생성 건너뜀");
+                log.info("Test data generation skipped");
             }
-            
-            System.out.println("✅ DataLoader 완료!");
+
+            log.info("DataLoader completed");
         };
     }
 
     private void loadInitialExercises() {
-        System.out.println("🔍 loadInitialExercises 시작");
+        log.debug("loadInitialExercises started");
 
         try {
             long exerciseCount = exerciseRepository.count();
-            System.out.println("📊 현재 DB에 저장된 운동 데이터 개수: " + exerciseCount);
-            System.out.println("🔧 강제 리셋 모드: " + forceReset);
-            
+            log.info("Exercise seed status: count={}, forceReset={}", exerciseCount, forceReset);
+
             if (exerciseCount == 0 || forceReset) {
                 if (forceReset) {
-                    System.out.println("🔄 강제 리셋 모드: 기존 운동 데이터를 삭제하고 새로 로드합니다...");
+                    log.warn("Force reset enabled: deleting existing exercise data before seed load");
                     exerciseRepository.deleteAll();
                 } else {
-                    System.out.println("🚀 운동 데이터가 없습니다. 제공된 운동 데이터로 초기화합니다...");
+                    log.info("No exercise data found; seed loader will initialize exercise data");
                 }
 
                 // CSV 매핑 및 제공된 운동 세트를 통해 초기화는 MetsDataLoader가 처리하므로 여기서는 아무 것도 하지 않음
-                System.out.println("✅ 초기 운동 데이터는 MetsDataLoader에서 처리됩니다.");
+                log.info("Initial exercise data is handled by MetsDataLoader");
             } else {
-                System.out.println("✅ 운동 데이터가 이미 존재합니다. (" + exerciseCount + "개)");
-                System.out.println("⏭️ 추가 초기화 없이 기존 데이터 사용");
+                log.info("Exercise data already exists; using existing rows: count={}", exerciseCount);
             }
         } catch (Exception e) {
-            System.out.println("❌ 데이터베이스 연결 또는 카운트 조회 중 오류: " + e.getMessage());
-            e.printStackTrace();
+            log.warn("Failed to inspect exercise seed state", e);
         }
-        
-        System.out.println("🔍 loadInitialExercises 완료");
+
+        log.debug("loadInitialExercises completed");
     }
 
     private void loadInitialTestData() {
-        System.out.println("🔍 loadInitialTestData 시작");
-        
+        log.debug("loadInitialTestData started");
+
         // 관리자 계정 생성
         createAdminUser();
-        
+
         // 테스트 사용자가 있는지 확인
-        Optional<User> existingUserOpt = userService.findByEmail("test@fitmate.com");
-        
+        Optional<User> existingUserOpt = userService.findByEmail(demoUserEmail);
+
         if (existingUserOpt.isPresent()) {
             User existingUser = existingUserOpt.get();
-            System.out.println("✅ 테스트 사용자가 이미 존재합니다. ID: " + existingUser.getId());
+            log.info("Test user already exists: id={}", existingUser.getId());
             // 비밀번호가 아직 암호화되지 않았다면 암호화
             if (existingUser.getPassword() != null && !existingUser.getPassword().startsWith("$2")) {
-                existingUser.setPassword(passwordEncoder.encode("password123"));
-                userService.save(existingUser);
-                System.out.println("🔒 테스트 사용자 비밀번호를 BCrypt 로 암호화했습니다.");
+                if (StringUtils.hasText(testUserPassword)) {
+                    existingUser.setPassword(passwordEncoder.encode(testUserPassword));
+                    userService.save(existingUser);
+                    log.info("Test user password was migrated to BCrypt");
+                } else {
+                    log.warn("Test user password migration skipped; configure data.loader.test-password");
+                }
             }
-            
+
             // 📱 테스트 사용자 전화번호 보정
             String desiredPhone = "010-1234-5678";
             if (existingUser.getPhoneNumber() == null || !existingUser.getPhoneNumber().equals(desiredPhone)) {
                 existingUser.setPhoneNumber(desiredPhone);
                 userService.save(existingUser);
-                System.out.println("📱 테스트 사용자 전화번호를 010-1234-5678 로 업데이트했습니다.");
+                log.info("Test user phone number was normalized");
             }
-            
+
             // 기존 테스트 데이터가 있는지 확인
             long workoutCount = workoutRecordService.countByUserId(existingUser.getId());
             long bodyRecordCount = bodyRecordService.countByUserId(existingUser.getId());
-            
+
             if ((workoutCount == 0 || bodyRecordCount == 0) || forceReset) {
                 if (forceReset) {
-                    System.out.println("🔄 강제 리셋 모드: 기존 테스트 데이터를 삭제하고 새로 생성합니다...");
+                    log.warn("Force reset enabled: deleting existing test data");
                     workoutRecordService.deleteAllByUserId(existingUser.getId());
                     bodyRecordService.deleteAllByUserId(existingUser.getId());
                 } else {
-                    System.out.println("📊 테스트 데이터가 없습니다. 생성합니다...");
+                    log.info("Test data is missing; generating test data");
                 }
                 createWorkoutRecords(existingUser);
                 createBodyRecords(existingUser);
-                System.out.println("✅ 테스트 데이터 생성 완료!");
+                log.info("Test data generation completed");
             } else {
-                System.out.println("✅ 테스트 데이터가 이미 존재합니다. (운동 기록: " + workoutCount + "개, 신체 기록: " + bodyRecordCount + "개)");
+                log.info("Test data already exists: workoutCount={}, bodyRecordCount={}", workoutCount, bodyRecordCount);
             }
 
             // 항상 최근 5일 신체 데이터는 보정해서 채운다
             ensureRecentBodyRecords(existingUser);
             // 운동 기록은 생성 로직에서 일별 생성되므로 별도 보정 불필요
         } else {
-            System.out.println("👤 테스트 사용자가 없습니다. 생성합니다...");
+            if (!StringUtils.hasText(testUserPassword)) {
+                log.info("Test user creation skipped; configure data.loader.test-password to enable test seed users");
+                return;
+            }
+            log.info("Test user does not exist; creating test user");
             User testUser = createTestUser();
             createWorkoutRecords(testUser);
             createBodyRecords(testUser);
             // 생성 직후에도 최근 5일은 반드시 채워준다
             ensureRecentBodyRecords(testUser);
-            System.out.println("✅ 테스트 사용자 및 데이터 생성 완료! ID: " + testUser.getId());
+            log.info("Test user and data generation completed: id={}", testUser.getId());
         }
-        
-        System.out.println("🔍 loadInitialTestData 완료");
+
+        log.debug("loadInitialTestData completed");
     }
 
     private User createTestUser() {
         // 새 테스트 사용자 생성
         User testUser = new User();
-        testUser.setEmail("test@fitmate.com");
+        testUser.setEmail(demoUserEmail);
         testUser.setName("테스트 사용자");
         testUser.setPhoneNumber("010-1234-5678");
         testUser.setAge("28");
@@ -184,11 +205,9 @@ public class DataLoader {
         testUser.setBirthDate("19960115"); // 생년월일 추가 (1996년 1월 15일)
         testUser.setGoal("체중 감량 및 근력 향상");
         testUser.setExperience("intermediate");
-        
-        // 비밀번호 설정 (제약조건: 8자 이상, 영문+숫자 포함)
-        String password = "password123";
-        testUser.setPassword(passwordEncoder.encode(password));
-        
+
+        testUser.setPassword(passwordEncoder.encode(testUserPassword));
+
         testUser = userService.save(testUser);
         return testUser;
     }
@@ -199,7 +218,7 @@ public class DataLoader {
 
         List<Exercise> metExercises = exerciseRepository.findByMetsIsNotNull();
         if (metExercises.isEmpty()) {
-            System.out.println("⚠️ MET 값이 있는 운동이 DB 에 없습니다. 기본 로직을 건너뜁니다.");
+            log.warn("No exercises with MET values found; skipping workout record generation");
             return;
         }
 
@@ -237,7 +256,7 @@ public class DataLoader {
                 else if (mets < 6.0) intensity = 4 + random.nextInt(3);
                 else intensity = 7 + random.nextInt(4);
                 record.setIntensity(intensity);
-                
+
                 // 난이도 설정 (강도에 따라)
                 WorkoutRecord.WorkoutDifficulty difficulty;
                 if (intensity <= 3) {
@@ -248,7 +267,7 @@ public class DataLoader {
                     difficulty = WorkoutRecord.WorkoutDifficulty.HARD;
                 }
                 record.setDifficulty(difficulty);
-                
+
                 // 웨이트 운동인 경우 추가 정보 (무게는 1자리 반올림)
                 if (ex.getName().contains("바벨") || ex.getName().contains("덤벨") ||
                     ex.getName().contains("레그") || ex.getName().contains("벤치")) {
@@ -256,12 +275,12 @@ public class DataLoader {
                     record.setReps(8 + random.nextInt(12)); // 8-19회
                     record.setWeight(roundTo1Decimal(20.0 + random.nextDouble() * 80.0)); // 20-100kg
                 }
-                
+
                 record.setNotes("MET: " + roundTo1Decimal(mets) + ", 계산된 칼로리: " + calculatedCalories + " kcal");
-                
+
                 workoutRecordService.saveWorkoutRecord(user.getId(), record);
             }
-            
+
             currentDate = currentDate.plusDays(1);
         }
     }
@@ -269,12 +288,12 @@ public class DataLoader {
     private void createBodyRecords(User user) {
         LocalDate startDate = LocalDate.now().minusDays(90); // 3개월치 데이터
         LocalDate endDate = LocalDate.now();
-        
+
         // 초기 신체 데이터
         double initialWeight = 72.0;
         double initialBodyFat = 18.0;
         double initialMuscleMass = 55.0;
-        
+
         LocalDate currentDate = startDate;
         LocalDate mandatoryStart = endDate.minusDays(4); // 최근 5일은 무조건 생성
         while (!currentDate.isAfter(endDate)) {
@@ -284,27 +303,27 @@ public class DataLoader {
                 BodyRecord record = new BodyRecord();
                 record.setUser(user);
                 record.setMeasureDate(currentDate);
-                
+
                 // 점진적인 변화 생성 (체중 감소, 근육량 증가)
                 double progressFactor = (currentDate.toEpochDay() - startDate.toEpochDay()) / 90.0; // 3개월 기준
-                
+
                 // 체중: 초기 72kg에서 점진적으로 감소 (소수점 첫째자리로 반올림)
                 double weight = initialWeight - (progressFactor * 2.0) + (random.nextDouble() - 0.5) * 0.5;
                 record.setWeight(roundTo1Decimal(weight));
-                
+
                 // 체지방률: 초기 18%에서 점진적으로 감소 (소수점 첫째자리로 반올림)
                 double bodyFat = initialBodyFat - (progressFactor * 1.5) + (random.nextDouble() - 0.5) * 0.3;
                 record.setBodyFatPercentage(roundTo1Decimal(bodyFat));
-                
+
                 // 근육량: 초기 55kg에서 점진적으로 증가 (소수점 첫째자리로 반올림)
                 double muscleMass = initialMuscleMass + (progressFactor * 1.0) + (random.nextDouble() - 0.5) * 0.2;
                 record.setMuscleMass(roundTo1Decimal(muscleMass));
-                
+
                 record.setNotes("테스트 신체 측정 기록");
-                
+
                 bodyRecordService.saveBodyRecord(user.getId(), record);
             }
-            
+
             currentDate = currentDate.plusDays(1);
         }
     }
@@ -348,33 +367,33 @@ public class DataLoader {
 
                 record.setNotes("최근 5일 보정 자동 생성");
                 bodyRecordService.saveBodyRecord(user.getId(), record);
-                System.out.println("🧩 최근 5일 보정: " + date + " 데이터 생성 완료");
+                log.debug("Recent body record backfilled: date={}", date);
             }
             date = date.plusDays(1);
         }
     }
 
     private void createAdminUser() {
-        System.out.println("👨‍💼 관리자 계정 확인 중...");
-        
+        log.info("Checking bootstrap admin account");
+
         // 관리자 계정이 있는지 확인
         Optional<User> existingAdminOpt = userService.findByEmail("admin@fitmate.com");
-        
+
         if (existingAdminOpt.isPresent()) {
             User existingAdmin = existingAdminOpt.get();
-            System.out.println("✅ 관리자 계정이 이미 존재합니다. ID: " + existingAdmin.getId());
-            
+            log.info("Bootstrap admin account already exists: id={}", existingAdmin.getId());
+
             // 관리자 권한이 없으면 업데이트
             if (!"ROLE_ADMIN".equals(existingAdmin.getRole())) {
-                System.out.println("🔄 관리자 권한 업데이트 중...");
+                log.warn("Existing bootstrap admin missing ROLE_ADMIN; updating role");
                 existingAdmin.setRole("ROLE_ADMIN");
                 userService.save(existingAdmin);
-                System.out.println("✅ 관리자 권한 업데이트 완료!");
+                log.info("Bootstrap admin role updated");
             } else {
-                System.out.println("✅ 관리자 권한이 이미 설정되어 있습니다.");
+                log.debug("Bootstrap admin role already configured");
             }
         } else {
-            System.out.println("👨‍💼 관리자 계정이 없습니다. 생성합니다...");
+            log.info("Bootstrap admin account does not exist");
             User adminUser = new User();
             adminUser.setEmail("admin@fitmate.com");
             adminUser.setName("관리자");
@@ -386,20 +405,21 @@ public class DataLoader {
             adminUser.setBirthDate("19940101");
             adminUser.setGoal("운동 관리 및 사용자 지원");
             adminUser.setExperience("advanced");
-            adminUser.setRole("ROLE_ADMIN"); // 관리자 권한 설정
-            
-            // 비밀번호 설정 (테스트 사용자와 동일)
-            String password = "password123";
+            adminUser.setRole("ROLE_ADMIN");
+
+            String password = adminPassword;
+            if (password == null || password.isBlank()) {
+                log.info("Bootstrap admin creation skipped; configure data.loader.admin-password to enable it");
+                return;
+            }
             adminUser.setPassword(passwordEncoder.encode(password));
-            
+
             adminUser = userService.save(adminUser);
-            System.out.println("✅ 관리자 계정 생성 완료! ID: " + adminUser.getId());
-            System.out.println("📧 이메일: admin@fitmate.com");
-            System.out.println("🔑 비밀번호: password123");
+            log.info("Bootstrap admin account created: id={}", adminUser.getId());
         }
     }
 
     private double roundTo1Decimal(double v) {
         return Math.round(v * 10.0) / 10.0;
     }
-} 
+}

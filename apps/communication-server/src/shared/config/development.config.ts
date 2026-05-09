@@ -18,9 +18,9 @@ export default registerAs('development', () => ({
 
   // SMS 설정 (개발용 - 테스트용)
   sms: {
-    apiKey: process.env.SMS_API_KEY || 'dev_sms_api_key',
-    secretKey: process.env.SMS_SECRET_KEY || 'dev_sms_secret_key',
-    serviceId: process.env.SMS_SERVICE_ID || 'dev_sms_service_id',
+    apiKey: process.env.SMS_API_KEY || '',
+    secretKey: process.env.SMS_SECRET_KEY || '',
+    serviceId: process.env.SMS_SERVICE_ID || '',
     enabled: false, // 개발에서는 SMS 비활성화
   },
 
